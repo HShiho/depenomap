@@ -1,0 +1,11 @@
+# 計画ドキュメント。テーブル主体で手で整えており、整形の対象にしない（計画 Q11）
+# plan/.gitignore が `*` のため Prettier 3 の既定でも除外されるが、明示しておく
+plan/
+
+# 生成物・ロックファイル
+pnpm-lock.yaml
+flake.lock
+node_modules/
+dist/
+coverage/
+.direnv/

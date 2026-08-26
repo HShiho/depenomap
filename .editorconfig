@@ -1,0 +1,21 @@
+# インデントは半角スペース 2 個で統一する。
+# フォーマッターの対象外（plan/ 配下・*.nix など）もここで担保する。
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Markdown は行末 2 スペースが改行を意味するため、末尾空白を落とさない
+[*.md]
+trim_trailing_whitespace = false
+
+# 生成物には触らない
+[{flake.lock,pnpm-lock.yaml}]
+indent_size = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
