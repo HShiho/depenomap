@@ -211,9 +211,12 @@ export function checkIntegrity(graph: DependencyGraph): IntegrityReport {
   graph.unresolved.forEach((item, i) => {
     // 追えなくなった箇所は「呼び出し元メソッド」（スキーマ §3）
     requireNode('unresolved[].from', `unresolved[${i}].from`, item.from, 'method')
+    // candidates は種類を見ない。スキーマ §3 は「ヒューリスティックな推測」と
+    // 書くだけで種類を明記しておらず、動的 import() の候補はモジュール
+    // （file ノード）を指すのが自然である（§6）。種類を強制すると、
+    // 正しいグラフを丸ごと拒否しうる
     item.candidates.forEach((id, j) =>
-      // 呼び出し先の推測なのでメソッド（スキーマ §3 の文脈）
-      requireNode('unresolved[].candidates[]', `unresolved[${i}].candidates[${j}]`, id, 'method'),
+      requireNode('unresolved[].candidates[]', `unresolved[${i}].candidates[${j}]`, id),
     )
   })
 

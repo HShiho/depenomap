@@ -153,6 +153,17 @@ describe('参照先のノード種別', () => {
     })
   })
 
+  it('unresolved[].candidates は種別を見ない（動的 import の候補は file になりうる）', () => {
+    const report = checkIntegrity(
+      graphOf((g) => {
+        const dynamicImport = g.unresolved.find((u) => u.reason === 'dynamic-import')!
+        dynamicImport.candidates = [anyFile(g)]
+      }),
+    )
+
+    expect(report.total).toBe(0)
+  })
+
   it('cycles[].nodes は種別を見ない（スキーマに規定が無い）', () => {
     const report = checkIntegrity(
       graphOf((g) => {
