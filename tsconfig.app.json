@@ -5,5 +5,5 @@
     "types": []
   },
   "include": ["src/core/**/*.ts", "src/app/**/*.ts", "src/app/**/*.vue"],
-  "exclude": ["src/**/*.test.ts"]
+  "exclude": ["src/**/*.test.ts", "src/**/*.node.ts"]
 }
