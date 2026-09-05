@@ -79,6 +79,33 @@ describe('NodeSchema', () => {
   })
 })
 
+describe('loc の範囲', () => {
+  const base = {
+    id: 'method:src/a.ts#A.b',
+    kind: 'method',
+    parent: 'file:src/a.ts',
+    name: 'b',
+    owner: 'A',
+    ownerKind: 'class',
+  }
+
+  it('1 以上の整数を受け入れる', () => {
+    const node = v.parse(NodeSchema, { ...base, loc: { line: 1, column: 1 } })
+
+    expect(node.kind === 'method' && node.loc).toEqual({ line: 1, column: 1 })
+  })
+
+  it.each([
+    ['0', { line: 0, column: 1 }],
+    ['負値', { line: -5, column: 1 }],
+    ['小数', { line: 1, column: 0.5 }],
+  ])('%s は拒否する', (_label, loc) => {
+    const result = v.safeParse(NodeSchema, { ...base, loc })
+
+    expect(result.success).toBe(false)
+  })
+})
+
 describe('EdgeSchema', () => {
   it('kind と granularity の組み合わせを型として表現する', () => {
     const graph = v.parse(DependencyGraphSchema, fixture)

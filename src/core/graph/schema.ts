@@ -35,10 +35,18 @@ export const LayerSchema = v.object({
 })
 
 /** `nodes` — ファイルとメソッド */
+/**
+ * ソース上の位置。
+ *
+ * 抽出側が 0-based の値に +1 して渡す（スキーマ §3）。US-19 のジャンプ先に
+ * そのまま使うため、1 以上の整数であることを検査する。0 や負値、小数を
+ * 通すと、エディタが開く位置が壊れる。
+ */
+const PositionSchema = v.pipe(v.number(), v.integer(), v.minValue(1))
+
 const LocSchema = v.object({
-  /** 1-based に補正済み（スキーマ §3） */
-  line: v.number(),
-  column: v.number(),
+  line: PositionSchema,
+  column: PositionSchema,
 })
 
 export const FileNodeSchema = v.object({
