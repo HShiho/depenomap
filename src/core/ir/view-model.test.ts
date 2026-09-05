@@ -246,6 +246,24 @@ describe('メソッドを持たないファイル', () => {
 
     expect(vm.nodes.file.every((f) => vm.methodsOfFile.has(f.id))).toBe(true)
   })
+
+  it('キーの並びは正本 JSON のファイル順ではない', () => {
+    // メソッドを持たないファイルが先頭にあっても、キーとしては末尾へ回る。
+    // 並び順が要るときは nodes.file を回すこと
+    const vm = buildViewModel(
+      graphOf((g) => {
+        g.nodes.unshift({
+          id: 'file:src/empty.ts',
+          kind: 'file',
+          name: 'empty.ts',
+          path: 'src/empty.ts',
+        })
+      }),
+    )
+
+    expect(vm.nodes.file[0]!.id).toBe('file:src/empty.ts')
+    expect([...vm.methodsOfFile.keys()].at(-1)).toBe('file:src/empty.ts')
+  })
 })
 describe('層の定義の引き当て', () => {
   it('層のキーから名前と glob を引ける', () => {
