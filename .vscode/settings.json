@@ -21,8 +21,10 @@
   "eslint.useFlatConfig": true,
   "eslint.validate": ["javascript", "typescript", "vue"],
 
-  // Vue SFC の型検査は Vue - Official（Volar）に任せる
-  "typescript.tsdk": "node_modules/typescript/lib",
+  // 同梱版でなくプロジェクトの TypeScript を使わせる
+  // （VSCode 1.135 で typescript.tsdk / enablePromptUseWorkspaceTsdk から改称）
+  "js/ts.tsdk.path": "node_modules/typescript/lib",
+  "js/ts.tsdk.promptToUseWorkspaceVersion": true,
 
   // Tailwind v4 は設定ファイルを持たないため、CSS エントリを明示する
   "tailwindCSS.experimental.configFile": "src/app/design/tokens.css",
