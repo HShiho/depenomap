@@ -15,13 +15,20 @@ import { collectSchemaTypes, walkSchema, WALKABLE_TYPES, type AnySchema } from '
  * 出会うと走査が例外で止まるため、扱えない型を持ち込むと素通りしない。
  */
 
-const schemaFields = (() => {
+/**
+ * スキーマの文字列フィールドを列挙する。
+ *
+ * モジュール読み込み時ではなく各テストの中で呼ぶ。読み込み時に走らせると、
+ * 走査できない型が入ったときにファイルごと収集に失敗し、他のテストが
+ * 実行されないまま件数だけ減る、という読みにくい赤になるため。
+ */
+function listSchemaFields(): string[] {
   const found: string[] = []
   walkSchema(DependencyGraphSchema as unknown as AnySchema, {
     onStringLeaf: (path) => found.push(path),
   })
   return [...new Set(found)].sort()
-})()
+}
 
 const classified = [...Object.keys(REFERENCE_FIELDS), ...IDENTITY_FIELDS, ...PLAIN_FIELDS].sort()
 
@@ -45,17 +52,17 @@ describe('走査の前提', () => {
 
 describe('フィールド分類の完全性', () => {
   it('スキーマの文字列フィールドをすべて列挙できている', () => {
-    expect(schemaFields.length).toBeGreaterThan(0)
+    expect(listSchemaFields().length).toBeGreaterThan(0)
   })
 
   it('分類漏れが無い（スキーマにあって分類に無いフィールド）', () => {
-    const missing = schemaFields.filter((f) => !classified.includes(f))
+    const missing = listSchemaFields().filter((f) => !classified.includes(f))
 
     expect(missing).toEqual([])
   })
 
   it('余分な分類が無い（分類にあってスキーマに無いフィールド）', () => {
-    const extra = classified.filter((f) => !schemaFields.includes(f))
+    const extra = classified.filter((f) => !listSchemaFields().includes(f))
 
     expect(extra).toEqual([])
   })

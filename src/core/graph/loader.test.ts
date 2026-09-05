@@ -3,9 +3,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { loadGraphFromValue, SUPPORTED_SCHEMA_VERSION } from './loader'
+import { UnwalkableSchemaError } from './schema-walk'
+import * as unknownFields from './unknown-fields'
 import { loadGraphFromFile } from './loader.node'
 
 const fixturePath = fileURLToPath(
@@ -240,6 +242,41 @@ describe('失敗時の警告', () => {
     expect(result.ok).toBe(false)
     if (result.ok) return
     expect(result.warnings).toEqual([])
+  })
+})
+
+describe('走査できない型がスキーマに入っていても契約を守る', () => {
+  // 走査規則の無い型はこちら側の不備であってデータの問題ではない。
+  // 読み込み全体を落とさず、検査を飛ばしたことを警告で伝える
+  it('例外を投げず、検査を実行できなかったことを警告で返す', async () => {
+    const raw = await rawOf()
+    const spy = vi.spyOn(unknownFields, 'findUnknownFields').mockImplementation(() => {
+      throw new UnwalkableSchemaError('union', 'nodes[].probe')
+    })
+
+    try {
+      const result = loadGraphFromValue(raw)
+
+      expect(result.ok).toBe(true)
+      expect(result.warnings).toEqual([
+        { type: 'unknown-fields-unavailable', reason: expect.stringContaining('union') },
+      ])
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('走査と無関係な例外は握りつぶさない', async () => {
+    const raw = await rawOf()
+    const spy = vi.spyOn(unknownFields, 'findUnknownFields').mockImplementation(() => {
+      throw new TypeError('想定外')
+    })
+
+    try {
+      expect(() => loadGraphFromValue(raw)).toThrow(TypeError)
+    } finally {
+      spy.mockRestore()
+    }
   })
 })
 

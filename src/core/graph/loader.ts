@@ -2,6 +2,7 @@ import * as v from 'valibot'
 
 import { checkIntegrity, type IntegrityReport } from './integrity'
 import { DependencyGraphSchema, type DependencyGraph } from './schema'
+import { UnwalkableSchemaError } from './schema-walk'
 import { findUnknownFields, type UnknownField } from './unknown-fields'
 
 /**
@@ -20,6 +21,12 @@ export const SUPPORTED_SCHEMA_VERSION = '1.0.0'
 export type LoadWarning =
   | { type: 'unknown-fields'; fields: UnknownField[]; totalKinds: number; truncated: boolean }
   | { type: 'schema-version-differs'; expected: string; actual: string }
+  /**
+   * 未知フィールドの検査を実行できなかった。スキーマ側に走査規則の無い型が
+   * 入っている場合に起きる（データの問題ではない）。読み込みは続けるが、
+   * 検査を飛ばしたことを黙らせない
+   */
+  | { type: 'unknown-fields-unavailable'; reason: string }
 
 export type LoadError =
   | { type: 'read-failed'; path: string; message: string }
@@ -109,15 +116,24 @@ export function loadGraphFromValue(raw: unknown): LoadResult {
   }
 
   // 未知フィールドの走査はスキーマ検査の前に済ませる。最も多い失敗である
-  // 構造不正のときも「未知フィールドがある」が同時に見えるようにするため
-  const unknown = findUnknownFields(raw)
-  if (unknown.fields.length > 0) {
-    warnings.push({
-      type: 'unknown-fields',
-      fields: unknown.fields,
-      totalKinds: unknown.totalKinds,
-      truncated: unknown.truncated,
-    })
+  // 構造不正のときも「未知フィールドがある」が同時に見えるようにするため。
+  //
+  // 走査できない型がスキーマに入っていると例外が飛ぶが、それはこちら側の
+  // 不備でありデータの問題ではない。読み込み全体を落とさず、検査を実行
+  // できなかったことを警告として伝える（この関数は例外を投げない契約）
+  try {
+    const unknown = findUnknownFields(raw)
+    if (unknown.fields.length > 0) {
+      warnings.push({
+        type: 'unknown-fields',
+        fields: unknown.fields,
+        totalKinds: unknown.totalKinds,
+        truncated: unknown.truncated,
+      })
+    }
+  } catch (cause) {
+    if (!(cause instanceof UnwalkableSchemaError)) throw cause
+    warnings.push({ type: 'unknown-fields-unavailable', reason: cause.message })
   }
 
   const parsed = v.safeParse(DependencyGraphSchema, raw)

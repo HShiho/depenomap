@@ -117,10 +117,21 @@ function walk(
   }
 }
 
-/** 生の JSON を受け取り、スキーマに無いフィールドを畳んで報告する */
-export function findUnknownFields(raw: unknown): UnknownFieldReport {
+/**
+ * 生の JSON を受け取り、スキーマに無いフィールドを畳んで報告する。
+ *
+ * `schema` は差し替えられる。既定は正本 JSON のスキーマで、テストが
+ * 走査規則そのものを確かめるときだけ別のスキーマを渡す。
+ *
+ * 扱えない schema type に出会うと `UnwalkableSchemaError` を投げる。
+ * 呼び出し側は握りつぶさず、検査を実行できなかったことを伝えること。
+ */
+export function findUnknownFields(
+  raw: unknown,
+  schema: AnySchema = DependencyGraphSchema as unknown as AnySchema,
+): UnknownFieldReport {
   const found = new Map<string, { count: number; example: string }>()
-  walk(DependencyGraphSchema as unknown as AnySchema, raw, '', '', found)
+  walk(schema, raw, '', '', found)
 
   const all = [...found.entries()].map(([path, { count, example }]) => ({ path, count, example }))
   all.sort((a, b) => b.count - a.count || a.path.localeCompare(b.path))

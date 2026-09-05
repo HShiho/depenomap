@@ -74,6 +74,30 @@ describe('配列の畳み込み', () => {
   })
 })
 
+describe('走査できない型', () => {
+  // 黙って走査を終えると、その先の未知フィールドが検査から漏れる。
+  // schema-walk 側と同じく、こちらの経路も止まることを固定しておく
+  it('未知の schema type に出会うと止まる', () => {
+    const schema = {
+      type: 'object',
+      entries: { weird: { type: 'union', options: [] } },
+    }
+
+    expect(() => findUnknownFields({ weird: 'x' }, schema)).toThrow(
+      /走査できない schema type: 'union'/,
+    )
+  })
+
+  it('値にそのキーが無ければ到達しない（走査は値のキーを回るため）', () => {
+    const schema = {
+      type: 'object',
+      entries: { weird: { type: 'union', options: [] } },
+    }
+
+    expect(() => findUnknownFields({}, schema)).not.toThrow()
+  })
+})
+
 describe('検証を挟んだ枝', () => {
   // valibot の pipe() は基底スキーマを spread して返すため、
   // v.pipe(v.array(...), v.minLength(1)) の type は 'array' のまま保たれる。
