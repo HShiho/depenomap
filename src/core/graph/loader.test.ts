@@ -196,6 +196,35 @@ describe('未知フィールドの警告', () => {
   })
 })
 
+describe('失敗時の警告', () => {
+  it('整合性違反で拒否しても、版の相違と未知フィールドは返る', async () => {
+    const raw = await rawOf((g) => {
+      g.schemaVersion = '1.1.0'
+      const nodes = g.nodes as Record<string, unknown>[]
+      nodes[0]!.exported = true
+      const edges = g.edges as Record<string, unknown>[]
+      edges[0]!.from = 'file:src/無い.ts'
+    })
+    const result = loadGraphFromValue(raw)
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.errors[0]?.type).toBe('integrity-violated')
+    expect(result.warnings.map((w) => w.type).sort()).toEqual([
+      'schema-version-differs',
+      'unknown-fields',
+    ])
+  })
+
+  it('版が非互換なら、そこまでの警告だけを返す', async () => {
+    const result = loadGraphFromValue(await rawOf((g) => (g.schemaVersion = '2.0.0')))
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.warnings).toEqual([])
+  })
+})
+
 describe('参照整合性', () => {
   it('違反があれば、該当要素を落とさず全体を拒否する', async () => {
     const raw = await rawOf((g) => {

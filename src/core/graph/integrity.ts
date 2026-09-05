@@ -51,10 +51,13 @@ export const MAX_VIOLATIONS_PER_KIND = 10
 
 export interface IntegrityViolation {
   kind: ViolationKind
-  /** 参照元の要素の ID（`edges[].id` など）。重複の場合は重複した ID そのもの */
+  /**
+   * 問題のある位置。実添字をブラケットで示す（`edges[3].from` / `cycles[2].id`）。
+   * スキーマ検査のエラーと同じ表記に揃えてある（UT-01 決定事項）。
+   */
   at: string
-  /** 実在しなかった参照先の ID。重複の場合は重複した ID そのもの */
-  missing: string
+  /** 問題の ID。参照の欠落なら実在しなかった参照先、重複なら重複した ID */
+  id: string
 }
 
 export interface IntegrityReport {
@@ -75,10 +78,10 @@ class ViolationBucket {
 
   constructor(private readonly kind: ViolationKind) {}
 
-  add(at: string, missing: string): void {
+  add(at: string, id: string): void {
     this.count += 1
     if (this.kept.length < MAX_VIOLATIONS_PER_KIND) {
-      this.kept.push({ kind: this.kind, at, missing })
+      this.kept.push({ kind: this.kind, at, id })
     }
   }
 
@@ -117,55 +120,64 @@ export function checkIntegrity(graph: DependencyGraph): IntegrityReport {
     if (!edgeIds.has(id)) bucket(kind).add(at, id)
   }
 
-  /** 同じ ID が 2 回目以降に現れたら重複として記録する */
-  const collectDuplicates = (kind: DuplicateKind, ids: string[]): void => {
+  /**
+   * 同じ ID が 2 回目以降に現れたら重複として記録する。
+   * `at` には 2 件目以降の位置を入れる。どれを直せばよいかが分かる形にする。
+   */
+  const collectDuplicates = (kind: DuplicateKind, section: string, ids: string[]): void => {
     const seen = new Set<string>()
-    for (const id of ids) {
-      if (seen.has(id)) bucket(kind).add(id, id)
+    ids.forEach((id, index) => {
+      if (seen.has(id)) bucket(kind).add(`${section}[${index}].id`, id)
       else seen.add(id)
-    }
+    })
   }
 
   collectDuplicates(
     'nodes.id',
+    'nodes',
     graph.nodes.map((n) => n.id),
   )
   collectDuplicates(
     'edges.id',
+    'edges',
     graph.edges.map((e) => e.id),
   )
   collectDuplicates(
     'cycles.id',
+    'cycles',
     graph.cycles.map((c) => c.id),
   )
   collectDuplicates(
     'unresolved.id',
+    'unresolved',
     graph.unresolved.map((u) => u.id),
   )
 
-  for (const edge of graph.edges) {
-    requireNode('edges.from', edge.id, edge.from)
-    requireNode('edges.to', edge.id, edge.to)
+  graph.edges.forEach((edge, i) => {
+    requireNode('edges.from', `edges[${i}].from`, edge.from)
+    requireNode('edges.to', `edges[${i}].to`, edge.to)
     if (edge.kind === 'call' || edge.kind === 'construct') {
-      for (const id of edge.implementations ?? []) {
-        requireNode('edges.implementations', edge.id, id)
-      }
+      edge.implementations?.forEach((id, j) => {
+        requireNode('edges.implementations', `edges[${i}].implementations[${j}]`, id)
+      })
     }
-  }
+  })
 
-  for (const node of graph.nodes) {
-    if (node.kind === 'method') requireNode('nodes.parent', node.id, node.parent)
-  }
+  graph.nodes.forEach((node, i) => {
+    if (node.kind === 'method') requireNode('nodes.parent', `nodes[${i}].parent`, node.parent)
+  })
 
-  for (const cycle of graph.cycles) {
-    for (const id of cycle.nodes) requireNode('cycles.nodes', cycle.id, id)
-    for (const id of cycle.edges) requireEdge('cycles.edges', cycle.id, id)
-  }
+  graph.cycles.forEach((cycle, i) => {
+    cycle.nodes.forEach((id, j) => requireNode('cycles.nodes', `cycles[${i}].nodes[${j}]`, id))
+    cycle.edges.forEach((id, j) => requireEdge('cycles.edges', `cycles[${i}].edges[${j}]`, id))
+  })
 
-  for (const item of graph.unresolved) {
-    requireNode('unresolved.from', item.id, item.from)
-    for (const id of item.candidates) requireNode('unresolved.candidates', item.id, id)
-  }
+  graph.unresolved.forEach((item, i) => {
+    requireNode('unresolved.from', `unresolved[${i}].from`, item.from)
+    item.candidates.forEach((id, j) =>
+      requireNode('unresolved.candidates', `unresolved[${i}].candidates[${j}]`, id),
+    )
+  })
 
   const violations: IntegrityViolation[] = []
   const totals = {} as Record<ViolationKind, number>

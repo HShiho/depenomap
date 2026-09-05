@@ -18,6 +18,7 @@ export async function loadGraphFromFile(path: string): Promise<LoadResult> {
   } catch (cause) {
     return {
       ok: false,
+      warnings: [],
       errors: [{ type: 'read-failed', path, message: (cause as Error).message }],
     }
   }
@@ -28,6 +29,7 @@ export async function loadGraphFromFile(path: string): Promise<LoadResult> {
   } catch (cause) {
     return {
       ok: false,
+      warnings: [],
       errors: [{ type: 'invalid-json', path, message: (cause as Error).message }],
     }
   }

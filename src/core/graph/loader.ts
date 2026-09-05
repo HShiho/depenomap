@@ -28,8 +28,14 @@ export type LoadError =
   | { type: 'schema-version-incompatible'; expected: string; actual: string }
   | { type: 'integrity-violated'; report: IntegrityReport }
 
+/**
+ * 失敗した場合も、そこまでに集まった警告を返す。正本を直す側にとっては
+ * 「整合性が壊れている」と「版が違う」「未知フィールドがある」が同時に
+ * 見えたほうが速い。
+ */
 export type LoadResult =
-  { ok: true; graph: DependencyGraph; warnings: LoadWarning[] } | { ok: false; errors: LoadError[] }
+  | { ok: true; graph: DependencyGraph; warnings: LoadWarning[] }
+  | { ok: false; errors: LoadError[]; warnings: LoadWarning[] }
 
 interface Semver {
   major: number
@@ -98,7 +104,7 @@ export function loadGraphFromValue(raw: unknown): LoadResult {
   // schemaVersion は構造検査より先に見る。major が違えば以降の検査に意味がない
   if (typeof raw === 'object' && raw !== null && 'schemaVersion' in raw) {
     const verdict = checkSchemaVersion((raw as { schemaVersion: unknown }).schemaVersion)
-    if (verdict.outcome === 'reject') return { ok: false, errors: [verdict.error] }
+    if (verdict.outcome === 'reject') return { ok: false, errors: [verdict.error], warnings }
     if (verdict.outcome === 'warn') warnings.push(verdict.warning)
   }
 
@@ -106,6 +112,7 @@ export function loadGraphFromValue(raw: unknown): LoadResult {
   if (!parsed.success) {
     return {
       ok: false,
+      warnings,
       errors: [
         {
           type: 'schema-mismatch',
@@ -130,7 +137,7 @@ export function loadGraphFromValue(raw: unknown): LoadResult {
 
   const integrity = checkIntegrity(parsed.output)
   if (integrity.total > 0) {
-    return { ok: false, errors: [{ type: 'integrity-violated', report: integrity }] }
+    return { ok: false, errors: [{ type: 'integrity-violated', report: integrity }], warnings }
   }
 
   return { ok: true, graph: parsed.output, warnings }

@@ -78,7 +78,7 @@ describe('ID の一意性', () => {
     )
 
     expect(report.totals['edges.id']).toBe(1)
-    expect(report.violations[0]?.at).toBe('e_0001')
+    expect(report.violations[0]).toEqual({ kind: 'edges.id', at: 'edges[1].id', id: 'e_0001' })
   })
 
   it('ノードの ID 重複は、参照が偶然通っていても検出する', () => {
@@ -91,7 +91,7 @@ describe('ID の一意性', () => {
     expect(report.totals['nodes.id']).toBe(1)
   })
 
-  it('3 つ重複すれば 2 件（2 回目以降）を数える', () => {
+  it('3 つ重複すれば 2 件（2 回目以降）を数え、位置で区別できる', () => {
     const report = checkIntegrity(
       graphOf((g) => {
         g.cycles[1]!.id = g.cycles[0]!.id
@@ -100,6 +100,18 @@ describe('ID の一意性', () => {
     )
 
     expect(report.totals['cycles.id']).toBe(2)
+    expect(report.violations.map((x) => x.at)).toEqual(['cycles[1].id', 'cycles[2].id'])
+  })
+
+  it('入れ子の位置も添字で示す', () => {
+    const report = checkIntegrity(
+      graphOf((g) => {
+        g.unresolved[0]!.candidates = ['ok', 'method:src/無い.ts#A.b']
+        g.unresolved[0]!.candidates[0] = g.nodes[0]!.id
+      }),
+    )
+
+    expect(report.violations[0]?.at).toBe('unresolved[0].candidates[1]')
   })
 })
 
@@ -114,8 +126,8 @@ describe('参照元ごとの検出', () => {
     expect(report.total).toBe(1)
     expect(report.violations[0]).toEqual({
       kind: 'edges.from',
-      at: 'e_0001',
-      missing: 'file:src/存在しない.ts',
+      at: 'edges[0].from',
+      id: 'file:src/存在しない.ts',
     })
   })
 
@@ -138,7 +150,7 @@ describe('参照元ごとの検出', () => {
     )
 
     expect(report.totals['cycles.edges']).toBe(1)
-    expect(report.violations[0]?.missing).toBe('e_9999')
+    expect(report.violations[0]?.id).toBe('e_9999')
   })
 
   it('unresolved[].candidates も検査対象', () => {
