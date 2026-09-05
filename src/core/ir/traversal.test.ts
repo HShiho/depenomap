@@ -80,7 +80,9 @@ describe('ソース上の出現順（US-05 / C-7）', () => {
     const caller = vm.edges.method.find((e) => e.kind === 'call')!.from
     const kinds = mixed.dependenciesOf(caller, 'method').map((d) => d.edge.kind)
 
-    expect(kinds.indexOf('implements')).toBe(kinds.length - 1)
+    // 空配列だと indexOf も length-1 も -1 になり、依存先が 0 件でも通ってしまう
+    expect(kinds.length).toBeGreaterThan(1)
+    expect(kinds.at(-1)).toBe('implements')
   })
 
   it('順序を捏造しない（sourceOrder が無ければ正本 JSON の並び）', () => {
