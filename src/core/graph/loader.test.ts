@@ -72,6 +72,20 @@ describe('スキーマ検査', () => {
     if (error?.type !== 'schema-mismatch') return
     expect(error.issues.some((i) => i.path.startsWith('edges'))).toBe(true)
   })
+
+  it('配列要素の問題は実添字をブラケットで示す', async () => {
+    const raw = await rawOf((g) => {
+      const nodes = g.nodes as Record<string, unknown>[]
+      delete nodes[3]!.path
+    })
+    const result = loadGraphFromValue(raw)
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    const error = result.errors[0]
+    if (error?.type !== 'schema-mismatch') return expect.fail('schema-mismatch を期待')
+    expect(error.issues[0]?.path).toBe('nodes[3].path')
+  })
 })
 
 describe('schemaVersion の分岐', () => {
@@ -115,6 +129,49 @@ describe('schemaVersion の分岐', () => {
     expect(result.ok).toBe(false)
     if (result.ok) return
     expect(result.errors[0]?.type).toBe('schema-version-incompatible')
+  })
+
+  it.each([
+    ['数値', 1],
+    ['オブジェクト', { major: 1 }],
+    ['null', null],
+  ])('非文字列（%s）は版の問題として扱わず、構造不正として返す', async (_label, value) => {
+    const result = loadGraphFromValue(await rawOf((g) => (g.schemaVersion = value)))
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.errors[0]?.type).toBe('schema-mismatch')
+  })
+
+  it('major 不一致では構造検査へ進まず、理由を 1 件だけ返す', async () => {
+    const raw = await rawOf((g) => {
+      g.schemaVersion = '2.0.0'
+      delete g.edges // 構造も壊しておく
+    })
+    const result = loadGraphFromValue(raw)
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.type).toBe('schema-version-incompatible')
+  })
+})
+
+describe('警告の併存', () => {
+  it('版の相違と未知フィールドが同時に出る', async () => {
+    const raw = await rawOf((g) => {
+      g.schemaVersion = '1.1.0'
+      const nodes = g.nodes as Record<string, unknown>[]
+      nodes[0]!.exported = true
+    })
+    const result = loadGraphFromValue(raw)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.warnings.map((w) => w.type).sort()).toEqual([
+      'schema-version-differs',
+      'unknown-fields',
+    ])
   })
 })
 

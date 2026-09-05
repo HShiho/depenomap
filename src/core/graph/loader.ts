@@ -37,31 +37,58 @@ interface Semver {
   patch: number
 }
 
+/**
+ * Valibot の issue パスを `nodes[3].path` の形に整える。
+ *
+ * 配列の添字はブラケットで表し、実際の位置を残す。未知フィールドの報告は
+ * フィールドごとに畳むため `nodes[].exported` と正規化するが、こちらは
+ * 「どの要素が壊れているか」を指すので実添字が要る（UT-01 決定事項）。
+ */
+function formatIssuePath(path: { key: unknown }[] | undefined): string {
+  if (!path) return ''
+  return path.reduce<string>((acc, segment) => {
+    if (typeof segment.key === 'number') return `${acc}[${segment.key}]`
+    return acc ? `${acc}.${String(segment.key)}` : String(segment.key)
+  }, '')
+}
+
 function parseSemver(value: string): Semver | undefined {
   const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(value)
   if (!match) return undefined
   return { major: Number(match[1]), minor: Number(match[2]), patch: Number(match[3]) }
 }
 
+/** 版の判定結果。エラーか警告かを枝で分け、型で取り違えられないようにする */
+type VersionVerdict =
+  | { outcome: 'ok' }
+  | { outcome: 'warn'; warning: LoadWarning }
+  | { outcome: 'reject'; error: LoadError }
+
 /**
  * `schemaVersion` を semver で分岐する。
  * major 不一致は構造が変わった前提で拒否し、minor / patch の相違は
  * 後方互換の追加とみなして警告のうえ続行する（UT-01 決定事項）。
+ *
+ * 値が文字列でない場合は版の問題として扱わない。それは構造不正であり、
+ * 「バージョンを上げれば読める」と誤読させないためにスキーマ検査へ委ねる。
  */
-function checkSchemaVersion(actual: string): LoadWarning | LoadError | undefined {
-  if (actual === SUPPORTED_SCHEMA_VERSION) return undefined
+function checkSchemaVersion(actual: unknown): VersionVerdict {
+  if (typeof actual !== 'string') return { outcome: 'ok' }
+  if (actual === SUPPORTED_SCHEMA_VERSION) return { outcome: 'ok' }
 
   const expected = parseSemver(SUPPORTED_SCHEMA_VERSION)!
   const found = parseSemver(actual)
 
   if (!found || found.major !== expected.major) {
-    return { type: 'schema-version-incompatible', expected: SUPPORTED_SCHEMA_VERSION, actual }
+    return {
+      outcome: 'reject',
+      error: { type: 'schema-version-incompatible', expected: SUPPORTED_SCHEMA_VERSION, actual },
+    }
   }
-  return { type: 'schema-version-differs', expected: SUPPORTED_SCHEMA_VERSION, actual }
-}
-
-function isError(value: LoadWarning | LoadError): value is LoadError {
-  return value.type === 'schema-version-incompatible'
+  return {
+    outcome: 'warn',
+    warning: { type: 'schema-version-differs', expected: SUPPORTED_SCHEMA_VERSION, actual },
+  }
 }
 
 /** すでにパース済みの値を検査する。ファイル読み込みを伴わない経路 */
@@ -70,9 +97,9 @@ export function loadGraphFromValue(raw: unknown): LoadResult {
 
   // schemaVersion は構造検査より先に見る。major が違えば以降の検査に意味がない
   if (typeof raw === 'object' && raw !== null && 'schemaVersion' in raw) {
-    const verdict = checkSchemaVersion(String((raw as { schemaVersion: unknown }).schemaVersion))
-    if (verdict && isError(verdict)) return { ok: false, errors: [verdict] }
-    if (verdict) warnings.push(verdict)
+    const verdict = checkSchemaVersion((raw as { schemaVersion: unknown }).schemaVersion)
+    if (verdict.outcome === 'reject') return { ok: false, errors: [verdict.error] }
+    if (verdict.outcome === 'warn') warnings.push(verdict.warning)
   }
 
   const parsed = v.safeParse(DependencyGraphSchema, raw)
@@ -83,7 +110,7 @@ export function loadGraphFromValue(raw: unknown): LoadResult {
         {
           type: 'schema-mismatch',
           issues: parsed.issues.map((issue) => ({
-            path: issue.path?.map((p) => String(p.key)).join('.') ?? '',
+            path: formatIssuePath(issue.path),
             message: issue.message,
           })),
         },
