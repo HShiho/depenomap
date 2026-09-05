@@ -259,8 +259,15 @@ describe('走査できない型がスキーマに入っていても契約を守�
 
       expect(result.ok).toBe(true)
       expect(result.warnings).toEqual([
-        { type: 'unknown-fields-unavailable', reason: expect.stringContaining('union') },
+        {
+          type: 'unknown-fields-unavailable',
+          reason: 'unwalkable-schema-type',
+          schemaType: 'union',
+          at: 'nodes[].probe',
+        },
       ])
+      // 開発者向けの指示は警告に載せない（表示は UT-05 の責務）
+      expect(JSON.stringify(result.warnings)).not.toContain('schema-walk.ts')
     } finally {
       spy.mockRestore()
     }

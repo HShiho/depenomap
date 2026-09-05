@@ -24,9 +24,18 @@ export type LoadWarning =
   /**
    * 未知フィールドの検査を実行できなかった。スキーマ側に走査規則の無い型が
    * 入っている場合に起きる（データの問題ではない）。読み込みは続けるが、
-   * 検査を飛ばしたことを黙らせない
+   * 検査を飛ばしたことを黙らせない。
+   *
+   * 値は**機械可読な素材だけ**にする。表示は受け取った側（UT-05）の責務であり、
+   * 「schema-walk.ts に走査規則を足せ」のような開発者向けの指示を、正本 JSON を
+   * 持っているだけの利用者に見せない。直し方は例外メッセージ側に残る
    */
-  | { type: 'unknown-fields-unavailable'; reason: string }
+  | {
+      type: 'unknown-fields-unavailable'
+      reason: 'unwalkable-schema-type'
+      schemaType: string
+      at: string
+    }
 
 export type LoadError =
   | { type: 'read-failed'; path: string; message: string }
@@ -133,7 +142,12 @@ export function loadGraphFromValue(raw: unknown): LoadResult {
     }
   } catch (cause) {
     if (!(cause instanceof UnwalkableSchemaError)) throw cause
-    warnings.push({ type: 'unknown-fields-unavailable', reason: cause.message })
+    warnings.push({
+      type: 'unknown-fields-unavailable',
+      reason: 'unwalkable-schema-type',
+      schemaType: cause.schemaType,
+      at: cause.path,
+    })
   }
 
   const parsed = v.safeParse(DependencyGraphSchema, raw)
