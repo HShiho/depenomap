@@ -48,6 +48,22 @@ export interface Dependency {
  * 配列内に同じ ID が 2 度現れることを防いでいない。畳まないと同じノードを
  * 2 回たどり、依存先の件数も依存元の件数も水増しされる
  */
+/**
+ * `actual` でたどったときに、このエッジが指すノード ID を返す。
+ *
+ * 前向き（依存先）と逆向き（依存元）の索引が同じ規則を使うための唯一の定義。
+ * 別々に書くと、実装が引けないエッジの扱いが片側でだけずれ、
+ * 「via は依存先と対称に効く」という契約が静かに破れる。
+ *
+ * 実装が 1 件も引けなければ `to` に落ちる。ここで空を返すと、logical では
+ * 見えている依存が actual でだけ黙って消え、たどり方の切り替えが
+ * 依存の有無そのものを変えてしまう。
+ */
+function actualTargetsOf(edge: GraphEdge, has: (id: string) => boolean): readonly string[] {
+  const resolved = implementationsOf(edge).filter(has)
+  return resolved.length > 0 ? resolved : [edge.to]
+}
+
 function implementationsOf(edge: GraphEdge): readonly string[] {
   if (edge.kind !== 'call' && edge.kind !== 'construct') return []
   if (edge.resolution !== 'via-interface') return []
@@ -117,9 +133,7 @@ export function buildTraversal(
         else map.set(key, [edge])
       }
       for (const edge of edges) {
-        const implementations = implementationsOf(edge)
-        if (implementations.length > 0) for (const id of implementations) push(id, edge)
-        else push(edge.to, edge)
+        for (const id of actualTargetsOf(edge, (x) => nodeById.has(x))) push(id, edge)
       }
       return map
     }
@@ -127,19 +141,11 @@ export function buildTraversal(
   })()
 
   const resolve = (edge: GraphEdge, via: InterfaceTraversal): Dependency[] => {
-    const implementations = via === 'actual' ? implementationsOf(edge) : []
-    const resolved = implementations
+    const targets = via === 'actual' ? actualTargetsOf(edge, (id) => nodeById.has(id)) : [edge.to]
+    return targets
       .map((id) => nodeById.get(id))
       .filter((node): node is GraphNode => node !== undefined)
-      .map((node) => ({ node, edge, viaImplementation: true }))
-
-    // 実装が 1 件も引けなければ to に落ちる。ここで空を返すと、logical では
-    // 見えている依存が actual でだけ黙って消え、たどり方の切り替えが
-    // 依存の有無そのものを変えてしまう
-    if (resolved.length > 0) return resolved
-
-    const node = nodeById.get(edge.to)
-    return node ? [{ node, edge, viaImplementation: false }] : []
+      .map((node) => ({ node, edge, viaImplementation: node.id !== edge.to }))
   }
 
   /** 依存先。ソース上の出現順に並べる（US-05） */
@@ -177,7 +183,7 @@ export function buildTraversal(
       .map((edge) => {
         const node = nodeById.get(edge.from)
         if (!node) return undefined
-        const viaImplementation = via === 'actual' && implementationsOf(edge).includes(nodeId)
+        const viaImplementation = via === 'actual' && nodeId !== edge.to
         return { node, edge, viaImplementation }
       })
       .filter((d): d is Dependency => d !== undefined)

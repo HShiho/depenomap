@@ -326,6 +326,47 @@ describe('implementations が引けないとき', () => {
     expect(hits.map((d) => d.node.id)).toEqual([kept])
   })
 })
+describe('前向きと逆向きの対称性', () => {
+  /** implementations が 1 件も引けない via-interface エッジを持つグラフ */
+  const unresolvableImplementations = () => {
+    const edge = pickViaInterface(graphOf())
+    const vm = buildViewModel(
+      graphOf((g) => {
+        const e = g.edges.find((x) => x.id === edge.id)!
+        if (e.kind === 'call' || e.kind === 'construct')
+          e.implementations = ['method:src/無い.ts#A.b']
+      }),
+    )
+    return { vm, edge }
+  }
+
+  it('to に落ちた依存は、逆向き（actual）からも引ける', () => {
+    const { vm, edge } = unresolvableImplementations()
+
+    const forward = vm
+      .dependenciesOf(edge.from, 'method', { via: 'actual' })
+      .filter((d) => d.edge.id === edge.id)
+    const backward = vm
+      .dependentsOf(edge.to, 'method', { via: 'actual' })
+      .filter((d) => d.edge.id === edge.id)
+
+    expect(forward).toHaveLength(1)
+    expect(backward).toHaveLength(1)
+  })
+
+  it('正常なグラフでも、前向きに出た組は逆向きから引ける', () => {
+    const vm = buildViewModel(graphOf())
+
+    for (const via of ['logical', 'actual'] as const) {
+      for (const node of vm.nodes.method) {
+        for (const dep of vm.dependenciesOf(node.id, 'method', { via })) {
+          const back = vm.dependentsOf(dep.node.id, 'method', { via })
+          expect(back.some((d) => d.edge.id === dep.edge.id && d.node.id === node.id)).toBe(true)
+        }
+      }
+    }
+  })
+})
 describe('依存元（US-14）', () => {
   it('このノードを使っているノードを引く', () => {
     const vm = vmOf()
