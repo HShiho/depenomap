@@ -204,6 +204,28 @@ describe('粒度を状態として持つ側からの呼び出し（UT-05）', ()
   })
 })
 
+describe('メソッドを持たないファイル', () => {
+  /** メソッドノードを一切持たないグラフ */
+  const withoutMethods = () =>
+    graphOf((g) => {
+      g.nodes = g.nodes.filter((n) => n.kind === 'file')
+      g.edges = g.edges.filter((e) => e.granularity === 'file')
+      g.cycles = []
+      g.unresolved = []
+    })
+
+  it('空のバケットを持つ（undefined にしない）', () => {
+    const vm = buildViewModel(withoutMethods())
+
+    for (const file of vm.nodes.file) expect(vm.methodsOfFile.get(file.id)).toEqual([])
+  })
+
+  it('すべてのファイルがバケットを持つ', () => {
+    const vm = buildViewModel(graphOf())
+
+    expect(vm.nodes.file.every((f) => vm.methodsOfFile.has(f.id))).toBe(true)
+  })
+})
 describe('層の定義の引き当て', () => {
   it('層のキーから名前と glob を引ける', () => {
     const layer = buildViewModel(graphOf()).layerOfKey('domain')

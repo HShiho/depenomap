@@ -220,7 +220,10 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
   const layerKeys: LayerKey[] = graph.layers.map((l) => l.id)
   if (nodesByLayer.has(NO_LAYER)) layerKeys.push(NO_LAYER)
 
+  // メソッドを 1 件も持たないファイルにも空のバケットを持たせる。
+  // nodesByLayer と方針を揃え、引き当ての結果が undefined になる経路を作らない
   const methodsOfFile = groupBy(nodes.method, (n) => n.parent)
+  for (const file of nodes.file) if (!methodsOfFile.has(file.id)) methodsOfFile.set(file.id, [])
 
   const fanIn = buildFanInByGranularity(graph)
   const cyclesByNode = buildCyclesByNode(graph.cycles)
