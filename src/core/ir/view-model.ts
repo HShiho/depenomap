@@ -7,6 +7,7 @@ import type {
   Unresolved,
 } from '../graph/schema'
 import { buildCyclesByNode, buildFanInByGranularity, buildUnresolvedIndex } from './indices'
+import { buildSearchKeys, matches, type SearchKey } from './search'
 
 /**
  * 表示用中間表現（ViewModel）。
@@ -78,6 +79,14 @@ export interface ViewModel {
   unresolvedFrom: (nodeId: string) => readonly Unresolved[]
   /** このノードが候補として推測されている、という未解決依存 */
   unresolvedCandidatesFor: (nodeId: string) => readonly Unresolved[]
+
+  /** ノードの検索キー。小文字化済みで事前に持つ（ADR-003） */
+  searchKeyOf: (nodeId: string) => SearchKey | undefined
+  /**
+   * 検索語に一致するノードを引く。部分一致・大文字小文字を区別しない。
+   * 空の検索語は 0 件を返す。「空なら全件」とするかは UT-11 の判断
+   */
+  findByQuery: (query: string, granularity: Granularity) => readonly GraphNode[]
 }
 
 function groupBy<K, T>(items: readonly T[], keyOf: (item: T) => K): Map<K, T[]> {
@@ -128,6 +137,10 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
   const fanIn = buildFanInByGranularity(graph)
   const cyclesByNode = buildCyclesByNode(graph.cycles)
   const unresolved = buildUnresolvedIndex(graph.unresolved)
+  const searchKeys = buildSearchKeys(graph.nodes, (id) => {
+    const file = nodeById.get(id)
+    return file?.kind === 'file' ? file.path : undefined
+  })
 
   return {
     nodes,
@@ -150,5 +163,11 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
     cyclesOf: (nodeId) => cyclesByNode.get(nodeId) ?? [],
     unresolvedFrom: (nodeId) => unresolved.byOrigin.get(nodeId) ?? [],
     unresolvedCandidatesFor: (nodeId) => unresolved.byCandidate.get(nodeId) ?? [],
+    searchKeyOf: (nodeId) => searchKeys.get(nodeId),
+    findByQuery: (query, granularity) =>
+      nodes[granularity].filter((node) => {
+        const key = searchKeys.get(node.id)
+        return key ? matches(key, query) : false
+      }),
   }
 }
