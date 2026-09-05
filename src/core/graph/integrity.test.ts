@@ -4,7 +4,12 @@ import { fileURLToPath, URL } from 'node:url'
 import * as v from 'valibot'
 import { describe, expect, it } from 'vitest'
 
-import { checkIntegrity, MAX_VIOLATIONS_PER_KIND, REFERENCE_KINDS } from './integrity'
+import {
+  checkIntegrity,
+  MAX_VIOLATIONS_PER_KIND,
+  VIOLATION_KINDS,
+  type ViolationKind,
+} from './integrity'
 import { DependencyGraphSchema, type DependencyGraph } from './schema'
 
 const fixtureUrl = new URL('../../../test-data/dependency-graph.complex.json', import.meta.url)
@@ -26,10 +31,75 @@ describe('checkIntegrity', () => {
     expect(report.truncated).toBe(false)
   })
 
-  it('全 7 種別の総件数を必ず返す', () => {
+  it('全種別の総件数を必ず返す', () => {
     const report = checkIntegrity(graphOf())
 
-    expect(Object.keys(report.totals).sort()).toEqual([...REFERENCE_KINDS].sort())
+    expect(Object.keys(report.totals).sort()).toEqual([...VIOLATION_KINDS].sort())
+  })
+})
+
+describe('全種別の検出（テーブル駆動）', () => {
+  /** 種別ごとに、その種別だけを 1 件壊す操作 */
+  const breakers: Record<ViolationKind, (g: DependencyGraph) => void> = {
+    'edges.from': (g) => void (g.edges[0]!.from = 'file:src/無い.ts'),
+    'edges.to': (g) => void (g.edges[0]!.to = 'file:src/無い.ts'),
+    'edges.implementations': (g) => {
+      const edge = g.edges.find((e) => e.kind === 'call' && e.implementations?.length)!
+      if (edge.kind === 'call') edge.implementations = ['method:src/無い.ts#A.b']
+    },
+    'nodes.parent': (g) => {
+      const method = g.nodes.find((n) => n.kind === 'method')!
+      if (method.kind === 'method') method.parent = 'file:src/無い.ts'
+    },
+    'cycles.nodes': (g) => void (g.cycles[0]!.nodes = ['file:src/無い.ts']),
+    'cycles.edges': (g) => void (g.cycles[0]!.edges = ['e_9999']),
+    'unresolved.from': (g) => void (g.unresolved[0]!.from = 'method:src/無い.ts#A.b'),
+    'unresolved.candidates': (g) => void (g.unresolved[0]!.candidates = ['method:src/無い.ts#A.b']),
+    'nodes.id': (g) => void (g.nodes[1]!.id = g.nodes[0]!.id),
+    'edges.id': (g) => void (g.edges[1]!.id = g.edges[0]!.id),
+    'cycles.id': (g) => void (g.cycles[1]!.id = g.cycles[0]!.id),
+    'unresolved.id': (g) => void (g.unresolved[1]!.id = g.unresolved[0]!.id),
+  }
+
+  it.each(VIOLATION_KINDS)('%s を検出する', (kind) => {
+    const report = checkIntegrity(graphOf(breakers[kind]))
+
+    expect(report.totals[kind]).toBeGreaterThan(0)
+    expect(report.violations.some((x) => x.kind === kind)).toBe(true)
+  })
+})
+
+describe('ID の一意性', () => {
+  it('エッジの ID 重複を検出する', () => {
+    const report = checkIntegrity(
+      graphOf((g) => {
+        g.edges[1] = { ...g.edges[0]! }
+      }),
+    )
+
+    expect(report.totals['edges.id']).toBe(1)
+    expect(report.violations[0]?.at).toBe('e_0001')
+  })
+
+  it('ノードの ID 重複は、参照が偶然通っていても検出する', () => {
+    const report = checkIntegrity(
+      graphOf((g) => {
+        g.nodes[1]!.id = g.nodes[0]!.id
+      }),
+    )
+
+    expect(report.totals['nodes.id']).toBe(1)
+  })
+
+  it('3 つ重複すれば 2 件（2 回目以降）を数える', () => {
+    const report = checkIntegrity(
+      graphOf((g) => {
+        g.cycles[1]!.id = g.cycles[0]!.id
+        g.cycles[2]!.id = g.cycles[0]!.id
+      }),
+    )
+
+    expect(report.totals['cycles.id']).toBe(2)
   })
 })
 
