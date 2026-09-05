@@ -1,4 +1,12 @@
-import type { DependencyGraph, GraphEdge, GraphNode, Layer } from '../graph/schema'
+import type {
+  Cycle,
+  DependencyGraph,
+  GraphEdge,
+  GraphNode,
+  Layer,
+  Unresolved,
+} from '../graph/schema'
+import { buildCyclesByNode, buildFanInByGranularity, buildUnresolvedIndex } from './indices'
 
 /**
  * 表示用中間表現（ViewModel）。
@@ -58,6 +66,18 @@ export interface ViewModel {
   methodsOfFile: ReadonlyMap<string, readonly GraphNode[]>
   /** メソッドノード ID から所属ファイルノードを引く */
   fileOfMethod: (methodId: string) => GraphNode | undefined
+
+  /**
+   * 被依存数。粒度ごとに独立して数える。同じ 2 ノード間に何本エッジが
+   * あっても 1（UT-02 決定事項）
+   */
+  fanInOf: (nodeId: string, granularity: Granularity) => number
+  /** ノードが含まれる循環。複数の循環に属しうるため配列 */
+  cyclesOf: (nodeId: string) => readonly Cycle[]
+  /** このノードで追跡が止まった、という未解決依存 */
+  unresolvedFrom: (nodeId: string) => readonly Unresolved[]
+  /** このノードが候補として推測されている、という未解決依存 */
+  unresolvedCandidatesFor: (nodeId: string) => readonly Unresolved[]
 }
 
 function groupBy<K, T>(items: readonly T[], keyOf: (item: T) => K): Map<K, T[]> {
@@ -105,6 +125,10 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
 
   const methodsOfFile = groupBy(nodes.method, (n) => (n.kind === 'method' ? n.parent : ''))
 
+  const fanIn = buildFanInByGranularity(graph)
+  const cyclesByNode = buildCyclesByNode(graph.cycles)
+  const unresolved = buildUnresolvedIndex(graph.unresolved)
+
   return {
     nodes,
     edges,
@@ -122,5 +146,9 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
       if (node?.kind !== 'method') return undefined
       return nodeById.get(node.parent)
     },
+    fanInOf: (nodeId, granularity) => fanIn[granularity].get(nodeId) ?? 0,
+    cyclesOf: (nodeId) => cyclesByNode.get(nodeId) ?? [],
+    unresolvedFrom: (nodeId) => unresolved.byOrigin.get(nodeId) ?? [],
+    unresolvedCandidatesFor: (nodeId) => unresolved.byCandidate.get(nodeId) ?? [],
   }
 }
