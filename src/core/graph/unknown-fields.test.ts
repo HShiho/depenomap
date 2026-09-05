@@ -74,8 +74,11 @@ describe('配列の畳み込み', () => {
   })
 })
 
-describe('pipe を挟んだ枝', () => {
-  it('minLength を挟んだ cycles でも走査が止まらない', () => {
+describe('検証を挟んだ枝', () => {
+  // valibot の pipe() は基底スキーマを spread して返すため、
+  // v.pipe(v.array(...), v.minLength(1)) の type は 'array' のまま保たれる。
+  // それでも走査が届くことを固定しておく
+  it('minLength を挟んだ cycles の中も走査する', () => {
     const report = findUnknownFields(
       rawOf((g) => {
         const cycles = g.cycles as Record<string, unknown>[]

@@ -1,4 +1,11 @@
 import { DependencyGraphSchema } from './schema'
+import {
+  unwrap,
+  UnwalkableSchemaError,
+  type AnySchema,
+  NON_STRING_LEAF_TYPES,
+  STRING_LEAF_TYPES,
+} from './schema-walk'
 
 /**
  * 未知フィールドの検出。
@@ -30,34 +37,6 @@ export interface UnknownFieldReport {
   /** 正規化後の種類数。fields が上限で切られていても実数 */
   totalKinds: number
   truncated: boolean
-}
-
-type AnySchema = { type: string; [key: string]: unknown }
-
-/**
- * `optional` / `nullable` / `pipe` などのラッパーを剥がし、内側のスキーマを返す。
- *
- * `pipe` を剥がさないと、検証を挟んだ枝（`v.pipe(v.array(...), v.minLength(1))` など）
- * で走査が止まり、その先の未知フィールドが黙って見逃される。
- */
-function unwrap(schema: AnySchema): AnySchema {
-  let current = schema
-  for (;;) {
-    if (
-      current.type === 'optional' ||
-      current.type === 'nullable' ||
-      current.type === 'nullish' ||
-      current.type === 'undefinedable'
-    ) {
-      current = current.wrapped as AnySchema
-      continue
-    }
-    if (current.type === 'pipe') {
-      current = (current.pipe as AnySchema[])[0]!
-      continue
-    }
-    return current
-  }
 }
 
 /**
@@ -112,7 +91,14 @@ function walk(
     return
   }
 
-  if (current.type !== 'object' || !isPlainObject(value)) return
+  if (current.type !== 'object') {
+    // リーフはこれ以上たどらない。それ以外の未知の type は、黙って走査を
+    // 終えると先のフィールドが検査から漏れるため止める（fail-closed）
+    const leafTypes: readonly string[] = [...STRING_LEAF_TYPES, ...NON_STRING_LEAF_TYPES]
+    if (!leafTypes.includes(current.type)) throw new UnwalkableSchemaError(current.type, normalized)
+    return
+  }
+  if (!isPlainObject(value)) return
 
   const entries = current.entries as Record<string, AnySchema>
   for (const [key, child] of Object.entries(value)) {
