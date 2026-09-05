@@ -13,9 +13,18 @@ import type { GraphNode } from '../graph/schema'
  * 同じ入力欄で行うため。メソッドは所属ファイルのパスを含める。
  */
 
+/**
+ * 対象を連結するときの区切り。
+ *
+ * 半角スペースで繋ぐと区切り自体が照合対象になり、名前とパスの境界を
+ * またいだ入力（`Todo.ts src`）が別のノードに当たる。検索欄に打てない
+ * 文字で区切って、対象ごとの中でしか一致しないようにする
+ */
+const SEPARATOR = '\n'
+
 /** 検索キーの素材。何を対象にしたかを追えるよう分けて持つ */
 export interface SearchKey {
-  /** 照合に使う文字列。小文字化済み */
+  /** 照合に使う文字列。小文字化済み。対象は `SEPARATOR` で区切る */
   normalized: string
   /** ファイル名またはメソッド名 */
   name: string
@@ -37,7 +46,7 @@ export function normalize(value: string): string {
  */
 export function buildSearchKey(node: GraphNode, pathOfFile: string): SearchKey {
   return {
-    normalized: normalize(`${node.name} ${pathOfFile}`),
+    normalized: normalize(`${node.name}${SEPARATOR}${pathOfFile}`),
     name: node.name,
     path: pathOfFile,
   }

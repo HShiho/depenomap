@@ -41,10 +41,17 @@ export interface Dependency {
   viaImplementation: boolean
 }
 
+/**
+ * エッジの `implementations` を引く。
+ *
+ * 重複は畳む。UT-01 の整合性検査は参照先の存在と種別しか見ておらず、
+ * 配列内に同じ ID が 2 度現れることを防いでいない。畳まないと同じノードを
+ * 2 回たどり、依存先の件数も依存元の件数も水増しされる
+ */
 function implementationsOf(edge: GraphEdge): readonly string[] {
   if (edge.kind !== 'call' && edge.kind !== 'construct') return []
   if (edge.resolution !== 'via-interface') return []
-  return edge.implementations ?? []
+  return edge.implementations ? [...new Set(edge.implementations)] : []
 }
 
 /**
@@ -131,40 +138,71 @@ export function buildTraversal(
     return node ? [{ node, edge, viaImplementation: false }] : []
   }
 
-  return {
-    /** 依存先。ソース上の出現順に並べる（US-05） */
-    dependenciesOf: (
-      nodeId: string,
-      granularity: Granularity,
-      options: TraversalOptions = {},
-    ): readonly Dependency[] => {
-      const edges = outgoing[granularity].get(nodeId) ?? []
-      return sortBySourceOrder(edges.flatMap((edge) => resolve(edge, options.via ?? 'logical')))
-    },
-
-    /**
-     * 依存元。「このノードを使っているのは誰か」を引く（US-14）。
-     *
-     * via は依存先と対称に効く。actual で引くと、via-interface の呼び出し元が
-     * 実装ノードの依存元として現れる。並べ替えの材料が無いため、
-     * 正本 JSON の並びを保つ
-     */
-    dependentsOf: (
-      nodeId: string,
-      granularity: Granularity,
-      options: TraversalOptions = {},
-    ): readonly Dependency[] => {
-      const via = options.via ?? 'logical'
-      const source = via === 'actual' ? incomingActual : incomingLogical
-      const edges = source[granularity].get(nodeId) ?? []
-      return edges
-        .map((edge) => {
-          const node = nodeById.get(edge.from)
-          if (!node) return undefined
-          const viaImplementation = via === 'actual' && implementationsOf(edge).includes(nodeId)
-          return { node, edge, viaImplementation }
-        })
-        .filter((d): d is Dependency => d !== undefined)
-    },
+  /** 依存先。ソース上の出現順に並べる（US-05） */
+  const dependenciesOf = (
+    nodeId: string,
+    granularity: Granularity,
+    options: TraversalOptions = {},
+  ): readonly Dependency[] => {
+    const edges = outgoing[granularity].get(nodeId) ?? []
+    return sortBySourceOrder(edges.flatMap((edge) => resolve(edge, options.via ?? 'logical')))
   }
+
+  /**
+   * 依存元。「このノードを使っているのは誰か」を引く（US-14）。
+   *
+   * via は依存先と対称に効く。actual で引くと、via-interface の呼び出し元が
+   * 実装ノードの依存元として現れる。並べ替えの材料が無いため、
+   * 正本 JSON の並びを保つ。
+   *
+   * **対称であるとは、同じエッジが片側にしか現れないことでもある。**
+   * actual では via-interface のエッジが実装ノードの側へ移るため、
+   * インターフェースメソッドの依存元からは消える（残るのは implements など、
+   * `implementations` を持たないエッジだけ）。どちらの読み方をしているかは
+   * 呼び出し側が選んだ `via` で決まる
+   */
+  const dependentsOf = (
+    nodeId: string,
+    granularity: Granularity,
+    options: TraversalOptions = {},
+  ): readonly Dependency[] => {
+    const via = options.via ?? 'logical'
+    const source = via === 'actual' ? incomingActual : incomingLogical
+    const edges = source[granularity].get(nodeId) ?? []
+    return edges
+      .map((edge) => {
+        const node = nodeById.get(edge.from)
+        if (!node) return undefined
+        const viaImplementation = via === 'actual' && implementationsOf(edge).includes(nodeId)
+        return { node, edge, viaImplementation }
+      })
+      .filter((d): d is Dependency => d !== undefined)
+  }
+
+  /**
+   * 依存元をノード単位に畳む（US-14 / US-10）。
+   *
+   * `dependentsOf` はエッジ 1 本につき 1 件返すため、同じ 2 ノード間に複数
+   * エッジがあると同じノードが繰り返し現れる。畳み方（重複をどう潰すか）は
+   * 誰が書いても同じ答えになるものであり、消費側が各々書くと同じ絞り込みが
+   * 散る。既定の `logical` では件数が `fanInOf` と一致する。
+   *
+   * 並びは最初に現れたエッジの順、すなわち正本 JSON の並びを保つ。
+   */
+  const dependentNodesOf = (
+    nodeId: string,
+    granularity: Granularity,
+    options: TraversalOptions = {},
+  ): readonly GraphNode[] => {
+    const seen = new Set<string>()
+    const nodes: GraphNode[] = []
+    for (const dependency of dependentsOf(nodeId, granularity, options)) {
+      if (seen.has(dependency.node.id)) continue
+      seen.add(dependency.node.id)
+      nodes.push(dependency.node)
+    }
+    return nodes
+  }
+
+  return { dependenciesOf, dependentsOf, dependentNodesOf }
 }

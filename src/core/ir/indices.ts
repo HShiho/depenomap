@@ -105,10 +105,10 @@ export function buildFanInByGranularity(
 }
 
 /** 被依存数の降順で並べる（US-10）。同数のときは正本 JSON の並びを保つ */
-export function sortByFanInDesc(
-  nodes: readonly GraphNode[],
+export function sortByFanInDesc<T extends GraphNode>(
+  nodes: readonly T[],
   fanIn: ReadonlyMap<string, number>,
-): readonly GraphNode[] {
+): readonly T[] {
   return [...nodes]
     .map((node, index) => ({ node, index, count: fanIn.get(node.id) ?? 0 }))
     .sort((a, b) => b.count - a.count || a.index - b.index)

@@ -288,11 +288,50 @@ describe('依存元（US-14）', () => {
     expect(vm.dependentsOf(edge.to, 'file').map((d) => d.node.id)).toContain(edge.from)
   })
 
-  it('被依存数と件数が対応する（重複ペアが無い実データ）', () => {
+  it('重複ペアが無ければ被依存数と件数が一致する', () => {
     const vm = vmOf()
     for (const node of vm.nodes.file) {
       expect(vm.dependentsOf(node.id, 'file')).toHaveLength(vm.fanInOf(node.id, 'file'))
     }
+  })
+
+  it('**重複ペアがあると数え方の違いが出る**（fanIn はノード単位、依存元はエッジ単位）', () => {
+    // 「A が B を 2 回呼ぶ」は実コードで起きる（UT-02 の実データ確認）。
+    // フィクスチャには無いので、同じ from / to のエッジを合成して差を作る
+    const target = graphOf().edges.find((e) => e.kind === 'import')!
+    const vm = vmOf((g) => {
+      const edge = g.edges.find((e) => e.id === target.id)!
+      g.edges.push({ ...edge, id: `${edge.id}-dup` })
+    })
+
+    // 使っている「箇所」は増えていないので被依存数は変わらない
+    expect(vm.fanInOf(target.to, 'file')).toBe(2)
+    // 経路となったエッジは潰さないので依存元は 1 件増える
+    const dependents = vm.dependentsOf(target.to, 'file')
+    expect(dependents).toHaveLength(3)
+    expect(new Set(dependents.map((d) => d.node.id)).size).toBe(2)
+    // 畳む口は IR が持つ。消費側が毎回 Set を書かなくてよい
+    expect(vm.dependentNodesOf(target.to, 'file')).toHaveLength(2)
+  })
+
+  it('**畳んだ依存元は被依存数と件数が一致する**（重複ペアがあっても）', () => {
+    const target = graphOf().edges.find((e) => e.kind === 'import')!
+    const vm = vmOf((g) => {
+      const edge = g.edges.find((e) => e.id === target.id)!
+      g.edges.push({ ...edge, id: `${edge.id}-dup` })
+    })
+
+    for (const node of vm.nodes.file) {
+      expect(vm.dependentNodesOf(node.id, 'file')).toHaveLength(vm.fanInOf(node.id, 'file'))
+    }
+  })
+
+  it('畳んだ依存元は正本 JSON の並びを保つ', () => {
+    const vm = vmOf()
+    const target = vm.edges.file[0]!.to
+    const expected = vm.edges.file.filter((e) => e.to === target).map((e) => e.from)
+
+    expect(vm.dependentNodesOf(target, 'file').map((n) => n.id)).toEqual([...new Set(expected)])
   })
 
   it('**依存先と対称にたどれる**（actual で実装ノードから呼び出し元が引ける）', () => {
@@ -307,6 +346,42 @@ describe('依存元（US-14）', () => {
     expect(
       vm.dependentsOf(implementation, 'method', { via: 'actual' }).map((d) => d.node.id),
     ).toContain(edge.from)
+  })
+
+  it('**対称であるぶん、actual ではインターフェース側から呼び出し元が消える**', () => {
+    const graph = graphOf()
+    const edge = pickViaInterface(graph)
+    const vm = buildViewModel(graph)
+
+    // エッジは実装ノードの側へ移る。両方に現れると 1 本の呼び出しが 2 件に見える
+    expect(vm.dependentsOf(edge.to, 'method').map((d) => d.edge.id)).toContain(edge.id)
+    expect(
+      vm.dependentsOf(edge.to, 'method', { via: 'actual' }).map((d) => d.edge.id),
+    ).not.toContain(edge.id)
+    // implements のように implementations を持たないエッジは actual でも残る
+    expect(
+      vm
+        .dependentsOf(edge.to, 'method', { via: 'actual' })
+        .every((d) => d.edge.kind === 'implements'),
+    ).toBe(true)
+  })
+
+  it('**implementations の重複はたどる前に畳む**', () => {
+    const graph = graphOf()
+    const target = pickViaInterface(graph)
+    const vm = vmOf((g) => {
+      const e = g.edges.find((x) => x.id === target.id)!
+      // UT-01 の整合性検査は配列内の重複を防いでいない
+      if (e.kind === 'call' || e.kind === 'construct')
+        e.implementations = [...e.implementations!, e.implementations![0]!]
+    })
+    const found = vm
+      .dependenciesOf(target.from, 'method', { via: 'actual' })
+      .filter((d) => d.edge.id === target.id)
+    const ids = found.map((d) => d.node.id)
+
+    expect(ids).toHaveLength(new Set(ids).size)
+    expect(ids).toHaveLength(new Set(target.implementations!).size)
   })
 
   it('誰からも使われていないノードは 0 件', () => {

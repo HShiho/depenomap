@@ -1,12 +1,19 @@
 import type {
   Cycle,
   DependencyGraph,
+  FileNode,
   GraphEdge,
   GraphNode,
   Layer,
+  MethodNode,
   Unresolved,
 } from '../graph/schema'
-import { buildCyclesByNode, buildFanInByGranularity, buildUnresolvedIndex } from './indices'
+import {
+  buildCyclesByNode,
+  buildFanInByGranularity,
+  buildUnresolvedIndex,
+  sortByFanInDesc,
+} from './indices'
 import { buildSearchKeys, matches, type SearchKey } from './search'
 import { buildTraversal, type Dependency, type TraversalOptions } from './traversal'
 
@@ -45,7 +52,7 @@ export interface LayerBinding {
 
 export interface ViewModel {
   /** 粒度ごとのノード集合。配列の順序は正本 JSON の並びを保つ */
-  nodes: Readonly<Record<Granularity, readonly GraphNode[]>>
+  nodes: { readonly file: readonly FileNode[]; readonly method: readonly MethodNode[] }
   /** 粒度ごとのエッジ集合 */
   edges: Readonly<Record<Granularity, readonly GraphEdge[]>>
 
@@ -56,18 +63,31 @@ export interface ViewModel {
 
   /** ノード ID から層を引く。層未設定のノードも必ず引ける（`NO_LAYER` が返る） */
   layerOf: (nodeId: string) => LayerBinding
-  /** 層のキーから、その層に属するノードを引く */
+  /**
+   * 層のキーから、その層に属するノードを引く。
+   * `layerKeys` の全キーが必ずバケットを持つ（ノードが 0 件なら空配列）。
+   *
+   * **粒度で分けない。** 完了条件は粒度ごとの層分けを求めておらず、粒度で
+   * 絞りたい側は `kind` で絞れる。分けること自体は可能（層の定義は
+   * `layerOf` / `layerKeys` に 1 つあるだけで、複製されるのはバケットだけ）
+   * だが、契約はコミット 1 で確定しており、後続が掴んだ形を変えない
+   */
   nodesByLayer: ReadonlyMap<LayerKey, readonly GraphNode[]>
-  /** 層のキーの一覧。正本 JSON の並び + 層なしが 1 件あれば末尾 */
+  /**
+   * 層のキーの一覧。正本 JSON の並び + 層なしが 1 件あれば末尾。
+   *
+   * ノードが 1 件も属していない層も落とさない。層の存在は JSON が権威であり
+   * （ADR-002）、「空だから無かったことにする」のはビューアによる判定にあたる
+   */
   layerKeys: readonly LayerKey[]
 
   /**
    * メソッドの所属。属性（`parent`）と引き当ての両方を持つ（UT-02 決定事項）。
    * 描画はノードの属性を見て、サイドバーはファイルから引く。
    */
-  methodsOfFile: ReadonlyMap<string, readonly GraphNode[]>
+  methodsOfFile: ReadonlyMap<string, readonly MethodNode[]>
   /** メソッドノード ID から所属ファイルノードを引く */
-  fileOfMethod: (methodId: string) => GraphNode | undefined
+  fileOfMethod: (methodId: string) => FileNode | undefined
 
   /**
    * 被依存数。粒度ごとに独立して数える。同じ 2 ノード間に何本エッジが
@@ -85,9 +105,31 @@ export interface ViewModel {
   searchKeyOf: (nodeId: string) => SearchKey | undefined
   /**
    * 検索語に一致するノードを引く。部分一致・大文字小文字を区別しない。
-   * 空の検索語は 0 件を返す。「空なら全件」とするかは UT-11 の判断
+   * 空の検索語は 0 件を返す。「空なら全件」とするかは UT-11 の判断。
+   *
+   * `granularity` を省略すると全ノードを対象にする。ADR-003 が
+   * 「現在の表示粒度に関わらず、検索対象は全ノードとする」と定めているため、
+   * 横断の口を IR 側に持つ。粒度をまたいだ並びの規則を UT-11 に出さない
    */
-  findByQuery: (query: string, granularity: Granularity) => readonly GraphNode[]
+  findByQuery: {
+    (query: string, granularity: 'file'): readonly FileNode[]
+    (query: string, granularity: 'method'): readonly MethodNode[]
+    /** 粒度を状態として持つ側（UT-05）が、現在の粒度をそのまま渡せる形 */
+    (query: string, granularity: Granularity): readonly GraphNode[]
+    (query: string): readonly GraphNode[]
+  }
+
+  /**
+   * 被依存数の降順で並べたノード（US-10）。同数のときは正本 JSON の並びを保つ。
+   *
+   * 並べ替えそのものは表示都合だが、**同数のときの規則**は誰が書いても同じ
+   * 答えになるものであり、消費側が各々書くと同数ノードの並びがばらつく
+   */
+  nodesByFanInDesc: {
+    (granularity: 'file'): readonly FileNode[]
+    (granularity: 'method'): readonly MethodNode[]
+    (granularity: Granularity): readonly GraphNode[]
+  }
 
   /**
    * 依存先。ソース上の出現順に並べる（US-05 / C-7）。
@@ -98,12 +140,27 @@ export interface ViewModel {
     granularity: Granularity,
     options?: TraversalOptions,
   ) => readonly Dependency[]
-  /** 依存元。「このノードを使っているのは誰か」（US-14）。via は依存先と対称 */
+  /**
+   * 依存元。「このノードを使っているのは誰か」（US-14）。via は依存先と対称。
+   *
+   * **エッジ 1 本につき 1 件返す。** `fanInOf`（ノード数で数える）とは数え方が
+   * 違い、同じ 2 ノード間に複数エッジがあれば件数のほうが多くなる。経路と
+   * なったエッジを潰さないためであり、ノード単位で欲しい側は `node.id` で畳む
+   */
   dependentsOf: (
     nodeId: string,
     granularity: Granularity,
     options?: TraversalOptions,
   ) => readonly Dependency[]
+  /**
+   * 依存元をノード単位に畳んだもの。既定の `logical` では件数が `fanInOf` と
+   * 一致する。「いくつの箇所から使われているか」を数える側はこちらを使う
+   */
+  dependentNodesOf: (
+    nodeId: string,
+    granularity: Granularity,
+    options?: TraversalOptions,
+  ) => readonly GraphNode[]
 }
 
 function groupBy<K, T>(items: readonly T[], keyOf: (item: T) => K): Map<K, T[]> {
@@ -127,8 +184,8 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
   const edgeById = new Map(graph.edges.map((e) => [e.id, e]))
 
   const nodes = {
-    file: graph.nodes.filter((n) => n.kind === 'file'),
-    method: graph.nodes.filter((n) => n.kind === 'method'),
+    file: graph.nodes.filter((n): n is FileNode => n.kind === 'file'),
+    method: graph.nodes.filter((n): n is MethodNode => n.kind === 'method'),
   } as const
   const edges = {
     file: graph.edges.filter((e) => e.granularity === 'file'),
@@ -144,12 +201,18 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
   }
 
   const nodesByLayer = groupBy(graph.nodes, (n) => bindingOf(n).key)
+  // 定義されている層は、ノードが 0 件でもバケットを持たせる。
+  // 「キーは `layerKeys` に在るのにバケットが無い」を消しておかないと、
+  // 列を組む側（UT-08）が `layerKeys` を回すだけで undefined を踏む
+  for (const layer of graph.layers) if (!nodesByLayer.has(layer.id)) nodesByLayer.set(layer.id, [])
   // 並び順はビューアが決める（`layers[]` は order を持たない設計 / ADR-002）。
-  // ここでは正本 JSON の並びを保ち、層なしだけを末尾に置く
-  const layerKeys: LayerKey[] = graph.layers.filter((l) => nodesByLayer.has(l.id)).map((l) => l.id)
+  // ここでは正本 JSON の並びを保ち、層なしだけを末尾に置く。
+  // ノードが 0 件の層も落とさない。層の存在は JSON が権威であり、
+  // 「空だから出さない」は表示側の判断である
+  const layerKeys: LayerKey[] = graph.layers.map((l) => l.id)
   if (nodesByLayer.has(NO_LAYER)) layerKeys.push(NO_LAYER)
 
-  const methodsOfFile = groupBy(nodes.method, (n) => (n.kind === 'method' ? n.parent : ''))
+  const methodsOfFile = groupBy(nodes.method, (n) => n.parent)
 
   const fanIn = buildFanInByGranularity(graph)
   const cyclesByNode = buildCyclesByNode(graph.cycles)
@@ -160,6 +223,21 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
   })
 
   const traversal = buildTraversal(edges, nodeById)
+
+  // 粒度の指定が無ければ全ノードを見る（ADR-003 の運用上の注意）。
+  // 返る型は粒度で変わるため、宣言はオーバーロード（`ViewModel`）が持つ
+  const findByQuery = ((query: string, granularity?: Granularity) =>
+    (granularity ? nodes[granularity] : graph.nodes).filter((node) => {
+      const key = searchKeys.get(node.id)
+      return key ? matches(key, query) : false
+    })) as ViewModel['findByQuery']
+
+  // 返る型は粒度で変わるため、宣言はオーバーロード（`ViewModel`）が持つ
+  const nodesByFanInDesc = ((granularity: Granularity) =>
+    sortByFanInDesc<GraphNode>(
+      nodes[granularity],
+      fanIn[granularity],
+    )) as ViewModel['nodesByFanInDesc']
 
   return {
     nodes,
@@ -176,19 +254,18 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
     fileOfMethod: (methodId) => {
       const node = nodeById.get(methodId)
       if (node?.kind !== 'method') return undefined
-      return nodeById.get(node.parent)
+      const file = nodeById.get(node.parent)
+      return file?.kind === 'file' ? file : undefined
     },
     fanInOf: (nodeId, granularity) => fanIn[granularity].get(nodeId) ?? 0,
     cyclesOf: (nodeId) => cyclesByNode.get(nodeId) ?? [],
     unresolvedFrom: (nodeId) => unresolved.byOrigin.get(nodeId) ?? [],
     unresolvedCandidatesFor: (nodeId) => unresolved.byCandidate.get(nodeId) ?? [],
     searchKeyOf: (nodeId) => searchKeys.get(nodeId),
-    findByQuery: (query, granularity) =>
-      nodes[granularity].filter((node) => {
-        const key = searchKeys.get(node.id)
-        return key ? matches(key, query) : false
-      }),
+    findByQuery,
+    nodesByFanInDesc,
     dependenciesOf: traversal.dependenciesOf,
     dependentsOf: traversal.dependentsOf,
+    dependentNodesOf: traversal.dependentNodesOf,
   }
 }

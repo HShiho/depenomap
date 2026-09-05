@@ -31,6 +31,19 @@ describe('findRootOrigins', () => {
 
     for (const id of findRootOrigins(vm, 'file')) expect(used.has(id)).toBe(false)
   })
+
+  it('**起点集合と被依存数 0 のノード集合は同じもの**（二重定義にしない）', () => {
+    const vm = vmOf()
+
+    for (const granularity of ['file', 'method'] as const) {
+      const origins = findRootOrigins(vm, granularity)
+      const zeroFanIn = vm.nodes[granularity]
+        .filter((n) => vm.fanInOf(n.id, granularity) === 0)
+        .map((n) => n.id)
+
+      expect(origins).toEqual(zeroFanIn)
+    }
+  })
 })
 
 describe('computeDepths', () => {

@@ -5,7 +5,7 @@ import * as v from 'valibot'
 import { describe, expect, it } from 'vitest'
 
 import { DependencyGraphSchema, type DependencyGraph } from '../graph/schema'
-import { buildViewModel, NO_LAYER } from './view-model'
+import { buildViewModel, NO_LAYER, type Granularity, type ViewModel } from './view-model'
 
 const fixtureUrl = new URL('../../../test-data/dependency-graph.complex.json', import.meta.url)
 const fixture: unknown = JSON.parse(readFileSync(fileURLToPath(fixtureUrl), 'utf8'))
@@ -99,6 +99,28 @@ describe('層の引き当て', () => {
     expect(vm.layerKeys).not.toContain(NO_LAYER)
   })
 
+  it('**ノードが 1 件も属していない層も落とさない**（層は JSON が権威 / ADR-002）', () => {
+    const vm = buildViewModel(
+      graphOf((g) => {
+        g.layers.push({ id: 'empty', name: '空の層', match: ['src/未使用/**'] })
+      }),
+    )
+
+    expect(vm.layerKeys).toContain('empty')
+    expect(vm.nodesByLayer.get('empty')).toEqual([])
+  })
+
+  it('**層キーは必ずバケットを持つ**（回すだけで undefined を踏まない）', () => {
+    const vm = buildViewModel(
+      graphOf((g) => {
+        g.layers.push({ id: 'empty', name: '空の層', match: ['src/未使用/**'] })
+        delete g.nodes[0]!.layer
+      }),
+    )
+
+    for (const key of vm.layerKeys) expect(vm.nodesByLayer.get(key)).toBeDefined()
+  })
+
   it('存在しないノード ID でも引ける（例外にしない）', () => {
     const vm = buildViewModel(graphOf())
 
@@ -133,5 +155,51 @@ describe('メソッドの所属', () => {
     const vm = buildViewModel(graphOf())
 
     expect(vm.fileOfMethod('file:src/domain/Todo.ts')).toBeUndefined()
+  })
+})
+
+describe('被依存数の降順（US-10）', () => {
+  it('多い順に並ぶ', () => {
+    const vm = buildViewModel(graphOf())
+    const sorted = vm.nodesByFanInDesc('file')
+
+    expect(sorted[0]?.id).toBe('file:src/domain/Todo.ts')
+    expect(sorted).toHaveLength(vm.nodes.file.length)
+  })
+
+  it('**同数のときの並びは正本 JSON の並び**（消費側で規則がばらつかない）', () => {
+    const vm = buildViewModel(graphOf())
+    const zero = vm.nodesByFanInDesc('file').filter((n) => vm.fanInOf(n.id, 'file') === 0)
+    const original = vm.nodes.file.filter((n) => vm.fanInOf(n.id, 'file') === 0)
+
+    expect(zero.map((n) => n.id)).toEqual(original.map((n) => n.id))
+  })
+
+  it('粒度ごとに独立して並べる', () => {
+    const vm = buildViewModel(graphOf())
+
+    expect(vm.nodesByFanInDesc('method')).toHaveLength(60)
+    // 粒度を指定した結果は MethodNode に絞られるため、kind の絞り直しが要らない
+    expect(vm.nodesByFanInDesc('method').every((n) => n.parent.startsWith('file:'))).toBe(true)
+    expect(vm.nodesByFanInDesc('file').every((n) => n.path.endsWith('.ts'))).toBe(true)
+  })
+})
+
+describe('粒度を状態として持つ側からの呼び出し（UT-05）', () => {
+  // UT-05 は現在の粒度を状態として持つ。リテラルではなく `Granularity` 型の
+  // 変数で渡す経路がコンパイルできることを、実際に呼んで固定する
+  const eachGranularity = (vm: ViewModel, granularity: Granularity) => ({
+    found: vm.findByQuery('Todo', granularity),
+    sorted: vm.nodesByFanInDesc(granularity),
+    dependents: vm.dependentNodesOf(vm.nodes[granularity][0]!.id, granularity),
+  })
+
+  it.each<Granularity>(['file', 'method'])('%s 粒度を変数で渡せる', (granularity) => {
+    const vm = buildViewModel(graphOf())
+    const result = eachGranularity(vm, granularity)
+
+    expect(result.sorted).toHaveLength(vm.nodes[granularity].length)
+    expect(result.found.length).toBeGreaterThan(0)
+    expect(Array.isArray(result.dependents)).toBe(true)
   })
 })

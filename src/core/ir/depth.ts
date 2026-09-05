@@ -48,12 +48,14 @@ function buildAdjacency(edges: readonly GraphEdge[]): Map<string, string[]> {
 /**
  * 被依存数 0 のノード群を求める（未選択時の起点 / ADR-001）。
  *
- * 「他のどこからも使われていない」を、その粒度のエッジの `to` に一度も
- * 現れないことで判定する。
+ * 判定は `fanInOf` に委ねる。「他のどこからも使われていない」の定義を
+ * ここで持つと被依存数と二重定義になり、片方の数え方を変えたときに静かに
+ * 食い違う（ADR-001 は起点を「被依存数 0」と定めており、別物ではない）。
  */
 export function findRootOrigins(viewModel: ViewModel, granularity: Granularity): string[] {
-  const used = new Set(viewModel.edges[granularity].map((e) => e.to))
-  return viewModel.nodes[granularity].filter((n) => !used.has(n.id)).map((n) => n.id)
+  return viewModel.nodes[granularity]
+    .filter((n) => viewModel.fanInOf(n.id, granularity) === 0)
+    .map((n) => n.id)
 }
 
 /**

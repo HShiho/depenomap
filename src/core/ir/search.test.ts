@@ -35,7 +35,14 @@ describe('検索キーの中身（ADR-003）', () => {
   it('照合用の文字列は小文字化されている', () => {
     const key = vmOf().searchKeyOf('file:src/domain/Todo.ts')
 
-    expect(key?.normalized).toBe('todo.ts src/domain/todo.ts')
+    expect(key?.normalized).toBe('todo.ts\nsrc/domain/todo.ts')
+  })
+
+  it('**対象は検索欄に打てない文字で区切る**（境界をまたいで一致させない）', () => {
+    const key = vmOf().searchKeyOf('file:src/domain/Todo.ts')
+
+    // 半角スペースで繋ぐと `Todo.ts src` が名前とパスをまたいで当たる
+    expect(key?.normalized).not.toContain(' ')
   })
 
   it('全ノードが検索キーを持つ', () => {
@@ -84,10 +91,18 @@ describe('findByQuery', () => {
   })
 
   it('ディレクトリ単位で絞り込める', () => {
+    // 粒度を指定した結果は FileNode に絞られるため、kind の絞り直しが要らない
     const found = vmOf().findByQuery('src/domain/', 'file')
 
-    expect(found.every((n) => n.kind === 'file' && n.path.startsWith('src/domain/'))).toBe(true)
+    expect(found.every((n) => n.path.startsWith('src/domain/'))).toBe(true)
     expect(found.length).toBeGreaterThan(0)
+  })
+
+  it('メソッド粒度の結果は所属ファイルを持つ', () => {
+    const vm = vmOf()
+    const found = vm.findByQuery('complete', 'method')
+
+    expect(found.every((n) => vm.nodeById.get(n.parent)?.kind === 'file')).toBe(true)
   })
 
   it('メソッド名で直接引ける（US-02 の粒度）', () => {
@@ -110,8 +125,43 @@ describe('findByQuery', () => {
     expect(vm.findByQuery('Todo.ts', 'method').every((n) => n.kind === 'method')).toBe(true)
   })
 
+  it('**名前とパスの境界をまたいだ入力は一致しない**', () => {
+    const vm = vmOf()
+
+    // `Todo.ts` という名前のファイルは実在するが、`Todo.ts src` は
+    // どのノードの中にも現れない文字列である
+    expect(vm.findByQuery('Todo.ts', 'file').length).toBeGreaterThan(0)
+    expect(vm.findByQuery('Todo.ts src', 'file')).toEqual([])
+  })
+
+  it('**粒度を省略すると全ノードが対象になる**（ADR-003）', () => {
+    const vm = vmOf()
+    const found = vm.findByQuery('Todo.ts')
+
+    // メソッド粒度で見ていてもファイル名で引ける、が ADR-003 の要求
+    expect(found.some((n) => n.kind === 'file')).toBe(true)
+    expect(found.some((n) => n.kind === 'method')).toBe(true)
+    expect(found.length).toBe(
+      vm.findByQuery('Todo.ts', 'file').length + vm.findByQuery('Todo.ts', 'method').length,
+    )
+  })
+
+  it('**粒度を省略した結果は正本 JSON の並びを保つ**（粒度ごとに固めない）', () => {
+    // フィクスチャは file がまとまってから method が並ぶため、
+    // 粒度で固めた実装と区別がつかない。method を先頭へ移して差を作る
+    const vm = vmOf((g) => {
+      const method = g.nodes.find((n) => n.kind === 'method')!
+      g.nodes = [method, ...g.nodes.filter((n) => n.id !== method.id)]
+    })
+    const found = vm.findByQuery('.ts')
+
+    expect(found).toHaveLength(88)
+    expect(found[0]?.kind).toBe('method')
+  })
+
   it('空の検索語は 0 件（全件ではない）', () => {
     expect(vmOf().findByQuery('', 'file')).toEqual([])
+    expect(vmOf().findByQuery('')).toEqual([])
   })
 
   it('一致しなければ 0 件', () => {
