@@ -280,6 +280,50 @@ describe('via-interface のたどり方', () => {
   })
 })
 
+describe('implementations が引けないとき', () => {
+  it('1 件も引けなければ to に落ちる（actual で依存が消えない）', () => {
+    const graph = graphOf()
+    const edge = pickViaInterface(graph)
+    const vm = buildViewModel(
+      graphOf((g) => {
+        const e = g.edges.find((x) => x.id === edge.id)!
+        if (e.kind === 'call' || e.kind === 'construct')
+          e.implementations = ['method:src/無い.ts#A.b']
+      }),
+    )
+
+    const hits = vm
+      .dependenciesOf(edge.from, 'method', { via: 'actual' })
+      .filter((d) => d.edge.id === edge.id)
+
+    expect(hits).toHaveLength(1)
+    expect(hits[0]?.node.id).toBe(edge.to)
+    expect(hits[0]?.viaImplementation).toBe(false)
+  })
+
+  it('一部だけ引ければ、引けた分を返す', () => {
+    const graph = graphOf()
+    const edge = graph.edges.find(
+      (e) => (e.kind === 'call' || e.kind === 'construct') && (e.implementations?.length ?? 0) > 1,
+    )!
+    const kept = (
+      edge.kind === 'call' || edge.kind === 'construct' ? edge.implementations! : []
+    )[0]!
+    const vm = buildViewModel(
+      graphOf((g) => {
+        const e = g.edges.find((x) => x.id === edge.id)!
+        if (e.kind === 'call' || e.kind === 'construct')
+          e.implementations = [kept, 'method:src/無い.ts#A.b']
+      }),
+    )
+
+    const hits = vm
+      .dependenciesOf(edge.from, 'method', { via: 'actual' })
+      .filter((d) => d.edge.id === edge.id)
+
+    expect(hits.map((d) => d.node.id)).toEqual([kept])
+  })
+})
 describe('依存元（US-14）', () => {
   it('このノードを使っているノードを引く', () => {
     const vm = vmOf()

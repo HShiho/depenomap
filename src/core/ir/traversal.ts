@@ -19,7 +19,7 @@ import type { Granularity } from './view-model'
  *
  * - `logical` — `to` をたどる。インターフェース宛の依存として読む
  * - `actual` — `implementations` をたどる。実装宛の依存として読む。
- *   `implementations` が無い、または空なら `to` に落ちる
+ *   `implementations` が無い、空、あるいは 1 件も引けなければ `to` に落ちる
  */
 export type InterfaceTraversal = 'logical' | 'actual'
 
@@ -128,12 +128,16 @@ export function buildTraversal(
 
   const resolve = (edge: GraphEdge, via: InterfaceTraversal): Dependency[] => {
     const implementations = via === 'actual' ? implementationsOf(edge) : []
-    if (implementations.length > 0) {
-      return implementations
-        .map((id) => nodeById.get(id))
-        .filter((node): node is GraphNode => node !== undefined)
-        .map((node) => ({ node, edge, viaImplementation: true }))
-    }
+    const resolved = implementations
+      .map((id) => nodeById.get(id))
+      .filter((node): node is GraphNode => node !== undefined)
+      .map((node) => ({ node, edge, viaImplementation: true }))
+
+    // 実装が 1 件も引けなければ to に落ちる。ここで空を返すと、logical では
+    // 見えている依存が actual でだけ黙って消え、たどり方の切り替えが
+    // 依存の有無そのものを変えてしまう
+    if (resolved.length > 0) return resolved
+
     const node = nodeById.get(edge.to)
     return node ? [{ node, edge, viaImplementation: false }] : []
   }
