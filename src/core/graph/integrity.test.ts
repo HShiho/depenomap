@@ -41,24 +41,27 @@ describe('checkIntegrity', () => {
 describe('全種別の検出（テーブル駆動）', () => {
   /** 種別ごとに、その種別だけを 1 件壊す操作 */
   const breakers: Record<ViolationKind, (g: DependencyGraph) => void> = {
-    'edges.from': (g) => void (g.edges[0]!.from = 'file:src/無い.ts'),
-    'edges.to': (g) => void (g.edges[0]!.to = 'file:src/無い.ts'),
-    'edges.implementations': (g) => {
+    'edges[].from': (g) => void (g.edges[0]!.from = 'file:src/無い.ts'),
+    'edges[].to': (g) => void (g.edges[0]!.to = 'file:src/無い.ts'),
+    'edges[].implementations[]': (g) => {
       const edge = g.edges.find((e) => e.kind === 'call' && e.implementations?.length)!
       if (edge.kind === 'call') edge.implementations = ['method:src/無い.ts#A.b']
     },
-    'nodes.parent': (g) => {
+    'nodes[].parent': (g) => {
       const method = g.nodes.find((n) => n.kind === 'method')!
       if (method.kind === 'method') method.parent = 'file:src/無い.ts'
     },
-    'cycles.nodes': (g) => void (g.cycles[0]!.nodes = ['file:src/無い.ts']),
-    'cycles.edges': (g) => void (g.cycles[0]!.edges = ['e_9999']),
-    'unresolved.from': (g) => void (g.unresolved[0]!.from = 'method:src/無い.ts#A.b'),
-    'unresolved.candidates': (g) => void (g.unresolved[0]!.candidates = ['method:src/無い.ts#A.b']),
-    'nodes.id': (g) => void (g.nodes[1]!.id = g.nodes[0]!.id),
-    'edges.id': (g) => void (g.edges[1]!.id = g.edges[0]!.id),
-    'cycles.id': (g) => void (g.cycles[1]!.id = g.cycles[0]!.id),
-    'unresolved.id': (g) => void (g.unresolved[1]!.id = g.unresolved[0]!.id),
+    'cycles[].nodes[]': (g) => void (g.cycles[0]!.nodes = ['file:src/無い.ts']),
+    'cycles[].edges[]': (g) => void (g.cycles[0]!.edges = ['e_9999']),
+    'unresolved[].from': (g) => void (g.unresolved[0]!.from = 'method:src/無い.ts#A.b'),
+    'unresolved[].candidates[]': (g) =>
+      void (g.unresolved[0]!.candidates = ['method:src/無い.ts#A.b']),
+    'nodes[].id': (g) => void (g.nodes[1]!.id = g.nodes[0]!.id),
+    'edges[].id': (g) => void (g.edges[1]!.id = g.edges[0]!.id),
+    'cycles[].id': (g) => void (g.cycles[1]!.id = g.cycles[0]!.id),
+    'unresolved[].id': (g) => void (g.unresolved[1]!.id = g.unresolved[0]!.id),
+    'nodes[].layer': (g) => void (g.nodes[0]!.layer = 'ghost'),
+    'layers[].id': (g) => void (g.layers[1]!.id = g.layers[0]!.id),
   }
 
   it.each(VIOLATION_KINDS)('%s を検出する', (kind) => {
@@ -66,6 +69,43 @@ describe('全種別の検出（テーブル駆動）', () => {
 
     expect(report.totals[kind]).toBeGreaterThan(0)
     expect(report.violations.some((x) => x.kind === kind)).toBe(true)
+  })
+})
+
+describe('層の参照', () => {
+  it('実在しない層 ID を検出する', () => {
+    const report = checkIntegrity(graphOf((g) => void (g.nodes[0]!.layer = 'ghost')))
+
+    expect(report.totals['nodes[].layer']).toBe(1)
+    expect(report.violations[0]).toEqual({
+      kind: 'nodes[].layer',
+      at: 'nodes[0].layer',
+      id: 'ghost',
+    })
+  })
+
+  it('層が未設定のノードは違反にしない（層なしは欠陥ではない / ADR-002）', () => {
+    const report = checkIntegrity(
+      graphOf((g) => {
+        delete g.nodes[0]!.layer
+      }),
+    )
+
+    expect(report.total).toBe(0)
+  })
+
+  it('層 ID の重複を検出する', () => {
+    const report = checkIntegrity(graphOf((g) => void (g.layers[1]!.id = g.layers[0]!.id)))
+
+    expect(report.totals['layers[].id']).toBe(1)
+    expect(report.violations.find((x) => x.kind === 'layers[].id')?.at).toBe('layers[1].id')
+  })
+
+  it('層 ID を重複させると、その層を指していたノードの参照も連鎖して壊れる', () => {
+    const report = checkIntegrity(graphOf((g) => void (g.layers[1]!.id = g.layers[0]!.id)))
+
+    // 上書きで消えた層 ID を指すノードが、実在しない層を指す状態になる
+    expect(report.totals['nodes[].layer']).toBeGreaterThan(0)
   })
 })
 
@@ -77,8 +117,8 @@ describe('ID の一意性', () => {
       }),
     )
 
-    expect(report.totals['edges.id']).toBe(1)
-    expect(report.violations[0]).toEqual({ kind: 'edges.id', at: 'edges[1].id', id: 'e_0001' })
+    expect(report.totals['edges[].id']).toBe(1)
+    expect(report.violations[0]).toEqual({ kind: 'edges[].id', at: 'edges[1].id', id: 'e_0001' })
   })
 
   it('ノードの ID 重複は、参照が偶然通っていても検出する', () => {
@@ -88,7 +128,7 @@ describe('ID の一意性', () => {
       }),
     )
 
-    expect(report.totals['nodes.id']).toBe(1)
+    expect(report.totals['nodes[].id']).toBe(1)
   })
 
   it('3 つ重複すれば 2 件（2 回目以降）を数え、位置で区別できる', () => {
@@ -99,7 +139,7 @@ describe('ID の一意性', () => {
       }),
     )
 
-    expect(report.totals['cycles.id']).toBe(2)
+    expect(report.totals['cycles[].id']).toBe(2)
     expect(report.violations.map((x) => x.at)).toEqual(['cycles[1].id', 'cycles[2].id'])
   })
 
@@ -125,7 +165,7 @@ describe('参照元ごとの検出', () => {
 
     expect(report.total).toBe(1)
     expect(report.violations[0]).toEqual({
-      kind: 'edges.from',
+      kind: 'edges[].from',
       at: 'edges[0].from',
       id: 'file:src/存在しない.ts',
     })
@@ -139,7 +179,7 @@ describe('参照元ごとの検出', () => {
       }),
     )
 
-    expect(report.totals['nodes.parent']).toBe(1)
+    expect(report.totals['nodes[].parent']).toBe(1)
   })
 
   it('cycles[].edges はエッジ ID の実在を見る', () => {
@@ -149,7 +189,7 @@ describe('参照元ごとの検出', () => {
       }),
     )
 
-    expect(report.totals['cycles.edges']).toBe(1)
+    expect(report.totals['cycles[].edges[]']).toBe(1)
     expect(report.violations[0]?.id).toBe('e_9999')
   })
 
@@ -160,7 +200,7 @@ describe('参照元ごとの検出', () => {
       }),
     )
 
-    expect(report.totals['unresolved.candidates']).toBe(1)
+    expect(report.totals['unresolved[].candidates[]']).toBe(1)
   })
 })
 
@@ -174,7 +214,7 @@ describe('打ち切り', () => {
     )
 
     expect(report.violations).toHaveLength(MAX_VIOLATIONS_PER_KIND)
-    expect(report.totals['edges.from']).toBe(broken)
+    expect(report.totals['edges[].from']).toBe(broken)
     expect(report.truncated).toBe(true)
   })
 
@@ -187,9 +227,9 @@ describe('打ち切り', () => {
     )
 
     const kinds = new Set(report.violations.map((x) => x.kind))
-    expect(kinds).toContain('edges.from')
-    expect(kinds).toContain('cycles.edges')
-    expect(report.totals['edges.from']).toBe(50)
-    expect(report.totals['cycles.edges']).toBe(1)
+    expect(kinds).toContain('edges[].from')
+    expect(kinds).toContain('cycles[].edges[]')
+    expect(report.totals['edges[].from']).toBe(50)
+    expect(report.totals['cycles[].edges[]']).toBe(1)
   })
 })

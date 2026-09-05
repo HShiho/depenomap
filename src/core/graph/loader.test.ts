@@ -239,6 +239,6 @@ describe('参照整合性', () => {
     expect(error?.type).toBe('integrity-violated')
     if (error?.type !== 'integrity-violated') return
     expect(error.report.total).toBe(1)
-    expect(error.report.violations[0]?.kind).toBe('edges.from')
+    expect(error.report.violations[0]?.kind).toBe('edges[].from')
   })
 })

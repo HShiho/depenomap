@@ -1,3 +1,4 @@
+import { IDENTITY_FIELDS, REFERENCE_FIELDS } from './fields'
 import type { DependencyGraph } from './schema'
 
 /**
@@ -13,22 +14,13 @@ import type { DependencyGraph } from './schema'
  */
 
 /**
- * 違反の種別。
+ * 違反の種別は、フィールドの分類（`fields.ts`）からそのまま導く。
+ * 種別名は正規化パスであり、分類を足せば種別が増える。
  *
- * `edges.implementations` は当初の 7 種別に含まれていなかったが、これも
- * ノード ID の配列であり、UT-02 の「論理依存／実依存の切り替え」がそのまま
- * 使う。壊れていれば実依存が黙って空になるため、検査対象に含める。
+ * 種別が増えるとテーブル駆動テストがその種別の検査を要求するため、
+ * 「分類したが検査していない」状態はテストが通らない。
  */
-export const REFERENCE_KINDS = [
-  'edges.from',
-  'edges.to',
-  'edges.implementations',
-  'nodes.parent',
-  'cycles.nodes',
-  'cycles.edges',
-  'unresolved.from',
-  'unresolved.candidates',
-] as const
+export const REFERENCE_KINDS = Object.keys(REFERENCE_FIELDS) as ReferenceKind[]
 
 /**
  * ID の一意性を検査する対象。
@@ -37,14 +29,14 @@ export const REFERENCE_KINDS = [
  * ノード位置、US-13 の戻る／進む）。重複すると UT-02 の被依存数と
  * UT-17 のレイアウトが静かに壊れるため、参照の欠落とは別に検査する。
  */
-export const DUPLICATE_KINDS = ['nodes.id', 'edges.id', 'cycles.id', 'unresolved.id'] as const
+export const DUPLICATE_KINDS = IDENTITY_FIELDS
 
-export type ReferenceKind = (typeof REFERENCE_KINDS)[number]
-export type DuplicateKind = (typeof DUPLICATE_KINDS)[number]
+export type ReferenceKind = keyof typeof REFERENCE_FIELDS
+export type DuplicateKind = (typeof IDENTITY_FIELDS)[number]
 export type ViolationKind = ReferenceKind | DuplicateKind
 
 /** 全違反種別。参照の欠落と ID の重複を同じ枠で扱う */
-export const VIOLATION_KINDS = [...REFERENCE_KINDS, ...DUPLICATE_KINDS] as const
+export const VIOLATION_KINDS: readonly ViolationKind[] = [...REFERENCE_KINDS, ...DUPLICATE_KINDS]
 
 /** 種別ごとに返す違反の上限。超えた分は件数だけを伝える */
 export const MAX_VIOLATIONS_PER_KIND = 10
@@ -107,6 +99,7 @@ class ViolationBucket {
 export function checkIntegrity(graph: DependencyGraph): IntegrityReport {
   const nodeIds = new Set(graph.nodes.map((n) => n.id))
   const edgeIds = new Set(graph.edges.map((e) => e.id))
+  const layerIds = new Set(graph.layers.map((l) => l.id))
 
   const buckets = new Map<ViolationKind, ViolationBucket>(
     VIOLATION_KINDS.map((kind) => [kind, new ViolationBucket(kind)]),
@@ -118,6 +111,9 @@ export function checkIntegrity(graph: DependencyGraph): IntegrityReport {
   }
   const requireEdge = (kind: ReferenceKind, at: string, id: string): void => {
     if (!edgeIds.has(id)) bucket(kind).add(at, id)
+  }
+  const requireLayer = (kind: ReferenceKind, at: string, id: string): void => {
+    if (!layerIds.has(id)) bucket(kind).add(at, id)
   }
 
   /**
@@ -133,49 +129,57 @@ export function checkIntegrity(graph: DependencyGraph): IntegrityReport {
   }
 
   collectDuplicates(
-    'nodes.id',
+    'nodes[].id',
     'nodes',
     graph.nodes.map((n) => n.id),
   )
   collectDuplicates(
-    'edges.id',
+    'edges[].id',
     'edges',
     graph.edges.map((e) => e.id),
   )
   collectDuplicates(
-    'cycles.id',
+    'cycles[].id',
     'cycles',
     graph.cycles.map((c) => c.id),
   )
   collectDuplicates(
-    'unresolved.id',
+    'unresolved[].id',
     'unresolved',
     graph.unresolved.map((u) => u.id),
   )
+  collectDuplicates(
+    'layers[].id',
+    'layers',
+    graph.layers.map((l) => l.id),
+  )
 
   graph.edges.forEach((edge, i) => {
-    requireNode('edges.from', `edges[${i}].from`, edge.from)
-    requireNode('edges.to', `edges[${i}].to`, edge.to)
+    requireNode('edges[].from', `edges[${i}].from`, edge.from)
+    requireNode('edges[].to', `edges[${i}].to`, edge.to)
     if (edge.kind === 'call' || edge.kind === 'construct') {
       edge.implementations?.forEach((id, j) => {
-        requireNode('edges.implementations', `edges[${i}].implementations[${j}]`, id)
+        requireNode('edges[].implementations[]', `edges[${i}].implementations[${j}]`, id)
       })
     }
   })
 
   graph.nodes.forEach((node, i) => {
-    if (node.kind === 'method') requireNode('nodes.parent', `nodes[${i}].parent`, node.parent)
+    if (node.kind === 'method') requireNode('nodes[].parent', `nodes[${i}].parent`, node.parent)
+    // 層は JSON が権威であり、ビューアは推測しない（ADR-002）。
+    // 実在しない層 ID は UT-04 の列生成と US-04 の分類を壊す
+    if (node.layer !== undefined) requireLayer('nodes[].layer', `nodes[${i}].layer`, node.layer)
   })
 
   graph.cycles.forEach((cycle, i) => {
-    cycle.nodes.forEach((id, j) => requireNode('cycles.nodes', `cycles[${i}].nodes[${j}]`, id))
-    cycle.edges.forEach((id, j) => requireEdge('cycles.edges', `cycles[${i}].edges[${j}]`, id))
+    cycle.nodes.forEach((id, j) => requireNode('cycles[].nodes[]', `cycles[${i}].nodes[${j}]`, id))
+    cycle.edges.forEach((id, j) => requireEdge('cycles[].edges[]', `cycles[${i}].edges[${j}]`, id))
   })
 
   graph.unresolved.forEach((item, i) => {
-    requireNode('unresolved.from', `unresolved[${i}].from`, item.from)
+    requireNode('unresolved[].from', `unresolved[${i}].from`, item.from)
     item.candidates.forEach((id, j) =>
-      requireNode('unresolved.candidates', `unresolved[${i}].candidates[${j}]`, id),
+      requireNode('unresolved[].candidates[]', `unresolved[${i}].candidates[${j}]`, id),
     )
   })
 
