@@ -216,6 +216,24 @@ describe('失敗時の警告', () => {
     ])
   })
 
+  it('構造不正でも、未知フィールドと版の相違が同時に見える', async () => {
+    const raw = await rawOf((g) => {
+      g.schemaVersion = '1.1.0'
+      const nodes = g.nodes as Record<string, unknown>[]
+      nodes[0]!.exported = true
+      delete g.edges
+    })
+    const result = loadGraphFromValue(raw)
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.errors[0]?.type).toBe('schema-mismatch')
+    expect(result.warnings.map((w) => w.type).sort()).toEqual([
+      'schema-version-differs',
+      'unknown-fields',
+    ])
+  })
+
   it('版が非互換なら、そこまでの警告だけを返す', async () => {
     const result = loadGraphFromValue(await rawOf((g) => (g.schemaVersion = '2.0.0')))
 

@@ -108,6 +108,18 @@ export function loadGraphFromValue(raw: unknown): LoadResult {
     if (verdict.outcome === 'warn') warnings.push(verdict.warning)
   }
 
+  // 未知フィールドの走査はスキーマ検査の前に済ませる。最も多い失敗である
+  // 構造不正のときも「未知フィールドがある」が同時に見えるようにするため
+  const unknown = findUnknownFields(raw)
+  if (unknown.fields.length > 0) {
+    warnings.push({
+      type: 'unknown-fields',
+      fields: unknown.fields,
+      totalKinds: unknown.totalKinds,
+      truncated: unknown.truncated,
+    })
+  }
+
   const parsed = v.safeParse(DependencyGraphSchema, raw)
   if (!parsed.success) {
     return {
@@ -123,16 +135,6 @@ export function loadGraphFromValue(raw: unknown): LoadResult {
         },
       ],
     }
-  }
-
-  const unknown = findUnknownFields(raw)
-  if (unknown.fields.length > 0) {
-    warnings.push({
-      type: 'unknown-fields',
-      fields: unknown.fields,
-      totalKinds: unknown.totalKinds,
-      truncated: unknown.truncated,
-    })
   }
 
   const integrity = checkIntegrity(parsed.output)
