@@ -1,0 +1,36 @@
+{
+  // 保存時に Prettier で整形し、ESLint の自動修正を適用する。
+  // 整形規則の正は prettier.config.mjs / .editorconfig（ADR-005）であり、
+  // ここはエディタ側でそれを呼び出す設定に留める。
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+
+  "[typescript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[vue]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[css]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[json]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[jsonc]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[html]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[markdown]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+
+  // プロジェクトの Prettier / ESLint を使う（グローバル版に引きずられない）
+  "prettier.prettierPath": "./node_modules/prettier",
+  "eslint.useFlatConfig": true,
+  "eslint.validate": ["javascript", "typescript", "vue"],
+
+  // Vue SFC の型検査は Vue - Official（Volar）に任せる
+  "typescript.tsdk": "node_modules/typescript/lib",
+
+  // Tailwind v4 は設定ファイルを持たないため、CSS エントリを明示する
+  "tailwindCSS.experimental.configFile": "src/app/design/tokens.css",
+
+  "files.eol": "\n",
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/pnpm-lock.yaml": true
+  }
+}
