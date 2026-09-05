@@ -41,8 +41,18 @@ export const VIOLATION_KINDS: readonly ViolationKind[] = [...REFERENCE_KINDS, ..
 /** 種別ごとに返す違反の上限。超えた分は件数だけを伝える */
 export const MAX_VIOLATIONS_PER_KIND = 10
 
+/**
+ * 違反の理由。
+ *
+ * `wrong-kind` は「実在はするが、種類が違うノードを指している」。
+ * 依存関係の良し悪しではなくデータの破損であり、N-1 には抵触しない。
+ * 検査するのはスキーマが種類を明記している参照だけに限る。
+ */
+export type ViolationReason = 'missing' | 'wrong-kind' | 'duplicate'
+
 export interface IntegrityViolation {
   kind: ViolationKind
+  reason: ViolationReason
   /**
    * 問題のある位置。実添字をブラケットで示す（`edges[3].from` / `cycles[2].id`）。
    * スキーマ検査のエラーと同じ表記に揃えてある（UT-01 決定事項）。
@@ -50,6 +60,8 @@ export interface IntegrityViolation {
   at: string
   /** 問題の ID。参照の欠落なら実在しなかった参照先、重複なら重複した ID */
   id: string
+  /** `wrong-kind` のとき、期待したノードの種類 */
+  expected?: 'file' | 'method'
 }
 
 export interface IntegrityReport {
@@ -70,10 +82,14 @@ class ViolationBucket {
 
   constructor(private readonly kind: ViolationKind) {}
 
-  add(at: string, id: string): void {
+  add(reason: ViolationReason, at: string, id: string, expected?: 'file' | 'method'): void {
     this.count += 1
     if (this.kept.length < MAX_VIOLATIONS_PER_KIND) {
-      this.kept.push({ kind: this.kind, at, id })
+      this.kept.push(
+        expected
+          ? { kind: this.kind, reason, at, id, expected }
+          : { kind: this.kind, reason, at, id },
+      )
     }
   }
 
@@ -97,7 +113,6 @@ class ViolationBucket {
  * 壊れた JSON を直す側に全体像を先に見せるため。
  */
 export function checkIntegrity(graph: DependencyGraph): IntegrityReport {
-  const nodeIds = new Set(graph.nodes.map((n) => n.id))
   const edgeIds = new Set(graph.edges.map((e) => e.id))
   const layerIds = new Set(graph.layers.map((l) => l.id))
 
@@ -106,14 +121,27 @@ export function checkIntegrity(graph: DependencyGraph): IntegrityReport {
   )
   const bucket = (kind: ViolationKind): ViolationBucket => buckets.get(kind)!
 
-  const requireNode = (kind: ReferenceKind, at: string, id: string): void => {
-    if (!nodeIds.has(id)) bucket(kind).add(at, id)
+  const nodeKinds = new Map(graph.nodes.map((n) => [n.id, n.kind]))
+
+  /**
+   * ノードを参照する。`expected` を渡すと、実在に加えて種類も見る。
+   * 種類の期待はスキーマが明記しているものだけに限る（UT-01 決定事項）。
+   */
+  const requireNode = (
+    kind: ReferenceKind,
+    at: string,
+    id: string,
+    expected?: 'file' | 'method',
+  ): void => {
+    const actual = nodeKinds.get(id)
+    if (actual === undefined) return bucket(kind).add('missing', at, id)
+    if (expected && actual !== expected) bucket(kind).add('wrong-kind', at, id, expected)
   }
   const requireEdge = (kind: ReferenceKind, at: string, id: string): void => {
-    if (!edgeIds.has(id)) bucket(kind).add(at, id)
+    if (!edgeIds.has(id)) bucket(kind).add('missing', at, id)
   }
   const requireLayer = (kind: ReferenceKind, at: string, id: string): void => {
-    if (!layerIds.has(id)) bucket(kind).add(at, id)
+    if (!layerIds.has(id)) bucket(kind).add('missing', at, id)
   }
 
   /**
@@ -123,7 +151,7 @@ export function checkIntegrity(graph: DependencyGraph): IntegrityReport {
   const collectDuplicates = (kind: DuplicateKind, section: string, ids: string[]): void => {
     const seen = new Set<string>()
     ids.forEach((id, index) => {
-      if (seen.has(id)) bucket(kind).add(`${section}[${index}].id`, id)
+      if (seen.has(id)) bucket(kind).add('duplicate', `${section}[${index}].id`, id)
       else seen.add(id)
     })
   }
@@ -155,17 +183,21 @@ export function checkIntegrity(graph: DependencyGraph): IntegrityReport {
   )
 
   graph.edges.forEach((edge, i) => {
-    requireNode('edges[].from', `edges[${i}].from`, edge.from)
-    requireNode('edges[].to', `edges[${i}].to`, edge.to)
+    // エッジの両端は granularity と同じ種類のノードでなければならない（スキーマ §3）
+    requireNode('edges[].from', `edges[${i}].from`, edge.from, edge.granularity)
+    requireNode('edges[].to', `edges[${i}].to`, edge.to, edge.granularity)
     if (edge.kind === 'call' || edge.kind === 'construct') {
       edge.implementations?.forEach((id, j) => {
-        requireNode('edges[].implementations[]', `edges[${i}].implementations[${j}]`, id)
+        // implements グラフからの逆引きであり、指す先はメソッド（スキーマ §3 の例示）
+        requireNode('edges[].implementations[]', `edges[${i}].implementations[${j}]`, id, 'method')
       })
     }
   })
 
   graph.nodes.forEach((node, i) => {
-    if (node.kind === 'method') requireNode('nodes[].parent', `nodes[${i}].parent`, node.parent)
+    // 所属ファイルノードの ID（スキーマ §3）
+    if (node.kind === 'method')
+      requireNode('nodes[].parent', `nodes[${i}].parent`, node.parent, 'file')
     // 層は JSON が権威であり、ビューアは推測しない（ADR-002）。
     // 実在しない層 ID は UT-04 の列生成と US-04 の分類を壊す
     if (node.layer !== undefined) requireLayer('nodes[].layer', `nodes[${i}].layer`, node.layer)
@@ -177,9 +209,11 @@ export function checkIntegrity(graph: DependencyGraph): IntegrityReport {
   })
 
   graph.unresolved.forEach((item, i) => {
-    requireNode('unresolved[].from', `unresolved[${i}].from`, item.from)
+    // 追えなくなった箇所は「呼び出し元メソッド」（スキーマ §3）
+    requireNode('unresolved[].from', `unresolved[${i}].from`, item.from, 'method')
     item.candidates.forEach((id, j) =>
-      requireNode('unresolved[].candidates[]', `unresolved[${i}].candidates[${j}]`, id),
+      // 呼び出し先の推測なのでメソッド（スキーマ §3 の文脈）
+      requireNode('unresolved[].candidates[]', `unresolved[${i}].candidates[${j}]`, id, 'method'),
     )
   })
 

@@ -72,6 +72,102 @@ describe('全種別の検出（テーブル駆動）', () => {
   })
 })
 
+describe('参照先のノード種別', () => {
+  /** file / method のノード ID をそれぞれ 1 つ得る */
+  const anyFile = (g: DependencyGraph) => g.nodes.find((n) => n.kind === 'file')!.id
+  const anyMethod = (g: DependencyGraph) => g.nodes.find((n) => n.kind === 'method')!.id
+
+  it('nodes[].parent がメソッドを指すと wrong-kind', () => {
+    const report = checkIntegrity(
+      graphOf((g) => {
+        const method = g.nodes.find((n) => n.kind === 'method')!
+        if (method.kind === 'method') method.parent = anyMethod(g)
+      }),
+    )
+
+    const hit = report.violations.find((x) => x.kind === 'nodes[].parent')
+    expect(hit).toMatchObject({ reason: 'wrong-kind', expected: 'file' })
+  })
+
+  it('import エッジ（file 粒度）が method を指すと wrong-kind', () => {
+    const report = checkIntegrity(
+      graphOf((g) => {
+        const edge = g.edges.find((e) => e.kind === 'import')!
+        edge.to = anyMethod(g)
+      }),
+    )
+
+    const hit = report.violations.find((x) => x.kind === 'edges[].to')
+    expect(hit).toMatchObject({ reason: 'wrong-kind', expected: 'file' })
+  })
+
+  it('method 粒度のエッジが file を指すと wrong-kind', () => {
+    const report = checkIntegrity(
+      graphOf((g) => {
+        const edge = g.edges.find((e) => e.granularity === 'method')!
+        edge.from = anyFile(g)
+      }),
+    )
+
+    const hit = report.violations.find((x) => x.kind === 'edges[].from')
+    expect(hit).toMatchObject({ reason: 'wrong-kind', expected: 'method' })
+  })
+
+  it('unresolved[].from が file を指すと wrong-kind', () => {
+    const report = checkIntegrity(graphOf((g) => void (g.unresolved[0]!.from = anyFile(g))))
+
+    expect(report.violations[0]).toMatchObject({
+      kind: 'unresolved[].from',
+      reason: 'wrong-kind',
+      expected: 'method',
+    })
+  })
+
+  it('implementations が file を指すと wrong-kind', () => {
+    const report = checkIntegrity(
+      graphOf((g) => {
+        const edge = g.edges.find((e) => e.kind === 'call' && e.implementations?.length)!
+        if (edge.kind === 'call') edge.implementations = [anyFile(g)]
+      }),
+    )
+
+    expect(report.violations[0]).toMatchObject({
+      kind: 'edges[].implementations[]',
+      reason: 'wrong-kind',
+      expected: 'method',
+    })
+  })
+
+  it('construct エッジの implementations も同じ経路で検査される', () => {
+    const report = checkIntegrity(
+      graphOf((g) => {
+        const edge = g.edges.find((e) => e.kind === 'construct')!
+        if (edge.kind === 'construct') edge.implementations = [anyFile(g)]
+      }),
+    )
+
+    expect(report.violations[0]).toMatchObject({
+      kind: 'edges[].implementations[]',
+      reason: 'wrong-kind',
+      expected: 'method',
+    })
+  })
+
+  it('cycles[].nodes は種別を見ない（スキーマに規定が無い）', () => {
+    const report = checkIntegrity(
+      graphOf((g) => {
+        g.cycles[3]!.nodes = [anyFile(g), anyMethod(g)]
+      }),
+    )
+
+    expect(report.total).toBe(0)
+  })
+
+  it('正しい種別なら違反にしない', () => {
+    expect(checkIntegrity(graphOf()).total).toBe(0)
+  })
+})
+
 describe('層の参照', () => {
   it('実在しない層 ID を検出する', () => {
     const report = checkIntegrity(graphOf((g) => void (g.nodes[0]!.layer = 'ghost')))
@@ -79,6 +175,7 @@ describe('層の参照', () => {
     expect(report.totals['nodes[].layer']).toBe(1)
     expect(report.violations[0]).toEqual({
       kind: 'nodes[].layer',
+      reason: 'missing',
       at: 'nodes[0].layer',
       id: 'ghost',
     })
@@ -118,7 +215,12 @@ describe('ID の一意性', () => {
     )
 
     expect(report.totals['edges[].id']).toBe(1)
-    expect(report.violations[0]).toEqual({ kind: 'edges[].id', at: 'edges[1].id', id: 'e_0001' })
+    expect(report.violations[0]).toEqual({
+      kind: 'edges[].id',
+      reason: 'duplicate',
+      at: 'edges[1].id',
+      id: 'e_0001',
+    })
   })
 
   it('ノードの ID 重複は、参照が偶然通っていても検出する', () => {
@@ -146,8 +248,8 @@ describe('ID の一意性', () => {
   it('入れ子の位置も添字で示す', () => {
     const report = checkIntegrity(
       graphOf((g) => {
-        g.unresolved[0]!.candidates = ['ok', 'method:src/無い.ts#A.b']
-        g.unresolved[0]!.candidates[0] = g.nodes[0]!.id
+        const method = g.nodes.find((n) => n.kind === 'method')!
+        g.unresolved[0]!.candidates = [method.id, 'method:src/無い.ts#A.b']
       }),
     )
 
@@ -166,6 +268,7 @@ describe('参照元ごとの検出', () => {
     expect(report.total).toBe(1)
     expect(report.violations[0]).toEqual({
       kind: 'edges[].from',
+      reason: 'missing',
       at: 'edges[0].from',
       id: 'file:src/存在しない.ts',
     })
