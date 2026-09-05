@@ -104,6 +104,47 @@ describe('variant の枝選択', () => {
   })
 })
 
+describe('プロトタイプ鎖のキー', () => {
+  // Object.prototype 由来の名前は、スキーマの entries を素引きすると
+  // 「定義済み」に見えてしまい、未知フィールドが無音で見逃される
+  const inherited = ['constructor', 'toString', 'hasOwnProperty', 'valueOf', 'isPrototypeOf']
+
+  it.each(inherited)('ノードの %s を未知フィールドとして検出する', (key) => {
+    const report = findUnknownFields(
+      rawOf((g) => {
+        const nodes = g.nodes as Record<string, unknown>[]
+        nodes[0]![key] = 'x'
+      }),
+    )
+
+    expect(report.fields).toEqual([
+      { path: `nodes[].${key}`, count: 1, example: `nodes[0].${key}` },
+    ])
+  })
+
+  it.each(inherited)('meta の %s も検出する', (key) => {
+    const report = findUnknownFields(
+      rawOf((g) => {
+        ;(g.meta as Record<string, unknown>)[key] = 'x'
+      }),
+    )
+
+    expect(report.fields[0]?.path).toBe(`meta.${key}`)
+  })
+
+  it('判別子と同名でない継承キーが variant の枝選択を壊さない', () => {
+    const report = findUnknownFields(
+      rawOf((g) => {
+        const edges = g.edges as Record<string, unknown>[]
+        const target = edges.find((e) => e.kind === 'call')!
+        target['toString'] = 'x'
+      }),
+    )
+
+    expect(report.fields[0]).toMatchObject({ path: 'edges[].toString', count: 1 })
+  })
+})
+
 describe('打ち切り', () => {
   it('種類が上限を超えると切るが、総種類数は実数のまま', () => {
     const extra = MAX_UNKNOWN_FIELD_KINDS + 3

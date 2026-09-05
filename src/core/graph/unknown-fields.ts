@@ -60,8 +60,8 @@ function selectVariantOption(
   const actual = value[key]
   for (const option of schema.options as AnySchema[]) {
     const entries = option.entries as Record<string, AnySchema> | undefined
-    const discriminator = entries?.[key]
-    if (!discriminator) continue
+    if (!entries || !Object.hasOwn(entries, key)) continue
+    const discriminator = entries[key]!
     if (unwrap(discriminator).literal === actual) return option
   }
   return undefined
@@ -106,16 +106,16 @@ function walk(
   for (const [key, child] of Object.entries(value)) {
     const childNormalized = normalized ? `${normalized}.${key}` : key
     const childActual = actual ? `${actual}.${key}` : key
-    const entry = entries[key]
-
-    if (!entry) {
+    // Object.hasOwn で見る。entries[key] では `constructor` や `toString` が
+    // プロトタイプ鎖に当たってしまい、未知フィールドが無音で見逃される
+    if (!Object.hasOwn(entries, key)) {
       const hit = found.get(childNormalized)
       if (hit) hit.count += 1
       else found.set(childNormalized, { count: 1, example: childActual })
       continue
     }
 
-    walk(entry, child, childNormalized, childActual, found)
+    walk(entries[key]!, child, childNormalized, childActual, found)
   }
 }
 
