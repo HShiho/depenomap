@@ -8,6 +8,7 @@ import type {
 } from '../graph/schema'
 import { buildCyclesByNode, buildFanInByGranularity, buildUnresolvedIndex } from './indices'
 import { buildSearchKeys, matches, type SearchKey } from './search'
+import { buildTraversal, type Dependency, type TraversalOptions } from './traversal'
 
 /**
  * 表示用中間表現（ViewModel）。
@@ -87,6 +88,22 @@ export interface ViewModel {
    * 空の検索語は 0 件を返す。「空なら全件」とするかは UT-11 の判断
    */
   findByQuery: (query: string, granularity: Granularity) => readonly GraphNode[]
+
+  /**
+   * 依存先。ソース上の出現順に並べる（US-05 / C-7）。
+   * via-interface のたどり方は options で選ぶ（既定は logical）
+   */
+  dependenciesOf: (
+    nodeId: string,
+    granularity: Granularity,
+    options?: TraversalOptions,
+  ) => readonly Dependency[]
+  /** 依存元。「このノードを使っているのは誰か」（US-14）。via は依存先と対称 */
+  dependentsOf: (
+    nodeId: string,
+    granularity: Granularity,
+    options?: TraversalOptions,
+  ) => readonly Dependency[]
 }
 
 function groupBy<K, T>(items: readonly T[], keyOf: (item: T) => K): Map<K, T[]> {
@@ -142,6 +159,8 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
     return file?.kind === 'file' ? file.path : undefined
   })
 
+  const traversal = buildTraversal(edges, nodeById)
+
   return {
     nodes,
     edges,
@@ -169,5 +188,7 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
         const key = searchKeys.get(node.id)
         return key ? matches(key, query) : false
       }),
+    dependenciesOf: traversal.dependenciesOf,
+    dependentsOf: traversal.dependentsOf,
   }
 }
