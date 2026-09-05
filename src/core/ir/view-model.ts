@@ -80,6 +80,14 @@ export interface ViewModel {
    * （ADR-002）、「空だから無かったことにする」のはビューアによる判定にあたる
    */
   layerKeys: readonly LayerKey[]
+  /**
+   * 層のキーから層の定義を引く。`NO_LAYER` は定義を持たないため undefined。
+   *
+   * ノードが 1 件も属していない層も `layerKeys` に残るため、メンバーノード経由で
+   * `layerOf` する迂回では定義を引けない。列見出しの名前（`name`）と、分類の根拠を
+   * 人が確認するための glob（`match` / ADR-002 実装方針）は、ここから引く
+   */
+  layerOfKey: (key: LayerKey) => Layer | undefined
 
   /**
    * メソッドの所属。属性（`parent`）と引き当ての両方を持つ（UT-02 決定事項）。
@@ -250,6 +258,7 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
     },
     nodesByLayer,
     layerKeys,
+    layerOfKey: (key) => (typeof key === 'string' ? layerById.get(key) : undefined),
     methodsOfFile,
     fileOfMethod: (methodId) => {
       const node = nodeById.get(methodId)

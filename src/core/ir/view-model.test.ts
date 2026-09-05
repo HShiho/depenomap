@@ -203,3 +203,36 @@ describe('粒度を状態として持つ側からの呼び出し（UT-05）', ()
     expect(Array.isArray(result.dependents)).toBe(true)
   })
 })
+
+describe('層の定義の引き当て', () => {
+  it('層のキーから名前と glob を引ける', () => {
+    const layer = buildViewModel(graphOf()).layerOfKey('domain')
+
+    expect(layer?.name).toBe('Domain')
+    expect(layer?.match).toEqual(['src/domain/**'])
+  })
+
+  it('ノードが 1 件も属していない層でも引ける', () => {
+    const vm = buildViewModel(
+      graphOf((g) => {
+        g.layers.push({ id: 'empty', name: 'Empty', match: ['src/empty/**'] })
+      }),
+    )
+
+    expect(vm.nodesByLayer.get('empty')).toEqual([])
+    expect(vm.layerOfKey('empty')?.name).toBe('Empty')
+  })
+
+  it('NO_LAYER は定義を持たない', () => {
+    expect(buildViewModel(graphOf()).layerOfKey(NO_LAYER)).toBeUndefined()
+  })
+
+  it('layerKeys のすべてから定義か undefined が引ける', () => {
+    const vm = buildViewModel(graphOf())
+
+    for (const key of vm.layerKeys) {
+      if (key === NO_LAYER) expect(vm.layerOfKey(key)).toBeUndefined()
+      else expect(vm.layerOfKey(key)).toBeDefined()
+    }
+  })
+})
