@@ -140,8 +140,16 @@ export const UnresolvedSchema = v.object({
 /** `cycles` — 循環依存。検出は抽出側の責務で、JSON が権威（スキーマ §4） */
 export const CycleSchema = v.object({
   id: v.string(),
-  nodes: v.array(v.string()),
-  edges: v.array(v.string()),
+  /**
+   * 循環を構成するノードとエッジ。
+   *
+   * 空の循環は循環ではないため、どちらも 1 件以上を要求する。
+   * 一方 `unresolved[].candidates` や `edges[].implementations` は
+   * 「推測できなかった」「実装が見つからなかった」が意味を持つため、
+   * 空を許す（実データにも 0 件がある）。
+   */
+  nodes: v.pipe(v.array(v.string()), v.minLength(1)),
+  edges: v.pipe(v.array(v.string()), v.minLength(1)),
   /**
    * 型のみの循環かどうか。良し悪しではなく循環の性質という事実（N-1）。
    *

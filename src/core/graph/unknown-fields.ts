@@ -34,18 +34,30 @@ export interface UnknownFieldReport {
 
 type AnySchema = { type: string; [key: string]: unknown }
 
-/** `optional` / `nullable` などのラッパーを剥がし、内側のスキーマを返す */
+/**
+ * `optional` / `nullable` / `pipe` などのラッパーを剥がし、内側のスキーマを返す。
+ *
+ * `pipe` を剥がさないと、検証を挟んだ枝（`v.pipe(v.array(...), v.minLength(1))` など）
+ * で走査が止まり、その先の未知フィールドが黙って見逃される。
+ */
 function unwrap(schema: AnySchema): AnySchema {
   let current = schema
-  while (
-    current.type === 'optional' ||
-    current.type === 'nullable' ||
-    current.type === 'nullish' ||
-    current.type === 'undefinedable'
-  ) {
-    current = current.wrapped as AnySchema
+  for (;;) {
+    if (
+      current.type === 'optional' ||
+      current.type === 'nullable' ||
+      current.type === 'nullish' ||
+      current.type === 'undefinedable'
+    ) {
+      current = current.wrapped as AnySchema
+      continue
+    }
+    if (current.type === 'pipe') {
+      current = (current.pipe as AnySchema[])[0]!
+      continue
+    }
+    return current
   }
-  return current
 }
 
 /**

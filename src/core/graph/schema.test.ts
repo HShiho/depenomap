@@ -4,7 +4,13 @@ import { fileURLToPath, URL } from 'node:url'
 import * as v from 'valibot'
 import { describe, expect, it } from 'vitest'
 
-import { DependencyGraphSchema, EdgeSchema, NodeSchema } from './schema'
+import {
+  CycleSchema,
+  DependencyGraphSchema,
+  EdgeSchema,
+  NodeSchema,
+  UnresolvedSchema,
+} from './schema'
 
 const fixtureUrl = new URL('../../../test-data/dependency-graph.complex.json', import.meta.url)
 const fixture: unknown = JSON.parse(readFileSync(fileURLToPath(fixtureUrl), 'utf8'))
@@ -76,6 +82,42 @@ describe('NodeSchema', () => {
     })
 
     expect(node.layer).toBeUndefined()
+  })
+})
+
+describe('CycleSchema', () => {
+  it.each([
+    ['nodes が空', { nodes: [], edges: ['e_0001'] }],
+    ['edges が空', { nodes: ['file:src/a.ts'], edges: [] }],
+    ['両方空', { nodes: [], edges: [] }],
+  ])('%s なら拒否する', (_label, patch) => {
+    const result = v.safeParse(CycleSchema, { id: 'c_0001', typeOnly: false, ...patch })
+
+    expect(result.success).toBe(false)
+  })
+
+  it('1 件ずつあれば通る', () => {
+    const cycle = v.parse(CycleSchema, {
+      id: 'c_0001',
+      nodes: ['file:src/a.ts'],
+      edges: ['e_0001'],
+    })
+
+    expect(cycle.nodes).toHaveLength(1)
+  })
+})
+
+describe('空を許す配列', () => {
+  it('unresolved[].candidates は空でよい（推測できなかった場合）', () => {
+    const item = v.parse(UnresolvedSchema, {
+      id: 'u_0001',
+      reason: 'callback',
+      from: 'method:src/a.ts#A.b',
+      expression: 'cb()',
+      candidates: [],
+    })
+
+    expect(item.candidates).toEqual([])
   })
 })
 

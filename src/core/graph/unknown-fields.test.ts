@@ -74,6 +74,19 @@ describe('配列の畳み込み', () => {
   })
 })
 
+describe('pipe を挟んだ枝', () => {
+  it('minLength を挟んだ cycles でも走査が止まらない', () => {
+    const report = findUnknownFields(
+      rawOf((g) => {
+        const cycles = g.cycles as Record<string, unknown>[]
+        cycles[0]!.severity = 'high'
+      }),
+    )
+
+    expect(report.fields[0]).toMatchObject({ path: 'cycles[].severity', count: 1 })
+  })
+})
+
 describe('variant の枝選択', () => {
   it('file ノードに付いた未知フィールドを、file の枝で判定する', () => {
     const report = findUnknownFields(
