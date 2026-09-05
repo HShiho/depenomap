@@ -1,0 +1,8 @@
+/*
+ * デザイントークンのエントリ（ADR-005: Tailwind CSS v4）。
+ *
+ * W0 では Tailwind を読み込むところまでを用意する。
+ * トークンの定義（@theme）とライト／ダークの切り替え（@custom-variant）は
+ * UT-04 の責務であり、ここには書かない。
+ */
+@import 'tailwindcss';

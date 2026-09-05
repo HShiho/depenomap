@@ -10,6 +10,10 @@ export default {
   singleQuote: true,
   printWidth: 100,
 
+  // Tailwind v4 は設定ファイルを持たないため、CSS エントリの位置を渡す
+  plugins: ['prettier-plugin-tailwindcss'],
+  tailwindStylesheet: './src/app/design/tokens.css',
+
   overrides: [
     {
       // 本文の折り返しは書いたままにする。テーブルの整形だけを効かせる
