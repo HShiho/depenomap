@@ -64,6 +64,27 @@ describe('層の引き当て', () => {
     expect(total).toBe(88)
   })
 
+  it('バケットの中身がキーと一致する', () => {
+    // 合計だけを見ると、全ノードを 1 つのバケットへ入れる実装でも通る
+    const vm = buildViewModel(graphOf())
+
+    for (const [key, list] of vm.nodesByLayer) {
+      for (const node of list) {
+        if (key === NO_LAYER) expect(node.layer).toBeUndefined()
+        else expect(node.layer).toBe(key)
+      }
+    }
+  })
+
+  it('層なしのノードも同じ規則で入る', () => {
+    const vm = buildViewModel(
+      graphOf((g) => {
+        delete g.nodes[0]!.layer
+      }),
+    )
+
+    expect(vm.nodesByLayer.get(NO_LAYER)?.every((n) => n.layer === undefined)).toBe(true)
+  })
   it('層が未設定のノードは NO_LAYER にまとまる（ADR-002）', () => {
     const vm = buildViewModel(
       graphOf((g) => {
