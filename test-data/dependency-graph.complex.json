@@ -1,0 +1,2367 @@
+{
+  "schemaVersion": "1.0.0",
+  "meta": {
+    "generatedAt": "2026-08-23T04:18:52.106Z",
+    "rootDir": "/Users/shiho/projects/todo-app",
+    "tsconfig": "tsconfig.json",
+    "snapshot": {
+      "label": "feat/reminder",
+      "commit": "7c1e40b9a2d8f3e6b5104c7a9d2e8f1b6350ac47",
+      "branch": "feat/reminder"
+    }
+  },
+  "layers": [
+    {
+      "id": "presentation",
+      "name": "Presentation",
+      "match": ["src/presentation/**"]
+    },
+    {
+      "id": "usecase",
+      "name": "UseCase",
+      "match": ["src/usecase/**"]
+    },
+    {
+      "id": "domain",
+      "name": "Domain",
+      "match": ["src/domain/**"]
+    },
+    {
+      "id": "infra",
+      "name": "Infrastructure",
+      "match": ["src/infra/**"]
+    },
+    {
+      "id": "shared",
+      "name": "Shared",
+      "match": ["src/shared/**"]
+    },
+    {
+      "id": "di",
+      "name": "DI",
+      "match": ["src/di/**"]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "file:src/presentation/TodoController.ts",
+      "kind": "file",
+      "name": "TodoController.ts",
+      "path": "src/presentation/TodoController.ts",
+      "layer": "presentation"
+    },
+    {
+      "id": "file:src/presentation/TodoListController.ts",
+      "kind": "file",
+      "name": "TodoListController.ts",
+      "path": "src/presentation/TodoListController.ts",
+      "layer": "presentation"
+    },
+    {
+      "id": "file:src/presentation/UserController.ts",
+      "kind": "file",
+      "name": "UserController.ts",
+      "path": "src/presentation/UserController.ts",
+      "layer": "presentation"
+    },
+    {
+      "id": "file:src/presentation/middleware/auth.ts",
+      "kind": "file",
+      "name": "auth.ts",
+      "path": "src/presentation/middleware/auth.ts",
+      "layer": "presentation"
+    },
+    {
+      "id": "file:src/usecase/CreateTodo.ts",
+      "kind": "file",
+      "name": "CreateTodo.ts",
+      "path": "src/usecase/CreateTodo.ts",
+      "layer": "usecase"
+    },
+    {
+      "id": "file:src/usecase/CompleteTodo.ts",
+      "kind": "file",
+      "name": "CompleteTodo.ts",
+      "path": "src/usecase/CompleteTodo.ts",
+      "layer": "usecase"
+    },
+    {
+      "id": "file:src/usecase/DeleteTodo.ts",
+      "kind": "file",
+      "name": "DeleteTodo.ts",
+      "path": "src/usecase/DeleteTodo.ts",
+      "layer": "usecase"
+    },
+    {
+      "id": "file:src/usecase/ListTodos.ts",
+      "kind": "file",
+      "name": "ListTodos.ts",
+      "path": "src/usecase/ListTodos.ts",
+      "layer": "usecase"
+    },
+    {
+      "id": "file:src/usecase/RegisterUser.ts",
+      "kind": "file",
+      "name": "RegisterUser.ts",
+      "path": "src/usecase/RegisterUser.ts",
+      "layer": "usecase"
+    },
+    {
+      "id": "file:src/usecase/SendReminder.ts",
+      "kind": "file",
+      "name": "SendReminder.ts",
+      "path": "src/usecase/SendReminder.ts",
+      "layer": "usecase"
+    },
+    {
+      "id": "file:src/domain/Todo.ts",
+      "kind": "file",
+      "name": "Todo.ts",
+      "path": "src/domain/Todo.ts",
+      "layer": "domain"
+    },
+    {
+      "id": "file:src/domain/TodoList.ts",
+      "kind": "file",
+      "name": "TodoList.ts",
+      "path": "src/domain/TodoList.ts",
+      "layer": "domain"
+    },
+    {
+      "id": "file:src/domain/User.ts",
+      "kind": "file",
+      "name": "User.ts",
+      "path": "src/domain/User.ts",
+      "layer": "domain"
+    },
+    {
+      "id": "file:src/domain/TodoPolicy.ts",
+      "kind": "file",
+      "name": "TodoPolicy.ts",
+      "path": "src/domain/TodoPolicy.ts",
+      "layer": "domain"
+    },
+    {
+      "id": "file:src/domain/ITodoRepository.ts",
+      "kind": "file",
+      "name": "ITodoRepository.ts",
+      "path": "src/domain/ITodoRepository.ts",
+      "layer": "domain"
+    },
+    {
+      "id": "file:src/domain/IUserRepository.ts",
+      "kind": "file",
+      "name": "IUserRepository.ts",
+      "path": "src/domain/IUserRepository.ts",
+      "layer": "domain"
+    },
+    {
+      "id": "file:src/domain/INotifier.ts",
+      "kind": "file",
+      "name": "INotifier.ts",
+      "path": "src/domain/INotifier.ts",
+      "layer": "domain"
+    },
+    {
+      "id": "file:src/infra/TodoRepository.ts",
+      "kind": "file",
+      "name": "TodoRepository.ts",
+      "path": "src/infra/TodoRepository.ts",
+      "layer": "infra"
+    },
+    {
+      "id": "file:src/infra/InMemoryTodoRepository.ts",
+      "kind": "file",
+      "name": "InMemoryTodoRepository.ts",
+      "path": "src/infra/InMemoryTodoRepository.ts",
+      "layer": "infra"
+    },
+    {
+      "id": "file:src/infra/UserRepository.ts",
+      "kind": "file",
+      "name": "UserRepository.ts",
+      "path": "src/infra/UserRepository.ts",
+      "layer": "infra"
+    },
+    {
+      "id": "file:src/infra/MailNotifier.ts",
+      "kind": "file",
+      "name": "MailNotifier.ts",
+      "path": "src/infra/MailNotifier.ts",
+      "layer": "infra"
+    },
+    {
+      "id": "file:src/infra/db/connection.ts",
+      "kind": "file",
+      "name": "connection.ts",
+      "path": "src/infra/db/connection.ts",
+      "layer": "infra"
+    },
+    {
+      "id": "file:src/shared/id.ts",
+      "kind": "file",
+      "name": "id.ts",
+      "path": "src/shared/id.ts",
+      "layer": "shared"
+    },
+    {
+      "id": "file:src/shared/clock.ts",
+      "kind": "file",
+      "name": "clock.ts",
+      "path": "src/shared/clock.ts",
+      "layer": "shared"
+    },
+    {
+      "id": "file:src/shared/logger.ts",
+      "kind": "file",
+      "name": "logger.ts",
+      "path": "src/shared/logger.ts",
+      "layer": "shared"
+    },
+    {
+      "id": "file:src/shared/result.ts",
+      "kind": "file",
+      "name": "result.ts",
+      "path": "src/shared/result.ts",
+      "layer": "shared"
+    },
+    {
+      "id": "file:src/di/container.ts",
+      "kind": "file",
+      "name": "container.ts",
+      "path": "src/di/container.ts",
+      "layer": "di"
+    },
+    {
+      "id": "file:src/di/registry.ts",
+      "kind": "file",
+      "name": "registry.ts",
+      "path": "src/di/registry.ts",
+      "layer": "di"
+    },
+    {
+      "id": "method:src/presentation/TodoController.ts#TodoController.post",
+      "kind": "method",
+      "parent": "file:src/presentation/TodoController.ts",
+      "name": "post",
+      "owner": "TodoController",
+      "ownerKind": "class",
+      "layer": "presentation",
+      "loc": {
+        "line": 9,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/presentation/TodoController.ts#TodoController.patch",
+      "kind": "method",
+      "parent": "file:src/presentation/TodoController.ts",
+      "name": "patch",
+      "owner": "TodoController",
+      "ownerKind": "class",
+      "layer": "presentation",
+      "loc": {
+        "line": 14,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/presentation/TodoController.ts#TodoController.delete",
+      "kind": "method",
+      "parent": "file:src/presentation/TodoController.ts",
+      "name": "delete",
+      "owner": "TodoController",
+      "ownerKind": "class",
+      "layer": "presentation",
+      "loc": {
+        "line": 19,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/presentation/TodoListController.ts#TodoListController.get",
+      "kind": "method",
+      "parent": "file:src/presentation/TodoListController.ts",
+      "name": "get",
+      "owner": "TodoListController",
+      "ownerKind": "class",
+      "layer": "presentation",
+      "loc": {
+        "line": 5,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/presentation/UserController.ts#UserController.post",
+      "kind": "method",
+      "parent": "file:src/presentation/UserController.ts",
+      "name": "post",
+      "owner": "UserController",
+      "ownerKind": "class",
+      "layer": "presentation",
+      "loc": {
+        "line": 7,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/presentation/UserController.ts#UserController.get",
+      "kind": "method",
+      "parent": "file:src/presentation/UserController.ts",
+      "name": "get",
+      "owner": "UserController",
+      "ownerKind": "class",
+      "layer": "presentation",
+      "loc": {
+        "line": 12,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/presentation/middleware/auth.ts#requireUser",
+      "kind": "method",
+      "parent": "file:src/presentation/middleware/auth.ts",
+      "name": "requireUser",
+      "owner": null,
+      "ownerKind": null,
+      "layer": "presentation",
+      "loc": {
+        "line": 5,
+        "column": 1
+      }
+    },
+    {
+      "id": "method:src/usecase/CreateTodo.ts#CreateTodo.execute",
+      "kind": "method",
+      "parent": "file:src/usecase/CreateTodo.ts",
+      "name": "execute",
+      "owner": "CreateTodo",
+      "ownerKind": "class",
+      "layer": "usecase",
+      "loc": {
+        "line": 7,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/usecase/CompleteTodo.ts#CompleteTodo.execute",
+      "kind": "method",
+      "parent": "file:src/usecase/CompleteTodo.ts",
+      "name": "execute",
+      "owner": "CompleteTodo",
+      "ownerKind": "class",
+      "layer": "usecase",
+      "loc": {
+        "line": 7,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/usecase/DeleteTodo.ts#DeleteTodo.execute",
+      "kind": "method",
+      "parent": "file:src/usecase/DeleteTodo.ts",
+      "name": "execute",
+      "owner": "DeleteTodo",
+      "ownerKind": "class",
+      "layer": "usecase",
+      "loc": {
+        "line": 5,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/usecase/ListTodos.ts#ListTodos.execute",
+      "kind": "method",
+      "parent": "file:src/usecase/ListTodos.ts",
+      "name": "execute",
+      "owner": "ListTodos",
+      "ownerKind": "class",
+      "layer": "usecase",
+      "loc": {
+        "line": 6,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/usecase/RegisterUser.ts#RegisterUser.execute",
+      "kind": "method",
+      "parent": "file:src/usecase/RegisterUser.ts",
+      "name": "execute",
+      "owner": "RegisterUser",
+      "ownerKind": "class",
+      "layer": "usecase",
+      "loc": {
+        "line": 6,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/usecase/SendReminder.ts#SendReminder.execute",
+      "kind": "method",
+      "parent": "file:src/usecase/SendReminder.ts",
+      "name": "execute",
+      "owner": "SendReminder",
+      "ownerKind": "class",
+      "layer": "usecase",
+      "loc": {
+        "line": 6,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/Todo.ts#Todo.constructor",
+      "kind": "method",
+      "parent": "file:src/domain/Todo.ts",
+      "name": "constructor",
+      "owner": "Todo",
+      "ownerKind": "class",
+      "layer": "domain",
+      "loc": {
+        "line": 5,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/Todo.ts#Todo.complete",
+      "kind": "method",
+      "parent": "file:src/domain/Todo.ts",
+      "name": "complete",
+      "owner": "Todo",
+      "ownerKind": "class",
+      "layer": "domain",
+      "loc": {
+        "line": 10,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/Todo.ts#Todo.rename",
+      "kind": "method",
+      "parent": "file:src/domain/Todo.ts",
+      "name": "rename",
+      "owner": "Todo",
+      "ownerKind": "class",
+      "layer": "domain",
+      "loc": {
+        "line": 15,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/Todo.ts#Todo.attachTo",
+      "kind": "method",
+      "parent": "file:src/domain/Todo.ts",
+      "name": "attachTo",
+      "owner": "Todo",
+      "ownerKind": "class",
+      "layer": "domain",
+      "loc": {
+        "line": 20,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/Todo.ts#Todo.isOverdue",
+      "kind": "method",
+      "parent": "file:src/domain/Todo.ts",
+      "name": "isOverdue",
+      "owner": "Todo",
+      "ownerKind": "class",
+      "layer": "domain",
+      "loc": {
+        "line": 25,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/TodoList.ts#TodoList.constructor",
+      "kind": "method",
+      "parent": "file:src/domain/TodoList.ts",
+      "name": "constructor",
+      "owner": "TodoList",
+      "ownerKind": "class",
+      "layer": "domain",
+      "loc": {
+        "line": 4,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/TodoList.ts#TodoList.add",
+      "kind": "method",
+      "parent": "file:src/domain/TodoList.ts",
+      "name": "add",
+      "owner": "TodoList",
+      "ownerKind": "class",
+      "layer": "domain",
+      "loc": {
+        "line": 9,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/TodoList.ts#TodoList.remove",
+      "kind": "method",
+      "parent": "file:src/domain/TodoList.ts",
+      "name": "remove",
+      "owner": "TodoList",
+      "ownerKind": "class",
+      "layer": "domain",
+      "loc": {
+        "line": 14,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/TodoList.ts#TodoList.completedCount",
+      "kind": "method",
+      "parent": "file:src/domain/TodoList.ts",
+      "name": "completedCount",
+      "owner": "TodoList",
+      "ownerKind": "class",
+      "layer": "domain",
+      "loc": {
+        "line": 19,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/User.ts#User.constructor",
+      "kind": "method",
+      "parent": "file:src/domain/User.ts",
+      "name": "constructor",
+      "owner": "User",
+      "ownerKind": "class",
+      "layer": "domain",
+      "loc": {
+        "line": 6,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/User.ts#User.canCreateTodo",
+      "kind": "method",
+      "parent": "file:src/domain/User.ts",
+      "name": "canCreateTodo",
+      "owner": "User",
+      "ownerKind": "class",
+      "layer": "domain",
+      "loc": {
+        "line": 11,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/User.ts#User.save",
+      "kind": "method",
+      "parent": "file:src/domain/User.ts",
+      "name": "save",
+      "owner": "User",
+      "ownerKind": "class",
+      "layer": "domain",
+      "loc": {
+        "line": 16,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/TodoPolicy.ts#TodoPolicy.canComplete",
+      "kind": "method",
+      "parent": "file:src/domain/TodoPolicy.ts",
+      "name": "canComplete",
+      "owner": "TodoPolicy",
+      "ownerKind": "class",
+      "layer": "domain",
+      "loc": {
+        "line": 5,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/TodoPolicy.ts#TodoPolicy.maxTodos",
+      "kind": "method",
+      "parent": "file:src/domain/TodoPolicy.ts",
+      "name": "maxTodos",
+      "owner": "TodoPolicy",
+      "ownerKind": "class",
+      "layer": "domain",
+      "loc": {
+        "line": 10,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/ITodoRepository.ts#ITodoRepository.save",
+      "kind": "method",
+      "parent": "file:src/domain/ITodoRepository.ts",
+      "name": "save",
+      "owner": "ITodoRepository",
+      "ownerKind": "interface",
+      "layer": "domain",
+      "loc": {
+        "line": 4,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/ITodoRepository.ts#ITodoRepository.findById",
+      "kind": "method",
+      "parent": "file:src/domain/ITodoRepository.ts",
+      "name": "findById",
+      "owner": "ITodoRepository",
+      "ownerKind": "interface",
+      "layer": "domain",
+      "loc": {
+        "line": 9,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/ITodoRepository.ts#ITodoRepository.findAll",
+      "kind": "method",
+      "parent": "file:src/domain/ITodoRepository.ts",
+      "name": "findAll",
+      "owner": "ITodoRepository",
+      "ownerKind": "interface",
+      "layer": "domain",
+      "loc": {
+        "line": 14,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/ITodoRepository.ts#ITodoRepository.delete",
+      "kind": "method",
+      "parent": "file:src/domain/ITodoRepository.ts",
+      "name": "delete",
+      "owner": "ITodoRepository",
+      "ownerKind": "interface",
+      "layer": "domain",
+      "loc": {
+        "line": 19,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/IUserRepository.ts#IUserRepository.save",
+      "kind": "method",
+      "parent": "file:src/domain/IUserRepository.ts",
+      "name": "save",
+      "owner": "IUserRepository",
+      "ownerKind": "interface",
+      "layer": "domain",
+      "loc": {
+        "line": 4,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/IUserRepository.ts#IUserRepository.findByEmail",
+      "kind": "method",
+      "parent": "file:src/domain/IUserRepository.ts",
+      "name": "findByEmail",
+      "owner": "IUserRepository",
+      "ownerKind": "interface",
+      "layer": "domain",
+      "loc": {
+        "line": 9,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/domain/INotifier.ts#INotifier.notify",
+      "kind": "method",
+      "parent": "file:src/domain/INotifier.ts",
+      "name": "notify",
+      "owner": "INotifier",
+      "ownerKind": "interface",
+      "layer": "domain",
+      "loc": {
+        "line": 4,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/infra/TodoRepository.ts#TodoRepository.constructor",
+      "kind": "method",
+      "parent": "file:src/infra/TodoRepository.ts",
+      "name": "constructor",
+      "owner": "TodoRepository",
+      "ownerKind": "class",
+      "layer": "infra",
+      "loc": {
+        "line": 7,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/infra/TodoRepository.ts#TodoRepository.save",
+      "kind": "method",
+      "parent": "file:src/infra/TodoRepository.ts",
+      "name": "save",
+      "owner": "TodoRepository",
+      "ownerKind": "class",
+      "layer": "infra",
+      "loc": {
+        "line": 12,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/infra/TodoRepository.ts#TodoRepository.findById",
+      "kind": "method",
+      "parent": "file:src/infra/TodoRepository.ts",
+      "name": "findById",
+      "owner": "TodoRepository",
+      "ownerKind": "class",
+      "layer": "infra",
+      "loc": {
+        "line": 17,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/infra/TodoRepository.ts#TodoRepository.findAll",
+      "kind": "method",
+      "parent": "file:src/infra/TodoRepository.ts",
+      "name": "findAll",
+      "owner": "TodoRepository",
+      "ownerKind": "class",
+      "layer": "infra",
+      "loc": {
+        "line": 22,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/infra/TodoRepository.ts#TodoRepository.delete",
+      "kind": "method",
+      "parent": "file:src/infra/TodoRepository.ts",
+      "name": "delete",
+      "owner": "TodoRepository",
+      "ownerKind": "class",
+      "layer": "infra",
+      "loc": {
+        "line": 27,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/infra/InMemoryTodoRepository.ts#InMemoryTodoRepository.constructor",
+      "kind": "method",
+      "parent": "file:src/infra/InMemoryTodoRepository.ts",
+      "name": "constructor",
+      "owner": "InMemoryTodoRepository",
+      "ownerKind": "class",
+      "layer": "infra",
+      "loc": {
+        "line": 5,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/infra/InMemoryTodoRepository.ts#InMemoryTodoRepository.save",
+      "kind": "method",
+      "parent": "file:src/infra/InMemoryTodoRepository.ts",
+      "name": "save",
+      "owner": "InMemoryTodoRepository",
+      "ownerKind": "class",
+      "layer": "infra",
+      "loc": {
+        "line": 10,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/infra/InMemoryTodoRepository.ts#InMemoryTodoRepository.findById",
+      "kind": "method",
+      "parent": "file:src/infra/InMemoryTodoRepository.ts",
+      "name": "findById",
+      "owner": "InMemoryTodoRepository",
+      "ownerKind": "class",
+      "layer": "infra",
+      "loc": {
+        "line": 15,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/infra/InMemoryTodoRepository.ts#InMemoryTodoRepository.findAll",
+      "kind": "method",
+      "parent": "file:src/infra/InMemoryTodoRepository.ts",
+      "name": "findAll",
+      "owner": "InMemoryTodoRepository",
+      "ownerKind": "class",
+      "layer": "infra",
+      "loc": {
+        "line": 20,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/infra/InMemoryTodoRepository.ts#InMemoryTodoRepository.delete",
+      "kind": "method",
+      "parent": "file:src/infra/InMemoryTodoRepository.ts",
+      "name": "delete",
+      "owner": "InMemoryTodoRepository",
+      "ownerKind": "class",
+      "layer": "infra",
+      "loc": {
+        "line": 25,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/infra/UserRepository.ts#UserRepository.constructor",
+      "kind": "method",
+      "parent": "file:src/infra/UserRepository.ts",
+      "name": "constructor",
+      "owner": "UserRepository",
+      "ownerKind": "class",
+      "layer": "infra",
+      "loc": {
+        "line": 6,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/infra/UserRepository.ts#UserRepository.save",
+      "kind": "method",
+      "parent": "file:src/infra/UserRepository.ts",
+      "name": "save",
+      "owner": "UserRepository",
+      "ownerKind": "class",
+      "layer": "infra",
+      "loc": {
+        "line": 11,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/infra/UserRepository.ts#UserRepository.findByEmail",
+      "kind": "method",
+      "parent": "file:src/infra/UserRepository.ts",
+      "name": "findByEmail",
+      "owner": "UserRepository",
+      "ownerKind": "class",
+      "layer": "infra",
+      "loc": {
+        "line": 16,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/infra/MailNotifier.ts#MailNotifier.constructor",
+      "kind": "method",
+      "parent": "file:src/infra/MailNotifier.ts",
+      "name": "constructor",
+      "owner": "MailNotifier",
+      "ownerKind": "class",
+      "layer": "infra",
+      "loc": {
+        "line": 6,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/infra/MailNotifier.ts#MailNotifier.notify",
+      "kind": "method",
+      "parent": "file:src/infra/MailNotifier.ts",
+      "name": "notify",
+      "owner": "MailNotifier",
+      "ownerKind": "class",
+      "layer": "infra",
+      "loc": {
+        "line": 11,
+        "column": 3
+      }
+    },
+    {
+      "id": "method:src/infra/db/connection.ts#connect",
+      "kind": "method",
+      "parent": "file:src/infra/db/connection.ts",
+      "name": "connect",
+      "owner": null,
+      "ownerKind": null,
+      "layer": "infra",
+      "loc": {
+        "line": 4,
+        "column": 1
+      }
+    },
+    {
+      "id": "method:src/infra/db/connection.ts#query",
+      "kind": "method",
+      "parent": "file:src/infra/db/connection.ts",
+      "name": "query",
+      "owner": null,
+      "ownerKind": null,
+      "layer": "infra",
+      "loc": {
+        "line": 9,
+        "column": 1
+      }
+    },
+    {
+      "id": "method:src/shared/id.ts#generateId",
+      "kind": "method",
+      "parent": "file:src/shared/id.ts",
+      "name": "generateId",
+      "owner": null,
+      "ownerKind": null,
+      "layer": "shared",
+      "loc": {
+        "line": 3,
+        "column": 1
+      }
+    },
+    {
+      "id": "method:src/shared/clock.ts#now",
+      "kind": "method",
+      "parent": "file:src/shared/clock.ts",
+      "name": "now",
+      "owner": null,
+      "ownerKind": null,
+      "layer": "shared",
+      "loc": {
+        "line": 3,
+        "column": 1
+      }
+    },
+    {
+      "id": "method:src/shared/logger.ts#info",
+      "kind": "method",
+      "parent": "file:src/shared/logger.ts",
+      "name": "info",
+      "owner": null,
+      "ownerKind": null,
+      "layer": "shared",
+      "loc": {
+        "line": 4,
+        "column": 1
+      }
+    },
+    {
+      "id": "method:src/shared/logger.ts#warn",
+      "kind": "method",
+      "parent": "file:src/shared/logger.ts",
+      "name": "warn",
+      "owner": null,
+      "ownerKind": null,
+      "layer": "shared",
+      "loc": {
+        "line": 9,
+        "column": 1
+      }
+    },
+    {
+      "id": "method:src/shared/result.ts#ok",
+      "kind": "method",
+      "parent": "file:src/shared/result.ts",
+      "name": "ok",
+      "owner": null,
+      "ownerKind": null,
+      "layer": "shared",
+      "loc": {
+        "line": 3,
+        "column": 1
+      }
+    },
+    {
+      "id": "method:src/shared/result.ts#err",
+      "kind": "method",
+      "parent": "file:src/shared/result.ts",
+      "name": "err",
+      "owner": null,
+      "ownerKind": null,
+      "layer": "shared",
+      "loc": {
+        "line": 8,
+        "column": 1
+      }
+    },
+    {
+      "id": "method:src/di/container.ts#resolve",
+      "kind": "method",
+      "parent": "file:src/di/container.ts",
+      "name": "resolve",
+      "owner": null,
+      "ownerKind": null,
+      "layer": "di",
+      "loc": {
+        "line": 7,
+        "column": 1
+      }
+    },
+    {
+      "id": "method:src/di/container.ts#register",
+      "kind": "method",
+      "parent": "file:src/di/container.ts",
+      "name": "register",
+      "owner": null,
+      "ownerKind": null,
+      "layer": "di",
+      "loc": {
+        "line": 12,
+        "column": 1
+      }
+    },
+    {
+      "id": "method:src/di/registry.ts#bootstrap",
+      "kind": "method",
+      "parent": "file:src/di/registry.ts",
+      "name": "bootstrap",
+      "owner": null,
+      "ownerKind": null,
+      "layer": "di",
+      "loc": {
+        "line": 10,
+        "column": 1
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_0001",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/presentation/TodoController.ts",
+      "to": "file:src/usecase/CreateTodo.ts",
+      "importKind": "value",
+      "specifier": "@/usecase/CreateTodo"
+    },
+    {
+      "id": "e_0002",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/presentation/TodoController.ts",
+      "to": "file:src/usecase/CompleteTodo.ts",
+      "importKind": "value",
+      "specifier": "@/usecase/CompleteTodo"
+    },
+    {
+      "id": "e_0003",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/presentation/TodoController.ts",
+      "to": "file:src/usecase/DeleteTodo.ts",
+      "importKind": "value",
+      "specifier": "@/usecase/DeleteTodo"
+    },
+    {
+      "id": "e_0004",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/presentation/TodoController.ts",
+      "to": "file:src/di/container.ts",
+      "importKind": "value",
+      "specifier": "@/di/container"
+    },
+    {
+      "id": "e_0005",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/presentation/TodoController.ts",
+      "to": "file:src/infra/TodoRepository.ts",
+      "importKind": "value",
+      "specifier": "@/infra/TodoRepository"
+    },
+    {
+      "id": "e_0006",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/presentation/TodoController.ts",
+      "to": "file:src/presentation/middleware/auth.ts",
+      "importKind": "value",
+      "specifier": "@/presentation/middleware/auth"
+    },
+    {
+      "id": "e_0007",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/presentation/TodoListController.ts",
+      "to": "file:src/usecase/ListTodos.ts",
+      "importKind": "value",
+      "specifier": "@/usecase/ListTodos"
+    },
+    {
+      "id": "e_0008",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/presentation/TodoListController.ts",
+      "to": "file:src/di/container.ts",
+      "importKind": "value",
+      "specifier": "@/di/container"
+    },
+    {
+      "id": "e_0009",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/presentation/UserController.ts",
+      "to": "file:src/usecase/RegisterUser.ts",
+      "importKind": "value",
+      "specifier": "@/usecase/RegisterUser"
+    },
+    {
+      "id": "e_0010",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/presentation/UserController.ts",
+      "to": "file:src/infra/db/connection.ts",
+      "importKind": "value",
+      "specifier": "@/infra/db/connection"
+    },
+    {
+      "id": "e_0011",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/presentation/UserController.ts",
+      "to": "file:src/di/container.ts",
+      "importKind": "value",
+      "specifier": "@/di/container"
+    },
+    {
+      "id": "e_0012",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/presentation/UserController.ts",
+      "to": "file:src/presentation/middleware/auth.ts",
+      "importKind": "value",
+      "specifier": "@/presentation/middleware/auth"
+    },
+    {
+      "id": "e_0013",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/presentation/middleware/auth.ts",
+      "to": "file:src/domain/User.ts",
+      "importKind": "type",
+      "specifier": "@/domain/User"
+    },
+    {
+      "id": "e_0014",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/presentation/middleware/auth.ts",
+      "to": "file:src/di/container.ts",
+      "importKind": "value",
+      "specifier": "@/di/container"
+    },
+    {
+      "id": "e_0015",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/CreateTodo.ts",
+      "to": "file:src/domain/Todo.ts",
+      "importKind": "value",
+      "specifier": "@/domain/Todo"
+    },
+    {
+      "id": "e_0016",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/CreateTodo.ts",
+      "to": "file:src/domain/ITodoRepository.ts",
+      "importKind": "type",
+      "specifier": "@/domain/ITodoRepository"
+    },
+    {
+      "id": "e_0017",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/CreateTodo.ts",
+      "to": "file:src/shared/id.ts",
+      "importKind": "value",
+      "specifier": "@/shared/id"
+    },
+    {
+      "id": "e_0018",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/CreateTodo.ts",
+      "to": "file:src/shared/result.ts",
+      "importKind": "value",
+      "specifier": "@/shared/result"
+    },
+    {
+      "id": "e_0019",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/CompleteTodo.ts",
+      "to": "file:src/domain/ITodoRepository.ts",
+      "importKind": "type",
+      "specifier": "@/domain/ITodoRepository"
+    },
+    {
+      "id": "e_0020",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/CompleteTodo.ts",
+      "to": "file:src/domain/Todo.ts",
+      "importKind": "type",
+      "specifier": "@/domain/Todo"
+    },
+    {
+      "id": "e_0021",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/CompleteTodo.ts",
+      "to": "file:src/domain/TodoPolicy.ts",
+      "importKind": "value",
+      "specifier": "@/domain/TodoPolicy"
+    },
+    {
+      "id": "e_0022",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/CompleteTodo.ts",
+      "to": "file:src/shared/clock.ts",
+      "importKind": "value",
+      "specifier": "@/shared/clock"
+    },
+    {
+      "id": "e_0023",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/DeleteTodo.ts",
+      "to": "file:src/domain/ITodoRepository.ts",
+      "importKind": "type",
+      "specifier": "@/domain/ITodoRepository"
+    },
+    {
+      "id": "e_0024",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/DeleteTodo.ts",
+      "to": "file:src/shared/logger.ts",
+      "importKind": "value",
+      "specifier": "@/shared/logger"
+    },
+    {
+      "id": "e_0025",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/ListTodos.ts",
+      "to": "file:src/domain/ITodoRepository.ts",
+      "importKind": "type",
+      "specifier": "@/domain/ITodoRepository"
+    },
+    {
+      "id": "e_0026",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/ListTodos.ts",
+      "to": "file:src/domain/Todo.ts",
+      "importKind": "type",
+      "specifier": "@/domain/Todo"
+    },
+    {
+      "id": "e_0027",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/ListTodos.ts",
+      "to": "file:src/usecase/SendReminder.ts",
+      "importKind": "value",
+      "specifier": "@/usecase/SendReminder"
+    },
+    {
+      "id": "e_0028",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/RegisterUser.ts",
+      "to": "file:src/domain/User.ts",
+      "importKind": "value",
+      "specifier": "@/domain/User"
+    },
+    {
+      "id": "e_0029",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/RegisterUser.ts",
+      "to": "file:src/domain/IUserRepository.ts",
+      "importKind": "type",
+      "specifier": "@/domain/IUserRepository"
+    },
+    {
+      "id": "e_0030",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/RegisterUser.ts",
+      "to": "file:src/shared/id.ts",
+      "importKind": "value",
+      "specifier": "@/shared/id"
+    },
+    {
+      "id": "e_0031",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/SendReminder.ts",
+      "to": "file:src/domain/INotifier.ts",
+      "importKind": "type",
+      "specifier": "@/domain/INotifier"
+    },
+    {
+      "id": "e_0032",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/SendReminder.ts",
+      "to": "file:src/usecase/ListTodos.ts",
+      "importKind": "value",
+      "specifier": "@/usecase/ListTodos"
+    },
+    {
+      "id": "e_0033",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/usecase/SendReminder.ts",
+      "to": "file:src/shared/logger.ts",
+      "importKind": "value",
+      "specifier": "@/shared/logger"
+    },
+    {
+      "id": "e_0034",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/domain/Todo.ts",
+      "to": "file:src/domain/TodoList.ts",
+      "importKind": "type",
+      "specifier": "@/domain/TodoList"
+    },
+    {
+      "id": "e_0035",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/domain/Todo.ts",
+      "to": "file:src/shared/clock.ts",
+      "importKind": "value",
+      "specifier": "@/shared/clock"
+    },
+    {
+      "id": "e_0036",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/domain/TodoList.ts",
+      "to": "file:src/domain/Todo.ts",
+      "importKind": "type",
+      "specifier": "@/domain/Todo"
+    },
+    {
+      "id": "e_0037",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/domain/User.ts",
+      "to": "file:src/infra/UserRepository.ts",
+      "importKind": "value",
+      "specifier": "@/infra/UserRepository"
+    },
+    {
+      "id": "e_0038",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/domain/User.ts",
+      "to": "file:src/domain/TodoPolicy.ts",
+      "importKind": "value",
+      "specifier": "@/domain/TodoPolicy"
+    },
+    {
+      "id": "e_0039",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/domain/User.ts",
+      "to": "file:src/shared/result.ts",
+      "importKind": "value",
+      "specifier": "@/shared/result"
+    },
+    {
+      "id": "e_0040",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/domain/TodoPolicy.ts",
+      "to": "file:src/domain/Todo.ts",
+      "importKind": "type",
+      "specifier": "@/domain/Todo"
+    },
+    {
+      "id": "e_0041",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/domain/TodoPolicy.ts",
+      "to": "file:src/domain/TodoList.ts",
+      "importKind": "type",
+      "specifier": "@/domain/TodoList"
+    },
+    {
+      "id": "e_0042",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/domain/ITodoRepository.ts",
+      "to": "file:src/domain/Todo.ts",
+      "importKind": "type",
+      "specifier": "@/domain/Todo"
+    },
+    {
+      "id": "e_0043",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/domain/IUserRepository.ts",
+      "to": "file:src/domain/User.ts",
+      "importKind": "type",
+      "specifier": "@/domain/User"
+    },
+    {
+      "id": "e_0044",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/domain/INotifier.ts",
+      "to": "file:src/domain/Todo.ts",
+      "importKind": "type",
+      "specifier": "@/domain/Todo"
+    },
+    {
+      "id": "e_0045",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/infra/TodoRepository.ts",
+      "to": "file:src/domain/ITodoRepository.ts",
+      "importKind": "type",
+      "specifier": "@/domain/ITodoRepository"
+    },
+    {
+      "id": "e_0046",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/infra/TodoRepository.ts",
+      "to": "file:src/domain/Todo.ts",
+      "importKind": "value",
+      "specifier": "@/domain/Todo"
+    },
+    {
+      "id": "e_0047",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/infra/TodoRepository.ts",
+      "to": "file:src/infra/db/connection.ts",
+      "importKind": "value",
+      "specifier": "@/infra/db/connection"
+    },
+    {
+      "id": "e_0048",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/infra/TodoRepository.ts",
+      "to": "file:src/shared/logger.ts",
+      "importKind": "value",
+      "specifier": "@/shared/logger"
+    },
+    {
+      "id": "e_0049",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/infra/InMemoryTodoRepository.ts",
+      "to": "file:src/domain/ITodoRepository.ts",
+      "importKind": "type",
+      "specifier": "@/domain/ITodoRepository"
+    },
+    {
+      "id": "e_0050",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/infra/InMemoryTodoRepository.ts",
+      "to": "file:src/domain/Todo.ts",
+      "importKind": "value",
+      "specifier": "@/domain/Todo"
+    },
+    {
+      "id": "e_0051",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/infra/UserRepository.ts",
+      "to": "file:src/domain/IUserRepository.ts",
+      "importKind": "type",
+      "specifier": "@/domain/IUserRepository"
+    },
+    {
+      "id": "e_0052",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/infra/UserRepository.ts",
+      "to": "file:src/domain/User.ts",
+      "importKind": "value",
+      "specifier": "@/domain/User"
+    },
+    {
+      "id": "e_0053",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/infra/UserRepository.ts",
+      "to": "file:src/infra/db/connection.ts",
+      "importKind": "value",
+      "specifier": "@/infra/db/connection"
+    },
+    {
+      "id": "e_0054",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/infra/MailNotifier.ts",
+      "to": "file:src/domain/INotifier.ts",
+      "importKind": "type",
+      "specifier": "@/domain/INotifier"
+    },
+    {
+      "id": "e_0055",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/infra/MailNotifier.ts",
+      "to": "file:src/domain/Todo.ts",
+      "importKind": "type",
+      "specifier": "@/domain/Todo"
+    },
+    {
+      "id": "e_0056",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/infra/MailNotifier.ts",
+      "to": "file:src/shared/logger.ts",
+      "importKind": "value",
+      "specifier": "@/shared/logger"
+    },
+    {
+      "id": "e_0057",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/infra/db/connection.ts",
+      "to": "file:src/shared/logger.ts",
+      "importKind": "value",
+      "specifier": "@/shared/logger"
+    },
+    {
+      "id": "e_0058",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/shared/logger.ts",
+      "to": "file:src/shared/clock.ts",
+      "importKind": "value",
+      "specifier": "@/shared/clock"
+    },
+    {
+      "id": "e_0059",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/di/container.ts",
+      "to": "file:src/infra/TodoRepository.ts",
+      "importKind": "value",
+      "specifier": "@/infra/TodoRepository"
+    },
+    {
+      "id": "e_0060",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/di/container.ts",
+      "to": "file:src/infra/InMemoryTodoRepository.ts",
+      "importKind": "value",
+      "specifier": "@/infra/InMemoryTodoRepository"
+    },
+    {
+      "id": "e_0061",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/di/container.ts",
+      "to": "file:src/infra/UserRepository.ts",
+      "importKind": "value",
+      "specifier": "@/infra/UserRepository"
+    },
+    {
+      "id": "e_0062",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/di/container.ts",
+      "to": "file:src/infra/MailNotifier.ts",
+      "importKind": "value",
+      "specifier": "@/infra/MailNotifier"
+    },
+    {
+      "id": "e_0063",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/di/registry.ts",
+      "to": "file:src/di/container.ts",
+      "importKind": "value",
+      "specifier": "@/di/container"
+    },
+    {
+      "id": "e_0064",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/di/registry.ts",
+      "to": "file:src/usecase/CreateTodo.ts",
+      "importKind": "value",
+      "specifier": "@/usecase/CreateTodo"
+    },
+    {
+      "id": "e_0065",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/di/registry.ts",
+      "to": "file:src/usecase/CompleteTodo.ts",
+      "importKind": "value",
+      "specifier": "@/usecase/CompleteTodo"
+    },
+    {
+      "id": "e_0066",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/di/registry.ts",
+      "to": "file:src/usecase/DeleteTodo.ts",
+      "importKind": "value",
+      "specifier": "@/usecase/DeleteTodo"
+    },
+    {
+      "id": "e_0067",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/di/registry.ts",
+      "to": "file:src/usecase/ListTodos.ts",
+      "importKind": "value",
+      "specifier": "@/usecase/ListTodos"
+    },
+    {
+      "id": "e_0068",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/di/registry.ts",
+      "to": "file:src/usecase/RegisterUser.ts",
+      "importKind": "value",
+      "specifier": "@/usecase/RegisterUser"
+    },
+    {
+      "id": "e_0069",
+      "granularity": "file",
+      "kind": "import",
+      "from": "file:src/di/registry.ts",
+      "to": "file:src/usecase/SendReminder.ts",
+      "importKind": "value",
+      "specifier": "@/usecase/SendReminder"
+    },
+    {
+      "id": "e_0070",
+      "granularity": "method",
+      "kind": "implements",
+      "from": "method:src/infra/TodoRepository.ts#TodoRepository.save",
+      "to": "method:src/domain/ITodoRepository.ts#ITodoRepository.save"
+    },
+    {
+      "id": "e_0071",
+      "granularity": "method",
+      "kind": "implements",
+      "from": "method:src/infra/TodoRepository.ts#TodoRepository.findById",
+      "to": "method:src/domain/ITodoRepository.ts#ITodoRepository.findById"
+    },
+    {
+      "id": "e_0072",
+      "granularity": "method",
+      "kind": "implements",
+      "from": "method:src/infra/TodoRepository.ts#TodoRepository.findAll",
+      "to": "method:src/domain/ITodoRepository.ts#ITodoRepository.findAll"
+    },
+    {
+      "id": "e_0073",
+      "granularity": "method",
+      "kind": "implements",
+      "from": "method:src/infra/TodoRepository.ts#TodoRepository.delete",
+      "to": "method:src/domain/ITodoRepository.ts#ITodoRepository.delete"
+    },
+    {
+      "id": "e_0074",
+      "granularity": "method",
+      "kind": "implements",
+      "from": "method:src/infra/InMemoryTodoRepository.ts#InMemoryTodoRepository.save",
+      "to": "method:src/domain/ITodoRepository.ts#ITodoRepository.save"
+    },
+    {
+      "id": "e_0075",
+      "granularity": "method",
+      "kind": "implements",
+      "from": "method:src/infra/InMemoryTodoRepository.ts#InMemoryTodoRepository.findById",
+      "to": "method:src/domain/ITodoRepository.ts#ITodoRepository.findById"
+    },
+    {
+      "id": "e_0076",
+      "granularity": "method",
+      "kind": "implements",
+      "from": "method:src/infra/InMemoryTodoRepository.ts#InMemoryTodoRepository.findAll",
+      "to": "method:src/domain/ITodoRepository.ts#ITodoRepository.findAll"
+    },
+    {
+      "id": "e_0077",
+      "granularity": "method",
+      "kind": "implements",
+      "from": "method:src/infra/InMemoryTodoRepository.ts#InMemoryTodoRepository.delete",
+      "to": "method:src/domain/ITodoRepository.ts#ITodoRepository.delete"
+    },
+    {
+      "id": "e_0078",
+      "granularity": "method",
+      "kind": "implements",
+      "from": "method:src/infra/UserRepository.ts#UserRepository.save",
+      "to": "method:src/domain/IUserRepository.ts#IUserRepository.save"
+    },
+    {
+      "id": "e_0079",
+      "granularity": "method",
+      "kind": "implements",
+      "from": "method:src/infra/UserRepository.ts#UserRepository.findByEmail",
+      "to": "method:src/domain/IUserRepository.ts#IUserRepository.findByEmail"
+    },
+    {
+      "id": "e_0080",
+      "granularity": "method",
+      "kind": "implements",
+      "from": "method:src/infra/MailNotifier.ts#MailNotifier.notify",
+      "to": "method:src/domain/INotifier.ts#INotifier.notify"
+    },
+    {
+      "id": "e_0081",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/presentation/TodoController.ts#TodoController.post",
+      "to": "method:src/di/container.ts#resolve",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0082",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/presentation/TodoController.ts#TodoController.post",
+      "to": "method:src/usecase/CreateTodo.ts#CreateTodo.execute",
+      "resolution": "static",
+      "sourceOrder": 1
+    },
+    {
+      "id": "e_0083",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/presentation/TodoController.ts#TodoController.post",
+      "to": "method:src/shared/logger.ts#info",
+      "resolution": "static",
+      "sourceOrder": 2
+    },
+    {
+      "id": "e_0084",
+      "granularity": "method",
+      "kind": "construct",
+      "from": "method:src/presentation/TodoController.ts#TodoController.patch",
+      "to": "method:src/infra/TodoRepository.ts#TodoRepository.constructor",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0085",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/presentation/TodoController.ts#TodoController.patch",
+      "to": "method:src/usecase/CompleteTodo.ts#CompleteTodo.execute",
+      "resolution": "static",
+      "sourceOrder": 1
+    },
+    {
+      "id": "e_0086",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/presentation/TodoController.ts#TodoController.delete",
+      "to": "method:src/di/container.ts#resolve",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0087",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/presentation/TodoController.ts#TodoController.delete",
+      "to": "method:src/usecase/DeleteTodo.ts#DeleteTodo.execute",
+      "resolution": "static",
+      "sourceOrder": 1
+    },
+    {
+      "id": "e_0088",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/presentation/TodoListController.ts#TodoListController.get",
+      "to": "method:src/di/container.ts#resolve",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0089",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/presentation/TodoListController.ts#TodoListController.get",
+      "to": "method:src/usecase/ListTodos.ts#ListTodos.execute",
+      "resolution": "static",
+      "sourceOrder": 1
+    },
+    {
+      "id": "e_0090",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/presentation/UserController.ts#UserController.post",
+      "to": "method:src/presentation/middleware/auth.ts#requireUser",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0091",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/presentation/UserController.ts#UserController.post",
+      "to": "method:src/usecase/RegisterUser.ts#RegisterUser.execute",
+      "resolution": "static",
+      "sourceOrder": 1
+    },
+    {
+      "id": "e_0092",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/presentation/UserController.ts#UserController.get",
+      "to": "method:src/infra/db/connection.ts#connect",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0093",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/presentation/UserController.ts#UserController.get",
+      "to": "method:src/infra/db/connection.ts#query",
+      "resolution": "static",
+      "sourceOrder": 1
+    },
+    {
+      "id": "e_0094",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/presentation/middleware/auth.ts#requireUser",
+      "to": "method:src/di/container.ts#resolve",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0095",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/usecase/CreateTodo.ts#CreateTodo.execute",
+      "to": "method:src/shared/id.ts#generateId",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0096",
+      "granularity": "method",
+      "kind": "construct",
+      "from": "method:src/usecase/CreateTodo.ts#CreateTodo.execute",
+      "to": "method:src/domain/Todo.ts#Todo.constructor",
+      "resolution": "static",
+      "sourceOrder": 1
+    },
+    {
+      "id": "e_0097",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/usecase/CreateTodo.ts#CreateTodo.execute",
+      "to": "method:src/domain/ITodoRepository.ts#ITodoRepository.save",
+      "resolution": "via-interface",
+      "implementations": [
+        "method:src/infra/InMemoryTodoRepository.ts#InMemoryTodoRepository.save",
+        "method:src/infra/TodoRepository.ts#TodoRepository.save"
+      ],
+      "sourceOrder": 2
+    },
+    {
+      "id": "e_0098",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/usecase/CreateTodo.ts#CreateTodo.execute",
+      "to": "method:src/shared/result.ts#ok",
+      "resolution": "static",
+      "sourceOrder": 3
+    },
+    {
+      "id": "e_0099",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/usecase/CompleteTodo.ts#CompleteTodo.execute",
+      "to": "method:src/domain/ITodoRepository.ts#ITodoRepository.findById",
+      "resolution": "via-interface",
+      "implementations": [
+        "method:src/infra/InMemoryTodoRepository.ts#InMemoryTodoRepository.findById",
+        "method:src/infra/TodoRepository.ts#TodoRepository.findById"
+      ],
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0100",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/usecase/CompleteTodo.ts#CompleteTodo.execute",
+      "to": "method:src/domain/TodoPolicy.ts#TodoPolicy.canComplete",
+      "resolution": "static",
+      "sourceOrder": 1
+    },
+    {
+      "id": "e_0101",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/usecase/CompleteTodo.ts#CompleteTodo.execute",
+      "to": "method:src/domain/Todo.ts#Todo.complete",
+      "resolution": "static",
+      "sourceOrder": 2
+    },
+    {
+      "id": "e_0102",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/usecase/CompleteTodo.ts#CompleteTodo.execute",
+      "to": "method:src/domain/ITodoRepository.ts#ITodoRepository.save",
+      "resolution": "via-interface",
+      "implementations": [
+        "method:src/infra/InMemoryTodoRepository.ts#InMemoryTodoRepository.save",
+        "method:src/infra/TodoRepository.ts#TodoRepository.save"
+      ],
+      "sourceOrder": 3
+    },
+    {
+      "id": "e_0103",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/usecase/DeleteTodo.ts#DeleteTodo.execute",
+      "to": "method:src/domain/ITodoRepository.ts#ITodoRepository.delete",
+      "resolution": "via-interface",
+      "implementations": [
+        "method:src/infra/InMemoryTodoRepository.ts#InMemoryTodoRepository.delete",
+        "method:src/infra/TodoRepository.ts#TodoRepository.delete"
+      ],
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0104",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/usecase/DeleteTodo.ts#DeleteTodo.execute",
+      "to": "method:src/shared/logger.ts#info",
+      "resolution": "static",
+      "sourceOrder": 1
+    },
+    {
+      "id": "e_0105",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/usecase/ListTodos.ts#ListTodos.execute",
+      "to": "method:src/domain/ITodoRepository.ts#ITodoRepository.findAll",
+      "resolution": "via-interface",
+      "implementations": [
+        "method:src/infra/InMemoryTodoRepository.ts#InMemoryTodoRepository.findAll",
+        "method:src/infra/TodoRepository.ts#TodoRepository.findAll"
+      ],
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0106",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/usecase/ListTodos.ts#ListTodos.execute",
+      "to": "method:src/domain/Todo.ts#Todo.isOverdue",
+      "resolution": "static",
+      "sourceOrder": 1
+    },
+    {
+      "id": "e_0107",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/usecase/ListTodos.ts#ListTodos.execute",
+      "to": "method:src/usecase/SendReminder.ts#SendReminder.execute",
+      "resolution": "static",
+      "sourceOrder": 2
+    },
+    {
+      "id": "e_0108",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/usecase/RegisterUser.ts#RegisterUser.execute",
+      "to": "method:src/shared/id.ts#generateId",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0109",
+      "granularity": "method",
+      "kind": "construct",
+      "from": "method:src/usecase/RegisterUser.ts#RegisterUser.execute",
+      "to": "method:src/domain/User.ts#User.constructor",
+      "resolution": "static",
+      "sourceOrder": 1
+    },
+    {
+      "id": "e_0110",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/usecase/RegisterUser.ts#RegisterUser.execute",
+      "to": "method:src/domain/IUserRepository.ts#IUserRepository.save",
+      "resolution": "via-interface",
+      "implementations": ["method:src/infra/UserRepository.ts#UserRepository.save"],
+      "sourceOrder": 2
+    },
+    {
+      "id": "e_0111",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/usecase/SendReminder.ts#SendReminder.execute",
+      "to": "method:src/usecase/ListTodos.ts#ListTodos.execute",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0112",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/usecase/SendReminder.ts#SendReminder.execute",
+      "to": "method:src/domain/INotifier.ts#INotifier.notify",
+      "resolution": "via-interface",
+      "implementations": ["method:src/infra/MailNotifier.ts#MailNotifier.notify"],
+      "sourceOrder": 1
+    },
+    {
+      "id": "e_0113",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/usecase/SendReminder.ts#SendReminder.execute",
+      "to": "method:src/shared/logger.ts#info",
+      "resolution": "static",
+      "sourceOrder": 2
+    },
+    {
+      "id": "e_0114",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/domain/Todo.ts#Todo.complete",
+      "to": "method:src/shared/clock.ts#now",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0115",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/domain/Todo.ts#Todo.isOverdue",
+      "to": "method:src/shared/clock.ts#now",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0116",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/domain/Todo.ts#Todo.attachTo",
+      "to": "method:src/domain/TodoList.ts#TodoList.add",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0117",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/domain/TodoList.ts#TodoList.add",
+      "to": "method:src/domain/Todo.ts#Todo.attachTo",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0118",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/domain/User.ts#User.canCreateTodo",
+      "to": "method:src/domain/TodoPolicy.ts#TodoPolicy.maxTodos",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0119",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/domain/User.ts#User.save",
+      "to": "method:src/infra/UserRepository.ts#UserRepository.save",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0120",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/domain/TodoPolicy.ts#TodoPolicy.canComplete",
+      "to": "method:src/domain/TodoList.ts#TodoList.completedCount",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0121",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/domain/TodoPolicy.ts#TodoPolicy.canComplete",
+      "to": "method:src/domain/TodoPolicy.ts#TodoPolicy.maxTodos",
+      "resolution": "static",
+      "sourceOrder": 1
+    },
+    {
+      "id": "e_0122",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/infra/TodoRepository.ts#TodoRepository.constructor",
+      "to": "method:src/infra/db/connection.ts#connect",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0123",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/infra/TodoRepository.ts#TodoRepository.save",
+      "to": "method:src/infra/db/connection.ts#query",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0124",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/infra/TodoRepository.ts#TodoRepository.save",
+      "to": "method:src/shared/logger.ts#info",
+      "resolution": "static",
+      "sourceOrder": 1
+    },
+    {
+      "id": "e_0125",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/infra/TodoRepository.ts#TodoRepository.findById",
+      "to": "method:src/infra/db/connection.ts#query",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0126",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/infra/TodoRepository.ts#TodoRepository.findAll",
+      "to": "method:src/infra/db/connection.ts#query",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0127",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/infra/TodoRepository.ts#TodoRepository.delete",
+      "to": "method:src/infra/db/connection.ts#query",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0128",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/infra/UserRepository.ts#UserRepository.constructor",
+      "to": "method:src/infra/db/connection.ts#connect",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0129",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/infra/UserRepository.ts#UserRepository.save",
+      "to": "method:src/infra/db/connection.ts#query",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0130",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/infra/UserRepository.ts#UserRepository.findByEmail",
+      "to": "method:src/infra/db/connection.ts#query",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0131",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/infra/MailNotifier.ts#MailNotifier.notify",
+      "to": "method:src/shared/logger.ts#info",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0132",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/infra/db/connection.ts#connect",
+      "to": "method:src/shared/logger.ts#info",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0133",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/infra/db/connection.ts#query",
+      "to": "method:src/shared/logger.ts#warn",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0134",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/shared/logger.ts#info",
+      "to": "method:src/shared/clock.ts#now",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0135",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/shared/logger.ts#warn",
+      "to": "method:src/shared/clock.ts#now",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0136",
+      "granularity": "method",
+      "kind": "construct",
+      "from": "method:src/di/container.ts#resolve",
+      "to": "method:src/infra/TodoRepository.ts#TodoRepository.constructor",
+      "resolution": "static",
+      "sourceOrder": 0
+    },
+    {
+      "id": "e_0137",
+      "granularity": "method",
+      "kind": "construct",
+      "from": "method:src/di/container.ts#resolve",
+      "to": "method:src/infra/InMemoryTodoRepository.ts#InMemoryTodoRepository.constructor",
+      "resolution": "static",
+      "sourceOrder": 1
+    },
+    {
+      "id": "e_0138",
+      "granularity": "method",
+      "kind": "construct",
+      "from": "method:src/di/container.ts#resolve",
+      "to": "method:src/infra/UserRepository.ts#UserRepository.constructor",
+      "resolution": "static",
+      "sourceOrder": 2
+    },
+    {
+      "id": "e_0139",
+      "granularity": "method",
+      "kind": "construct",
+      "from": "method:src/di/container.ts#resolve",
+      "to": "method:src/infra/MailNotifier.ts#MailNotifier.constructor",
+      "resolution": "static",
+      "sourceOrder": 3
+    },
+    {
+      "id": "e_0140",
+      "granularity": "method",
+      "kind": "call",
+      "from": "method:src/di/registry.ts#bootstrap",
+      "to": "method:src/di/container.ts#register",
+      "resolution": "static",
+      "sourceOrder": 0
+    }
+  ],
+  "unresolved": [
+    {
+      "id": "u_0001",
+      "reason": "dynamic-di-token",
+      "from": "method:src/presentation/TodoController.ts#TodoController.post",
+      "expression": "container.resolve<CreateTodo>('CreateTodo')",
+      "candidates": ["method:src/usecase/CreateTodo.ts#CreateTodo.execute"]
+    },
+    {
+      "id": "u_0002",
+      "reason": "dynamic-di-token",
+      "from": "method:src/presentation/TodoListController.ts#TodoListController.get",
+      "expression": "container.resolve<ListTodos>('ListTodos')",
+      "candidates": ["method:src/usecase/ListTodos.ts#ListTodos.execute"]
+    },
+    {
+      "id": "u_0003",
+      "reason": "dynamic-import",
+      "from": "method:src/di/registry.ts#bootstrap",
+      "expression": "await import(`../usecase/${name}`)",
+      "candidates": [
+        "method:src/usecase/CreateTodo.ts#CreateTodo.execute",
+        "method:src/usecase/CompleteTodo.ts#CompleteTodo.execute",
+        "method:src/usecase/DeleteTodo.ts#DeleteTodo.execute",
+        "method:src/usecase/ListTodos.ts#ListTodos.execute"
+      ]
+    },
+    {
+      "id": "u_0004",
+      "reason": "callback",
+      "from": "method:src/usecase/ListTodos.ts#ListTodos.execute",
+      "expression": "todos.filter(this.isOverdue)",
+      "candidates": ["method:src/domain/Todo.ts#Todo.isOverdue"]
+    },
+    {
+      "id": "u_0005",
+      "reason": "dynamic-property",
+      "from": "method:src/domain/User.ts#User.canCreateTodo",
+      "expression": "policy[ruleName](this)",
+      "candidates": []
+    }
+  ],
+  "cycles": [
+    {
+      "id": "c_0001",
+      "nodes": ["file:src/domain/Todo.ts", "file:src/domain/TodoList.ts"],
+      "edges": ["e_0034", "e_0036"],
+      "typeOnly": true
+    },
+    {
+      "id": "c_0002",
+      "nodes": [
+        "file:src/domain/IUserRepository.ts",
+        "file:src/domain/User.ts",
+        "file:src/infra/UserRepository.ts"
+      ],
+      "edges": ["e_0037", "e_0043", "e_0051", "e_0052"],
+      "typeOnly": false
+    },
+    {
+      "id": "c_0003",
+      "nodes": ["file:src/usecase/ListTodos.ts", "file:src/usecase/SendReminder.ts"],
+      "edges": ["e_0027", "e_0032"],
+      "typeOnly": false
+    },
+    {
+      "id": "c_0004",
+      "nodes": [
+        "method:src/usecase/ListTodos.ts#ListTodos.execute",
+        "method:src/usecase/SendReminder.ts#SendReminder.execute"
+      ],
+      "edges": ["e_0107", "e_0111"]
+    },
+    {
+      "id": "c_0005",
+      "nodes": [
+        "method:src/domain/Todo.ts#Todo.attachTo",
+        "method:src/domain/TodoList.ts#TodoList.add"
+      ],
+      "edges": ["e_0116", "e_0117"]
+    }
+  ]
+}
