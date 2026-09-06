@@ -1,9 +1,9 @@
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
 
-import { describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 
 import type { LoadResult } from '../core/graph/loader'
 import { GRAPH_ENDPOINT } from '../core/graph/api'
@@ -18,9 +18,22 @@ function appFor(graphPath: string) {
   return createApp({ graphPath, port: DEFAULT_PORT })
 }
 
+/** このファイルが作った一時ディレクトリ。テストの後に消す */
+const tempDirs: string[] = []
+
+afterAll(async () => {
+  await Promise.all(tempDirs.map((dir) => rm(dir, { recursive: true, force: true })))
+})
+
+async function makeTempDir(prefix: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), prefix))
+  tempDirs.push(dir)
+  return dir
+}
+
 /** 一時ファイルに書き出してパスを返す。差し替えの検証では同じパスへ上書きする */
 async function writeTemp(content: string): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'depenomap-server-'))
+  const dir = await makeTempDir('depenomap-server-')
   const path = join(dir, 'graph.json')
   await writeFile(path, content, 'utf8')
   return path
@@ -100,7 +113,7 @@ describe(`GET ${GRAPH_ENDPOINT}`, () => {
 })
 
 describe('その他の経路', () => {
-  it('知らない API は 404 を返す。静的配信は本番の main.ts が受け持つ', async () => {
+  it('clientDir を渡さない dev でも、知らない API は 404', async () => {
     const response = await appFor(fixturePath).request('/api/unknown')
 
     expect(response.status).toBe(404)
@@ -109,7 +122,7 @@ describe('その他の経路', () => {
 
 /** ビルド済みの画面に見立てたディレクトリを作る */
 async function writeClientDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'depenomap-client-'))
+  const dir = await makeTempDir('depenomap-client-')
   await mkdir(join(dir, 'assets'))
   await writeFile(join(dir, 'index.html'), '<!doctype html><title>画面</title>', 'utf8')
   await writeFile(join(dir, 'assets', 'app.js'), 'export const a = 1', 'utf8')
