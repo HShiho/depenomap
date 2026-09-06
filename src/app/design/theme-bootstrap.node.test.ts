@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import viteConfig from '../../../vite.config'
-import { themeBootstrapPlugin } from './theme-bootstrap.node'
+import { THEME_BOOTSTRAP_PLUGIN, themeBootstrapPlugin } from './theme-bootstrap.node'
 import { THEME_BOOTSTRAP_SOURCE } from './theme-keys'
 
 /**
@@ -23,6 +23,6 @@ describe('テーマの起動スクリプトを差し込むプラグイン', () =
   it('ビルド設定に載っている', () => {
     const plugins = ((viteConfig.plugins ?? []) as unknown[]).flat(Infinity) as { name?: string }[]
 
-    expect(plugins.map((plugin) => plugin?.name)).toContain('depenomap:theme-bootstrap')
+    expect(plugins.map((plugin) => plugin?.name)).toContain(THEME_BOOTSTRAP_PLUGIN)
   })
 })

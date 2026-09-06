@@ -9,9 +9,12 @@ import type { Plugin } from 'vite'
 
 import { THEME_BOOTSTRAP_SOURCE } from './theme-keys'
 
+/** プラグイン名。テストからも参照するため、文字列を 2 か所に書かない */
+export const THEME_BOOTSTRAP_PLUGIN = 'depenomap:theme-bootstrap'
+
 export function themeBootstrapPlugin(): Plugin {
   return {
-    name: 'depenomap:theme-bootstrap',
+    name: THEME_BOOTSTRAP_PLUGIN,
     /*
      * `head-prepend` に置く。スタイルシートより前に走らせて、
      * 最初の描画の時点で属性が載っている状態にする。
