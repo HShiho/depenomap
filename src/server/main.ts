@@ -62,7 +62,16 @@ app.use('/*', serveStatic({ root }))
  */
 app.get('*', serveStatic({ root, path: 'index.html' }))
 
-serve({ fetch: app.fetch, port: config.port }, (info) => {
+/*
+ * **ループバックだけで待ち受ける。**
+ *
+ * この口には認証が無く、`/api/graph` は解析対象のファイル構成と依存関係を
+ * そのまま返す。既定で全インターフェースに開くと、同じネットワークにいる
+ * 誰もがそれを読める。ローカルでの閲覧用であり、外部公開は扱わない。
+ *
+ * コンテナの中から外へ見せる必要が出た場合（UT-20）は、そこで明示的に開く。
+ */
+serve({ fetch: app.fetch, port: config.port, hostname: '127.0.0.1' }, (info) => {
   console.log(`depenomap: http://localhost:${info.port}`)
   console.log(`  正本 JSON: ${config.graphPath}`)
 })
