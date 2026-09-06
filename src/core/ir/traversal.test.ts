@@ -357,14 +357,21 @@ describe('前向きと逆向きの対称性', () => {
   it('正常なグラフでも、前向きに出た組は逆向きから引ける', () => {
     const vm = buildViewModel(graphOf())
 
+    const checked = { logical: 0, actual: 0 }
     for (const via of ['logical', 'actual'] as const) {
       for (const node of vm.nodes.method) {
         for (const dep of vm.dependenciesOf(node.id, 'method', { via })) {
           const back = vm.dependentsOf(dep.node.id, 'method', { via })
           expect(back.some((d) => d.edge.id === dep.edge.id && d.node.id === node.id)).toBe(true)
+          checked[via] += 1
         }
       }
     }
+
+    // 照合が 1 度も走らないまま緑になるのを防ぐ。logical はエッジと 1 対 1、
+    // actual は implementations が複数のエッジで増えるため下限で見る
+    expect(checked.logical).toBe(vm.edges.method.length)
+    expect(checked.actual).toBeGreaterThanOrEqual(vm.edges.method.length)
   })
 })
 describe('依存元（US-14）', () => {

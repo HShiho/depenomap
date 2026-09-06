@@ -68,12 +68,17 @@ describe('層の引き当て', () => {
     // 合計だけを見ると、全ノードを 1 つのバケットへ入れる実装でも通る
     const vm = buildViewModel(graphOf())
 
+    let checked = 0
     for (const [key, list] of vm.nodesByLayer) {
       for (const node of list) {
         if (key === NO_LAYER) expect(node.layer).toBeUndefined()
         else expect(node.layer).toBe(key)
+        checked += 1
       }
     }
+
+    // バケットが全部空でも緑になるのを防ぐ
+    expect(checked).toBe(88)
   })
 
   it('層なしのノードも同じ規則で入る', () => {
