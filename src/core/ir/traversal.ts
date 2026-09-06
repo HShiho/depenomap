@@ -48,6 +48,12 @@ export interface Dependency {
  * 配列内に同じ ID が 2 度現れることを防いでいない。畳まないと同じノードを
  * 2 回たどり、依存先の件数も依存元の件数も水増しされる
  */
+function implementationsOf(edge: GraphEdge): readonly string[] {
+  if (edge.kind !== 'call' && edge.kind !== 'construct') return []
+  if (edge.resolution !== 'via-interface') return []
+  return edge.implementations ? [...new Set(edge.implementations)] : []
+}
+
 /**
  * `actual` でたどったときに、このエッジが指すノード ID を返す。
  *
@@ -62,12 +68,6 @@ export interface Dependency {
 function actualTargetsOf(edge: GraphEdge, has: (id: string) => boolean): readonly string[] {
   const resolved = implementationsOf(edge).filter(has)
   return resolved.length > 0 ? resolved : [edge.to]
-}
-
-function implementationsOf(edge: GraphEdge): readonly string[] {
-  if (edge.kind !== 'call' && edge.kind !== 'construct') return []
-  if (edge.resolution !== 'via-interface') return []
-  return edge.implementations ? [...new Set(edge.implementations)] : []
 }
 
 /**
