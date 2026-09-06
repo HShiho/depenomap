@@ -97,9 +97,12 @@ export function createApp(config: ServerConfig, options: AppOptions = {}): Hono 
      * index.html が要求したときに HTML が 200 で返り、MIME の食い違いで
      * 画面が起動しない形になる。
      */
+    // 生成のたびに `root` の存在確認が走るため、1 度だけ作って使い回す
+    const serveIndex = serveStatic({ root, path: 'index.html' })
+
     app.get('*', async (c, next) => {
       if (hasFileExtension(c.req.path)) return c.notFound()
-      return (await serveStatic({ root, path: 'index.html' })(c, next)) ?? c.notFound()
+      return (await serveIndex(c, next)) ?? c.notFound()
     })
   }
 
