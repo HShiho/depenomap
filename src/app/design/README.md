@@ -31,6 +31,11 @@
 ユーティリティが無い領域（`stroke-dasharray`、`marker-end`、`color-mix` の混合率）
 では変数を直接参照する。**そこでも直値は書かない。**
 
+影（`--shadow-float`）だけは `@theme` に置いていない。Tailwind の `shadow-*` は値を
+インライン展開してしまい、ダークの上書きが効かなくなるため、生の変数として持ち
+`@utility shadow-float` から参照している。使う側から見た形（`class="shadow-float"`）は
+他のトークンと同じ。
+
 ### Tailwind の既定値は消してある
 
 `tokens.css` の先頭で `--color-*: initial` などを指定し、Tailwind が持っている
@@ -80,7 +85,7 @@
 | `--warn-soft`                    | `--color-warn-soft`                    | `bg-warn-soft`                | 同上の面                             |
 | `--layer-presentation` ほか 5 色 | `--color-layer-1` 〜 `--color-layer-6` | `fill-layer-3`                | 層の識別（下記）                     |
 | `--tint`                         | `--tint`                               | （変数のみ）                  | 層カラーをノード面に混ぜる割合       |
-| `--shadow`                       | `--shadow-float`                       | `shadow-float`                | 浮いている要素だけ                   |
+| `--shadow`                       | `--shadow-float`（生の変数）           | `shadow-float`                | 浮いている要素だけ                   |
 
 ### 文字
 
