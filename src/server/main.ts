@@ -3,15 +3,13 @@
  * サーバーから配信する。
  *
  * dev（Vite の middleware）と本番で**アプリ本体は同じ** `app.ts` を使い、
- * ここが足すのは静的配信と待ち受けだけである。
+ * ここが足すのは起動パラメータの解釈と待ち受けだけである。
  */
 
 import { existsSync } from 'node:fs'
-import { relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { serve } from '@hono/node-server'
-import { serveStatic } from '@hono/node-server/serve-static'
 
 import { createApp } from './app'
 import { GRAPH_PATH_ENV, PORT_ENV, resolveConfig } from './config'
@@ -45,22 +43,7 @@ if (!existsSync(clientDir)) {
   process.exit(1)
 }
 
-const app = createApp(config)
-
-/*
- * 静的配信は API を登録したあとに置く。`/api/graph` を先に引き当てるためである。
- *
- * `serveStatic` の `root` は作業ディレクトリからの相対でしか受け付けないため、
- * 絶対パスから畳み直す。
- */
-const root = relative(process.cwd(), clientDir) || '.'
-app.use('/*', serveStatic({ root }))
-
-/*
- * どのファイルにも当たらない要求には `index.html` を返す。画面は単一ページであり、
- * 直接 URL を叩かれても画面が出る形にしておく。
- */
-app.get('*', serveStatic({ root, path: 'index.html' }))
+const app = createApp(config, { clientDir })
 
 /*
  * **ループバックだけで待ち受ける。**

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
@@ -102,6 +102,77 @@ describe(`GET ${GRAPH_ENDPOINT}`, () => {
 describe('その他の経路', () => {
   it('知らない API は 404 を返す。静的配信は本番の main.ts が受け持つ', async () => {
     const response = await appFor(fixturePath).request('/api/unknown')
+
+    expect(response.status).toBe(404)
+  })
+})
+
+/** ビルド済みの画面に見立てたディレクトリを作る */
+async function writeClientDir(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'depenomap-client-'))
+  await mkdir(join(dir, 'assets'))
+  await writeFile(join(dir, 'index.html'), '<!doctype html><title>画面</title>', 'utf8')
+  await writeFile(join(dir, 'assets', 'app.js'), 'export const a = 1', 'utf8')
+  return dir
+}
+
+describe('画面の配信（本番）', () => {
+  it('clientDir を渡すと index.html を返す', async () => {
+    const app = createApp(
+      { graphPath: fixturePath, port: DEFAULT_PORT },
+      {
+        clientDir: await writeClientDir(),
+      },
+    )
+
+    const response = await app.request('/')
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('<title>画面</title>')
+  })
+
+  it('アセットを返す', async () => {
+    const app = createApp(
+      { graphPath: fixturePath, port: DEFAULT_PORT },
+      {
+        clientDir: await writeClientDir(),
+      },
+    )
+
+    const response = await app.request('/assets/app.js')
+
+    expect(response.status).toBe(200)
+  })
+
+  it('画面は単一ページなので、直接叩かれた URL にも index.html を返す', async () => {
+    const app = createApp(
+      { graphPath: fixturePath, port: DEFAULT_PORT },
+      {
+        clientDir: await writeClientDir(),
+      },
+    )
+
+    const response = await app.request('/nodes/some-file')
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('<title>画面</title>')
+  })
+
+  it('静的配信より API を先に引き当てる', async () => {
+    const app = createApp(
+      { graphPath: fixturePath, port: DEFAULT_PORT },
+      {
+        clientDir: await writeClientDir(),
+      },
+    )
+
+    const response = await app.request(GRAPH_ENDPOINT)
+
+    expect(response.headers.get('Content-Type')).toContain('application/json')
+  })
+
+  it('clientDir を渡さなければ画面を配信しない。dev では Vite が配信する', async () => {
+    const response = await appFor(fixturePath).request('/')
 
     expect(response.status).toBe(404)
   })
