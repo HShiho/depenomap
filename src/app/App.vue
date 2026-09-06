@@ -55,7 +55,7 @@ onMounted(async () => {
         </dd>
         <dt class="mt-9 text-label text-ink-3 uppercase">規模</dt>
         <dd>
-          <span class="tabular"
+          <span class="tabular-nums"
             >ノード {{ outcome.result.graph.nodes.length }} / エッジ
             {{ outcome.result.graph.edges.length }}</span
           >

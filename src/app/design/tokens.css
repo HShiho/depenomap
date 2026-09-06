@@ -377,11 +377,6 @@ body {
   line-height: 1.6;
 }
 
-/** 数値は桁が揺れないように等幅数字で組む（件数・統計・ズーム率） */
-.tabular {
-  font-variant-numeric: tabular-nums;
-}
-
 /** 操作の意図がない動きは出さない */
 @media (prefers-reduced-motion: reduce) {
   *,
