@@ -150,7 +150,16 @@ describe('解釈できない入力', () => {
 
     expect(result.ok).toBe(false)
     if (result.ok) return
-    expect(result.messages.some((m) => m.includes('複数回指定されている'))).toBe(true)
+    // 2 つ目の値を読み飛ばすので、値がオプション名として拾われない
+    expect(result.messages).toEqual(['--graph が複数回指定されている'])
+  })
+
+  it('重複した --port の値も読み飛ばす', () => {
+    const result = resolveConfig(['--port', '80', '--port', '90', '--graph', '/a.json'], {}, CWD)
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.messages).toEqual(['--port が複数回指定されている'])
   })
 
   it('不備は 1 つ目で止めず、すべて集めて返す', () => {

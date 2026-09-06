@@ -78,22 +78,23 @@ function parseArgv(argv: string[]): {
      * どちらが効いたのかが起動コマンドから読めない。打ち間違いを無言で捨てない
      * のと同じ理由である。
      */
-    if (values[name] !== undefined) {
-      errors.push(`${name} が複数回指定されている`)
-      continue
-    }
+    const duplicated = values[name] !== undefined
+    if (duplicated) errors.push(`${name} が複数回指定されている`)
 
     if (eq !== -1) {
-      values[name] = arg.slice(eq + 1)
+      if (!duplicated) values[name] = arg.slice(eq + 1)
       continue
     }
 
     const next = argv[i + 1]
     if (next === undefined || next.startsWith('--')) {
-      errors.push(`${name} に値が指定されていない`)
+      if (!duplicated) errors.push(`${name} に値が指定されていない`)
       continue
     }
-    values[name] = next
+
+    // 重複していても値は読み飛ばす。飛ばさないと、次の周回でその値を
+    // 独立した引数として拾い「不明な起動オプション: /b.json」まで出てしまう
+    if (!duplicated) values[name] = next
     i++
   }
 
