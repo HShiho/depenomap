@@ -7,8 +7,8 @@
     "allowImportingTsExtensions": true,
     "types": ["node"]
   },
-  // core とサーバーのテストはここが見る（それぞれの include に含まれる）。
-  // 画面のテストは DOM を使うため tsconfig.app.json 側で検査する
+  // core とサーバーのコード、および Node 専用のモジュール・テスト（*.node.*）を見る。
+  // 画面のテストは DOM の型を使うため tsconfig.app.json 側で検査する
   "include": [
     "src/core/**/*.ts",
     "src/server/**/*.ts",
