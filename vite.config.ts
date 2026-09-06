@@ -55,6 +55,8 @@ export default defineConfig({
   },
   test: {
     include: ['src/**/*.test.ts'],
+    // 画面のテストも含めて node で走らせる。いまはどれも DOM を触らず、
+    // 触るテスト（UT-05 以降のコンポーネント）が出た時点で環境を足す（ADR-005）
     environment: 'node',
   },
 })
