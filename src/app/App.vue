@@ -9,8 +9,12 @@
 import { onMounted, ref } from 'vue'
 
 import { fetchGraph, type FetchGraphOutcome } from '@/core/graph/api'
+import { useTheme } from '@/app/design/theme'
 
 const outcome = ref<FetchGraphOutcome | null>(null)
+
+// 切り替えの口（UT-04）。置き場所はトップバー（UT-05）になる
+const theme = useTheme()
 
 onMounted(async () => {
   outcome.value = await fetchGraph()
@@ -19,7 +23,20 @@ onMounted(async () => {
 
 <template>
   <main id="depenomap" class="p-16 text-body">
-    <h1 class="text-brand">depenomap</h1>
+    <div class="flex items-center gap-12">
+      <h1 class="text-brand">depenomap</h1>
+
+      <button
+        type="button"
+        class="rounded-control border border-line bg-surface-2 px-9 py-4 text-ui text-ink-2 hover:bg-surface-3"
+        @click="theme.toggle()"
+      >
+        配色: {{ theme.resolved.value === 'dark' ? 'ダーク' : 'ライト' }}
+        <span class="text-caption text-ink-3">
+          （{{ theme.choice.value === 'system' ? 'OS に従う' : '選択中' }}）
+        </span>
+      </button>
+    </div>
 
     <p v-if="outcome === null" class="mt-16 text-ink-2">読み込み中…</p>
 
