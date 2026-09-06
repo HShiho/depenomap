@@ -2,6 +2,9 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "lib": ["ES2023"],
+    // Vite の設定ファイルは Node が直接読む（型を剥がすだけ）ため、そこから辿る
+    // 相対 import は拡張子付きで書く必要がある。それを許可する
+    "allowImportingTsExtensions": true,
     "types": ["node"]
   },
   "include": ["src/core/**/*.ts", "src/server/**/*.ts", "vite.config.ts", "**/*.test.ts"]
