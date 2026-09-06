@@ -26,8 +26,8 @@ onMounted(async () => {
     <!-- サーバーに届かなかった。正本 JSON の問題ではない -->
     <p v-else-if="!outcome.reached" class="mt-4">グラフを取得できなかった: {{ outcome.message }}</p>
 
-    <template v-else-if="outcome.result.ok">
-      <dl class="mt-4">
+    <template v-else>
+      <dl v-if="outcome.result.ok" class="mt-4">
         <dt class="font-bold">スナップショット</dt>
         <dd>
           {{ outcome.result.graph.meta.snapshot.label }}（{{
@@ -41,6 +41,19 @@ onMounted(async () => {
         </dd>
       </dl>
 
+      <!-- 読み込みには到達したが、正本 JSON が読めなかった -->
+      <section v-else class="mt-4">
+        <h2 class="font-bold">正本 JSON を読み込めなかった</h2>
+        <ul>
+          <li v-for="(error, index) in outcome.result.errors" :key="index">{{ error.type }}</li>
+        </ul>
+      </section>
+
+      <!--
+        警告は読み込みの成否によらず出す。失敗したときも、そこまでに集まった
+        警告は返ってきており（loader.ts）、正本を直す側にとっては
+        「整合性が壊れている」と「未知フィールドがある」が同時に見えたほうが速い
+      -->
       <section v-if="outcome.result.warnings.length > 0" class="mt-4">
         <h2 class="font-bold">警告</h2>
         <ul>
@@ -50,13 +63,5 @@ onMounted(async () => {
         </ul>
       </section>
     </template>
-
-    <!-- 読み込みには到達したが、正本 JSON が読めなかった -->
-    <section v-else class="mt-4">
-      <h2 class="font-bold">正本 JSON を読み込めなかった</h2>
-      <ul>
-        <li v-for="(error, index) in outcome.result.errors" :key="index">{{ error.type }}</li>
-      </ul>
-    </section>
   </main>
 </template>
