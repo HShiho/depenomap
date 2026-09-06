@@ -1,9 +1,9 @@
-import { mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
 
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 
 import { loadGraphFromValue, SUPPORTED_SCHEMA_VERSION } from './loader'
 import { UnwalkableSchemaError } from './schema-walk'
@@ -27,9 +27,17 @@ async function rawOf(
   return raw
 }
 
+/** このファイルが作った一時ディレクトリ。テストの後に消す */
+const tempDirs: string[] = []
+
+afterAll(async () => {
+  await Promise.all(tempDirs.map((dir) => rm(dir, { recursive: true, force: true })))
+})
+
 /** 一時ファイルに JSON（または任意の文字列）を書き出してパスを返す */
 async function writeTemp(content: string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'depenomap-'))
+  tempDirs.push(dir)
   const path = join(dir, 'graph.json')
   await writeFile(path, content, 'utf8')
   return path
