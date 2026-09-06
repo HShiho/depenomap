@@ -13,17 +13,16 @@
 
 import { computed, readonly, ref, type Ref } from 'vue'
 
+import { THEME_ATTRIBUTE, THEME_STORAGE_KEY } from './theme-keys'
+
 /** 利用者が選べる値。`system` は「OS の設定に従う」 */
 export type ThemeChoice = 'light' | 'dark' | 'system'
 
 /** 実際に適用される見た目 */
 export type ResolvedTheme = 'light' | 'dark'
 
-/** 選択の記憶先のキー。他の設定と混ざらないよう名前空間を付ける */
-export const THEME_STORAGE_KEY = 'depenomap.theme'
-
-/** `<html>` に載せる属性名。`tokens.css` の `[data-theme]` と対になる */
-export const THEME_ATTRIBUTE = 'data-theme'
+// 記憶先のキーと属性名はビルド設定からも読むため、別ファイルに置いている
+export { THEME_ATTRIBUTE, THEME_STORAGE_KEY } from './theme-keys'
 
 const CHOICES: readonly ThemeChoice[] = ['light', 'dark', 'system']
 

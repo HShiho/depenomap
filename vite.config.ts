@@ -2,8 +2,10 @@ import { fileURLToPath, URL } from 'node:url'
 
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
+import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
 
+import { THEME_BOOTSTRAP_SOURCE } from './src/app/design/theme-keys.ts'
 import { DEFAULT_PORT, resolveConfig } from './src/server/config.ts'
 import { graphApiPlugin } from './src/server/vite-plugin.ts'
 
@@ -17,9 +19,24 @@ import { graphApiPlugin } from './src/server/vite-plugin.ts'
 const resolved = resolveConfig([], process.env, process.cwd(), { acceptsArgv: false })
 const devPort = resolved.ok ? resolved.config.port : DEFAULT_PORT
 
+/*
+ * 記憶したテーマを、最初の描画より前に <html> へ載せる（UT-04）。
+ *
+ * 画面のコードが属性を載せるのは JS の評価後で、それでは初回描画に間に合わない。
+ * 記憶とキー名を二重に持たないよう、本体は theme-keys.ts から読む。
+ */
+function themeBootstrapPlugin(): Plugin {
+  return {
+    name: 'depenomap:theme-bootstrap',
+    transformIndexHtml: () => [
+      { tag: 'script', injectTo: 'head-prepend', children: THEME_BOOTSTRAP_SOURCE },
+    ],
+  }
+}
+
 export default defineConfig({
   // UT-03: dev では Hono を Vite の middleware として載せる（プロセスを分けない）
-  plugins: [vue(), tailwindcss(), graphApiPlugin()],
+  plugins: [vue(), tailwindcss(), themeBootstrapPlugin(), graphApiPlugin()],
   server: {
     // dev と本番で同じ URL で開けるようにする
     port: devPort,
