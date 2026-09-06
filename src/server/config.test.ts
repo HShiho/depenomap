@@ -154,6 +154,18 @@ describe('解釈できない入力', () => {
     expect(result.messages).toEqual(['--graph が複数回指定されている'])
   })
 
+  it('3 回以上渡されても、同じ文言を並べない', () => {
+    const result = resolveConfig(
+      ['--graph', '/a.json', '--graph', '/b.json', '--graph', '/c.json'],
+      {},
+      CWD,
+    )
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.messages).toEqual(['--graph が複数回指定されている'])
+  })
+
   it('重複した --port の値も読み飛ばす', () => {
     const result = resolveConfig(['--port', '80', '--port', '90', '--graph', '/a.json'], {}, CWD)
 

@@ -62,6 +62,7 @@ function parseArgv(argv: string[]): {
 } {
   const values: Partial<Record<KnownOption, string>> = {}
   const errors: string[] = []
+  const reportedDuplicates = new Set<KnownOption>()
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!
@@ -79,7 +80,11 @@ function parseArgv(argv: string[]): {
      * のと同じ理由である。
      */
     const duplicated = values[name] !== undefined
-    if (duplicated) errors.push(`${name} が複数回指定されている`)
+    // 3 回以上渡されても、同じ文言を並べない
+    if (duplicated && !reportedDuplicates.has(name)) {
+      errors.push(`${name} が複数回指定されている`)
+      reportedDuplicates.add(name)
+    }
 
     if (eq !== -1) {
       if (!duplicated) values[name] = arg.slice(eq + 1)
