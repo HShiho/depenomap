@@ -21,12 +21,17 @@ export const THEME_ATTRIBUTE = 'data-theme'
  *
  * 記憶が無い・読めない場合は何もしない。属性が無い状態が「OS に従う」であり、
  * それは CSS 側の既定と一致している。
+ *
+ * 即時関数で包む。最初の描画より前に走る唯一のコードであり、変数を素で置くと
+ * グローバル（`window.choice`）に漏れて、画面側の名前と衝突しうる。
  */
-export const THEME_BOOTSTRAP_SOURCE = `try {
-  var choice = localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});
-  if (choice === 'light' || choice === 'dark') {
-    document.documentElement.setAttribute(${JSON.stringify(THEME_ATTRIBUTE)}, choice);
+export const THEME_BOOTSTRAP_SOURCE = `(function () {
+  try {
+    var choice = localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});
+    if (choice === 'light' || choice === 'dark') {
+      document.documentElement.setAttribute(${JSON.stringify(THEME_ATTRIBUTE)}, choice);
+    }
+  } catch (error) {
+    /* 記憶を読めない環境では、画面側の切り替えだけが効く */
   }
-} catch (error) {
-  /* 記憶を読めない環境では、画面側の切り替えだけが効く */
-}`
+})()`

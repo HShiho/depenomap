@@ -234,6 +234,19 @@ describe('最初の描画より前に走るスクリプト', () => {
     expect(THEME_BOOTSTRAP_SOURCE).toContain(THEME_STORAGE_KEY)
     expect(THEME_BOOTSTRAP_SOURCE).toContain(THEME_ATTRIBUTE)
   })
+
+  it('変数をグローバルに漏らさない', () => {
+    const root = fakeRoot()
+    const scope: Record<string, unknown> = {}
+    new Function('localStorage', 'document', `with (this) { ${THEME_BOOTSTRAP_SOURCE} }`).call(
+      scope,
+      { getItem: () => 'dark' },
+      { documentElement: root },
+    )
+
+    expect(root.theme()).toBe('dark')
+    expect(Object.keys(scope)).toEqual([])
+  })
 })
 
 describe('ブラウザの API が無い環境', () => {
