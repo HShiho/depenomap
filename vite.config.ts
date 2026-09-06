@@ -23,6 +23,9 @@ export default defineConfig({
   server: {
     // dev と本番で同じ URL で開けるようにする
     port: devPort,
+    // 塞がっていたら黙って隣のポートへ逃げない。指定したポートで待ち受ける
+    // という起動パラメータの約束を dev でも守る（本番は listen 失敗で止まる）
+    strictPort: true,
   },
   build: {
     // 本番は Hono がここを静的配信する。サーバーの成果物は dist/server に出す
