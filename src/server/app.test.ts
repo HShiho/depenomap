@@ -215,16 +215,20 @@ describe('画面の配信（本番）', () => {
     expect(response.status).toBe(404)
   })
 
-  it('無いアセットは 404。index.html を返さない', async () => {
-    const app = createApp(
-      { graphPath: fixturePath, port: DEFAULT_PORT },
-      { clientDir: await writeClientDir() },
-    )
+  // ブラウザで直接開かれても index.html を返さない。要求元によって変わらない
+  it.each([HTML_ACCEPT, '*/*'])(
+    '無いアセットは 404。index.html を返さない: Accept %s',
+    async (accept) => {
+      const app = createApp(
+        { graphPath: fixturePath, port: DEFAULT_PORT },
+        { clientDir: await writeClientDir() },
+      )
 
-    const response = await app.request('/assets/nope.js')
+      const response = await app.request('/assets/nope.js', { headers: { Accept: accept } })
 
-    expect(response.status).toBe(404)
-  })
+      expect(response.status).toBe(404)
+    },
+  )
 
   it('index.html は毎回問い合わせさせる', async () => {
     const app = createApp(

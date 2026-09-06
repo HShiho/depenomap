@@ -101,6 +101,17 @@ export function createApp(config: ServerConfig, options: AppOptions = {}): Hono 
     app.use('/*', serveStatic({ root }))
 
     /*
+     * `/assets/*` は必ず実ファイルへの要求である。ここに届いた＝ファイルが
+     * 無かった、なので 404 で返し、下のフォールバックに巻き込まない
+     * （`/api/*` と同じ扱い）。
+     *
+     * `Accept` だけで見分けると、ブラウザで直接アセットの URL を開いたときに
+     * index.html が 200 で返り、「消えたアセットに HTML を返さない」という
+     * 約束が要求元によって成立したりしなかったりする。
+     */
+    app.get('/assets/*', (c) => c.notFound())
+
+    /*
      * どのファイルにも当たらない要求には `index.html` を返す。画面は単一ページであり、
      * 直接 URL を叩かれても画面が出る形にしておく。
      *
