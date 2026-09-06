@@ -8,5 +8,5 @@
   // ただしテストの実行環境は node（vite.config.ts）。DOM を実際に触るテストを
   // 書くときは、そこで環境（jsdom など）を足すこと
   "include": ["src/core/**/*.ts", "src/app/**/*.ts", "src/app/**/*.vue"],
-  "exclude": ["src/core/**/*.test.ts", "src/**/*.node.ts"]
+  "exclude": ["src/core/**/*.test.ts", "src/**/*.node.ts", "src/**/*.node.test.ts"]
 }

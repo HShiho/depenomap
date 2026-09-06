@@ -9,5 +9,5 @@
   },
   // core とサーバーのテストはここが見る（それぞれの include に含まれる）。
   // 画面のテストは DOM を使うため tsconfig.app.json 側で検査する
-  "include": ["src/core/**/*.ts", "src/server/**/*.ts", "vite.config.ts"]
+  "include": ["src/core/**/*.ts", "src/server/**/*.ts", "src/**/*.node.test.ts", "vite.config.ts"]
 }
