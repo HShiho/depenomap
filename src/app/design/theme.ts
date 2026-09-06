@@ -188,17 +188,22 @@ let controller: ThemeController | undefined
 export function useTheme(): ThemeController {
   if (!controller) {
     const created = createThemeController(createBrowserThemeHost())
-    controller = {
+    const shared: ThemeController = {
       ...created,
       /*
        * 捨てたら作り直せるようにする。ここで持ち回すだけだと、購読をやめた
        * コントローラをその後の呼び出し側へ黙って配り続けることになる。
+       *
+       * 落とすのは**自分がいま配られているとき**だけ。古いコントローラを掴んだ
+       * ままの側がもう一度捨てると、生きているほうがキャッシュから外れ、
+       * 属性を書く主体が 2 つになる。
        */
       dispose: () => {
         created.dispose()
-        controller = undefined
+        if (controller === shared) controller = undefined
       },
     }
+    controller = shared
   }
   return controller
 }

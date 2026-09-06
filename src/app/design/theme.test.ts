@@ -271,4 +271,14 @@ describe('画面から使う口', () => {
 
     expect(useTheme()).not.toBe(first)
   })
+
+  it('捨てた古いコントローラが、生きているほうを巻き添えにしない', () => {
+    const first = useTheme()
+    first.dispose()
+    const second = useTheme()
+
+    first.dispose()
+
+    expect(useTheme()).toBe(second)
+  })
 })
