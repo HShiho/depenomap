@@ -52,7 +52,7 @@ export function graphApiPlugin(): Plugin {
     apply: (_config, env) => env.command === 'serve' && !process.env.VITEST,
 
     configureServer(server) {
-      const resolved = resolveConfig([], process.env, process.cwd())
+      const resolved = resolveConfig([], process.env, process.cwd(), { acceptsArgv: false })
       if (!resolved.ok) throw new Error(describeFailure(resolved.messages))
       const config: ServerConfig = resolved.config
 

@@ -111,6 +111,15 @@ function parsePort(raw: string): { ok: true; port: number } | { ok: false; messa
   return { ok: true, port }
 }
 
+export interface ResolveOptions {
+  /**
+   * コマンドラインでも受け取れる経路か（既定は受け取れる）。
+   * dev は Vite に argv を取られるため `false` を渡す。案内する指定方法を、
+   * その経路で実際に効くものだけにするために要る。
+   */
+  acceptsArgv?: boolean
+}
+
 /**
  * 起動パラメータを解釈する。
  *
@@ -121,12 +130,16 @@ export function resolveConfig(
   argv: string[],
   env: Record<string, string | undefined>,
   cwd: string,
+  options: ResolveOptions = {},
 ): ConfigResult {
+  const { acceptsArgv = true } = options
   const { values, errors } = parseArgv(argv)
 
   const rawGraph = values['--graph'] ?? env[GRAPH_PATH_ENV]
   if (rawGraph === undefined || rawGraph === '') {
-    errors.push(`正本 JSON のパスが指定されていない（--graph <path> または ${GRAPH_PATH_ENV}）`)
+    // 効かない指定方法を案内しない。dev で `--graph` を勧めても Vite が取ってしまう
+    const how = acceptsArgv ? `--graph <path> または ${GRAPH_PATH_ENV}` : GRAPH_PATH_ENV
+    errors.push(`正本 JSON のパスが指定されていない（${how}）`)
   }
 
   const rawPort = values['--port'] ?? env[PORT_ENV]

@@ -14,7 +14,7 @@ import { graphApiPlugin } from './src/server/vite-plugin.ts'
  * プラグイン側（`configureServer`）であり、その判定より前にこの評価が走るため。
  * 不備のある値がそのまま使われることはない。
  */
-const resolved = resolveConfig([], process.env, process.cwd())
+const resolved = resolveConfig([], process.env, process.cwd(), { acceptsArgv: false })
 const devPort = resolved.ok ? resolved.config.port : DEFAULT_PORT
 
 export default defineConfig({

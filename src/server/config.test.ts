@@ -58,6 +58,15 @@ describe('正本 JSON のパス', () => {
     expect(result.messages[0]).toContain('--graph')
   })
 
+  it('argv を受け取れない経路（dev）では、効かない --graph を案内しない', () => {
+    const result = resolveConfig([], {}, CWD, { acceptsArgv: false })
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.messages[0]).toContain(GRAPH_PATH_ENV)
+    expect(result.messages[0]).not.toContain('--graph')
+  })
+
   it('空文字は未指定として扱う', () => {
     const result = resolveConfig([], { [GRAPH_PATH_ENV]: '' }, CWD)
 
