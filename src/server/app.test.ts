@@ -171,6 +171,39 @@ describe('画面の配信（本番）', () => {
     expect(response.headers.get('Content-Type')).toContain('application/json')
   })
 
+  it('知らない /api/* は 404。画面のフォールバックに巻き込まない', async () => {
+    const app = createApp(
+      { graphPath: fixturePath, port: DEFAULT_PORT },
+      { clientDir: await writeClientDir() },
+    )
+
+    const response = await app.request('/api/unknown')
+
+    expect(response.status).toBe(404)
+  })
+
+  it('無いアセットは 404。index.html を返さない', async () => {
+    const app = createApp(
+      { graphPath: fixturePath, port: DEFAULT_PORT },
+      { clientDir: await writeClientDir() },
+    )
+
+    const response = await app.request('/assets/nope.js')
+
+    expect(response.status).toBe(404)
+  })
+
+  it('index.html は毎回問い合わせさせる', async () => {
+    const app = createApp(
+      { graphPath: fixturePath, port: DEFAULT_PORT },
+      { clientDir: await writeClientDir() },
+    )
+
+    const response = await app.request('/')
+
+    expect(response.headers.get('Cache-Control')).toBe('no-cache')
+  })
+
   it('clientDir を渡さなければ画面を配信しない。dev では Vite が配信する', async () => {
     const response = await appFor(fixturePath).request('/')
 
