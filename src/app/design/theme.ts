@@ -186,6 +186,19 @@ let controller: ThemeController | undefined
  * 状態の器（UT-05）はこれをそのまま包める。
  */
 export function useTheme(): ThemeController {
-  controller ??= createThemeController(createBrowserThemeHost())
+  if (!controller) {
+    const created = createThemeController(createBrowserThemeHost())
+    controller = {
+      ...created,
+      /*
+       * 捨てたら作り直せるようにする。ここで持ち回すだけだと、購読をやめた
+       * コントローラをその後の呼び出し側へ黙って配り続けることになる。
+       */
+      dispose: () => {
+        created.dispose()
+        controller = undefined
+      },
+    }
+  }
   return controller
 }

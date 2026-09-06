@@ -6,6 +6,7 @@ import {
   createThemeController,
   THEME_ATTRIBUTE,
   THEME_STORAGE_KEY,
+  useTheme,
   type ThemeHost,
 } from './theme'
 
@@ -243,5 +244,18 @@ describe('ブラウザの API が無い環境', () => {
     expect(controller.choice.value).toBe('system')
     expect(controller.resolved.value).toBe('light')
     expect(() => controller.select('dark')).not.toThrow()
+  })
+})
+
+describe('画面から使う口', () => {
+  it('同じコントローラを返す', () => {
+    expect(useTheme()).toBe(useTheme())
+  })
+
+  it('捨てたら作り直す。購読をやめたコントローラを配り続けない', () => {
+    const first = useTheme()
+    first.dispose()
+
+    expect(useTheme()).not.toBe(first)
   })
 })
