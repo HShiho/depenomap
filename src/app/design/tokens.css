@@ -248,6 +248,8 @@
 }
 
 :root[data-theme='dark'] {
+  color-scheme: dark;
+
   --color-ground: #0e141a;
   --color-surface: #161e26;
   --color-surface-2: #1c262f;
@@ -353,7 +355,17 @@
  * 地の設定。トークンで塗り、画面側の各部品が背景色を持ち回らなくてよい形にする。
  */
 html {
+  /*
+   * UA が描く部分（スクロールバー・フォーム部品・キャレット・選択範囲）の明暗。
+   * **選択があればそれに合わせる**。ここを `light dark` のままにすると、
+   * OS がダークのまま利用者がライトを選んだとき、白い画面に暗いスクロールバーが
+   * 残る（逆も同じ）。属性が無いときだけ OS に任せる。
+   */
   color-scheme: light dark;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
 }
 
 body {
