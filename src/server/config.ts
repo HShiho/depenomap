@@ -73,6 +73,16 @@ function parseArgv(argv: string[]): {
       continue
     }
 
+    /*
+     * 同じオプションを 2 回渡されたら失敗させる。後勝ちで黙って上書きすると、
+     * どちらが効いたのかが起動コマンドから読めない。打ち間違いを無言で捨てない
+     * のと同じ理由である。
+     */
+    if (values[name] !== undefined) {
+      errors.push(`${name} が複数回指定されている`)
+      continue
+    }
+
     if (eq !== -1) {
       values[name] = arg.slice(eq + 1)
       continue

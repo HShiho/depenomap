@@ -136,6 +136,14 @@ describe('解釈できない入力', () => {
     expect(result.messages.some((m) => m.includes('--grpah'))).toBe(true)
   })
 
+  it('同じオプションを 2 回渡されたら失敗させる。後勝ちで黙って上書きしない', () => {
+    const result = resolveConfig(['--graph', '/a.json', '--graph', '/b.json'], {}, CWD)
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.messages.some((m) => m.includes('複数回指定されている'))).toBe(true)
+  })
+
   it('不備は 1 つ目で止めず、すべて集めて返す', () => {
     const result = resolveConfig(['--port', 'abc', '--unknown'], {}, CWD)
 
