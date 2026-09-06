@@ -346,9 +346,17 @@
   --node-opacity-dimmed: 0.2;
 }
 
-/** 浮いている要素の影。値の入れ替えが効くよう、変数を参照する形で公開する */
+/**
+ * 浮いている要素の影。値の入れ替えが効くよう、変数を参照する形で公開する。
+ *
+ * `box-shadow` を直接書かず、Tailwind の合成（`--tw-shadow` と ring 系）に載せる。
+ * 直接書くと、`ring-*` と併用したときに後に出たほうが相手を黙って消す。
+ */
 @utility shadow-float {
-  box-shadow: var(--shadow-float);
+  --tw-shadow: var(--shadow-float);
+  box-shadow:
+    var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow),
+    var(--tw-ring-shadow), var(--tw-shadow);
 }
 
 /*
