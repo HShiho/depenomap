@@ -29,6 +29,11 @@
   // Tailwind v4 は設定ファイルを持たないため、CSS エントリを明示する
   "tailwindCSS.experimental.configFile": "src/app/design/tokens.css",
 
+  // 組み込みの CSS バリデータは Tailwind v4 の at-rule（@theme / @custom-variant /
+  // @utility / @slot）を知らず「Unknown at rule」を出す。構文の正しさは
+  // Tailwind CSS IntelliSense（推奨拡張）とビルドが見るため、この警告は止める
+  "css.lint.unknownAtRules": "ignore",
+
   "files.eol": "\n",
   "search.exclude": {
     "**/node_modules": true,
