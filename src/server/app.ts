@@ -9,15 +9,22 @@
 import { relative } from 'node:path'
 
 import { serveStatic } from '@hono/node-server/serve-static'
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 
 import { GRAPH_ENDPOINT } from '../core/graph/api'
 import { loadGraphFromFile } from '../core/graph/loader.node'
 import type { ServerConfig } from './config'
 
-/** `/assets/index-abc.js` のようにファイルを名指ししているか。`/nodes/some-file` は該当しない */
-function hasFileExtension(path: string): boolean {
-  return /\.[^./]+$/.test(path)
+/**
+ * 画面そのものを開こうとしている要求か。
+ *
+ * ブラウザの画面遷移は `text/html` を要求し、アセットの読み込みや `fetch` は
+ * 要求しない。パスの形（拡張子の有無）で見分けようとすると、ノード ID が
+ * ファイルパスであるこのアプリでは `/node/src/app/main.ts` のような画面の
+ * URL を取りこぼす。
+ */
+function wantsHtml(c: Context): boolean {
+  return c.req.header('Accept')?.includes('text/html') ?? false
 }
 
 export interface AppOptions {
@@ -80,10 +87,15 @@ export function createApp(config: ServerConfig, options: AppOptions = {}): Hono 
      * 画面の入口（HTML）はビルドのたびに中身が変わり、参照するアセットの名前も
      * 変わる。古い入口を握られると、消えたアセットを要求し続ける形になるため
      * 毎回問い合わせさせる。名前にハッシュの付くアセット側は対象外でよい。
+     *
+     * 返ったものの型で判定する。要求のパスや `Accept` から推測すると、
+     * どちらか一方が変わったときに静かに外れる。
      */
     app.use('/*', async (c, next) => {
-      if (!hasFileExtension(c.req.path)) c.header('Cache-Control', 'no-cache')
       await next()
+      if (c.res.headers.get('Content-Type')?.includes('text/html')) {
+        c.res.headers.set('Cache-Control', 'no-cache')
+      }
     })
 
     app.use('/*', serveStatic({ root }))
@@ -92,16 +104,15 @@ export function createApp(config: ServerConfig, options: AppOptions = {}): Hono 
      * どのファイルにも当たらない要求には `index.html` を返す。画面は単一ページであり、
      * 直接 URL を叩かれても画面が出る形にしておく。
      *
-     * ただし**拡張子付きの要求は対象外**にする。それはファイルを求めており、
-     * 無いのに index.html を返すと、再ビルドで名前の変わったアセットを古い
-     * index.html が要求したときに HTML が 200 で返り、MIME の食い違いで
-     * 画面が起動しない形になる。
+     * ただし**画面を求めていない要求は対象外**にする。無いアセットに index.html を
+     * 返すと、再ビルドで名前の変わったアセットを古い index.html が要求したときに
+     * HTML が 200 で返り、MIME の食い違いで画面が起動しない形になる。
      */
     // 生成のたびに `root` の存在確認が走るため、1 度だけ作って使い回す
     const serveIndex = serveStatic({ root, path: 'index.html' })
 
     app.get('*', async (c, next) => {
-      if (hasFileExtension(c.req.path)) return c.notFound()
+      if (!wantsHtml(c)) return c.notFound()
       return (await serveIndex(c, next)) ?? c.notFound()
     })
   }

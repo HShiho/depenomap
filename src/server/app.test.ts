@@ -116,6 +116,9 @@ async function writeClientDir(): Promise<string> {
   return dir
 }
 
+/** ブラウザが画面を開くときに送る Accept */
+const HTML_ACCEPT = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+
 describe('画面の配信（本番）', () => {
   it('clientDir を渡すと index.html を返す', async () => {
     const app = createApp(
@@ -144,7 +147,25 @@ describe('画面の配信（本番）', () => {
     expect(response.status).toBe(200)
   })
 
-  it('画面は単一ページなので、直接叩かれた URL にも index.html を返す', async () => {
+  // ノード ID はファイルパスなので、画面の URL にもドットが入りうる
+  it.each(['/nodes/some-file', '/node/src/app/main.ts'])(
+    '画面は単一ページなので、直接叩かれた URL にも index.html を返す: %s',
+    async (path) => {
+      const app = createApp(
+        { graphPath: fixturePath, port: DEFAULT_PORT },
+        {
+          clientDir: await writeClientDir(),
+        },
+      )
+
+      const response = await app.request(path, { headers: { Accept: HTML_ACCEPT } })
+
+      expect(response.status).toBe(200)
+      expect(await response.text()).toContain('<title>画面</title>')
+    },
+  )
+
+  it('画面を求めていない要求はフォールバックしない', async () => {
     const app = createApp(
       { graphPath: fixturePath, port: DEFAULT_PORT },
       {
@@ -152,10 +173,9 @@ describe('画面の配信（本番）', () => {
       },
     )
 
-    const response = await app.request('/nodes/some-file')
+    const response = await app.request('/nodes/some-file', { headers: { Accept: '*/*' } })
 
-    expect(response.status).toBe(200)
-    expect(await response.text()).toContain('<title>画面</title>')
+    expect(response.status).toBe(404)
   })
 
   it('静的配信より API を先に引き当てる', async () => {
