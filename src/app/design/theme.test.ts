@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { THEME_BOOTSTRAP_SOURCE } from './theme-keys'
-import { createThemeController, THEME_ATTRIBUTE, THEME_STORAGE_KEY, type ThemeHost } from './theme'
+import {
+  createBrowserThemeHost,
+  createThemeController,
+  THEME_ATTRIBUTE,
+  THEME_STORAGE_KEY,
+  type ThemeHost,
+} from './theme'
 
 /** `data-theme` の付け外しを記録するだけの要素 */
 function fakeRoot() {
@@ -226,5 +232,16 @@ describe('最初の描画より前に走るスクリプト', () => {
   it('画面側と同じキー・属性名を使う', () => {
     expect(THEME_BOOTSTRAP_SOURCE).toContain(THEME_STORAGE_KEY)
     expect(THEME_BOOTSTRAP_SOURCE).toContain(THEME_ATTRIBUTE)
+  })
+})
+
+describe('ブラウザの API が無い環境', () => {
+  it('document が無くても host を組み立てられる', () => {
+    // vitest の既定環境（node）には document も matchMedia も無い
+    const controller = createThemeController(createBrowserThemeHost())
+
+    expect(controller.choice.value).toBe('system')
+    expect(controller.resolved.value).toBe('light')
+    expect(() => controller.select('dark')).not.toThrow()
   })
 })

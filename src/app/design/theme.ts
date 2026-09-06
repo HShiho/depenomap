@@ -154,8 +154,17 @@ export function createBrowserThemeHost(): ThemeHost {
     storage = undefined
   }
 
+  /*
+   * 属性を載せる先が無い環境（テスト、SSR）では、何もしない受け皿を渡す。
+   * ここで投げると、テーマという副次的な機能のために画面全体が起動しなくなる。
+   */
+  const root =
+    typeof document !== 'undefined'
+      ? document.documentElement
+      : { setAttribute: () => {}, removeAttribute: () => {} }
+
   return {
-    root: document.documentElement,
+    root,
     storage,
     prefersDark: media && {
       get matches() {
