@@ -24,6 +24,10 @@ export default defineConfig({
     // dev と本番で同じ URL で開けるようにする
     port: devPort,
   },
+  build: {
+    // 本番は Hono がここを静的配信する。サーバーの成果物は dist/server に出す
+    outDir: 'dist/client',
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
