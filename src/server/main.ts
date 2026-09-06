@@ -71,7 +71,22 @@ app.get('*', serveStatic({ root, path: 'index.html' }))
  *
  * コンテナの中から外へ見せる必要が出た場合（UT-20）は、そこで明示的に開く。
  */
-serve({ fetch: app.fetch, port: config.port, hostname: '127.0.0.1' }, (info) => {
+const server = serve({ fetch: app.fetch, port: config.port, hostname: '127.0.0.1' }, (info) => {
   console.log(`depenomap: http://localhost:${info.port}`)
   console.log(`  正本 JSON: ${config.graphPath}`)
+})
+
+/*
+ * 待ち受けに失敗したときも、起動パラメータの不備と同じ扱いにする。
+ * 既定のポートは dev と同じ番号であり、`pnpm dev` を残したまま起動すると
+ * 必ず塞がっている。生のスタックトレースではなく、次にやることを出す。
+ */
+server.on('error', (cause: NodeJS.ErrnoException) => {
+  if (cause.code === 'EADDRINUSE') {
+    console.error(`ポート ${config.port} は既に使われている。`)
+    console.error(`別のポートを指定する: --port <ポート> または ${PORT_ENV}`)
+  } else {
+    console.error(`サーバーを起動できなかった: ${cause.message}`)
+  }
+  process.exit(1)
 })
