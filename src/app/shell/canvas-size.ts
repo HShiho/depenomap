@@ -39,11 +39,15 @@ export function defaultSizeObserverFactory(): SizeObserverFactory | undefined {
  *
  * 観測手段が無い環境では**何もしない停止関数**を返す。テーマと同じく、
  * 副次的な機能のために画面が起動しない形にはしない。
+ *
+ * 観測手段は**呼び出し側が渡す**。既定値をここに置くと、テストで
+ * `undefined` を渡しても既定が評価されてしまい、「観測手段が無い」経路を
+ * 検査しているつもりで既定の経路を通ることになる。
  */
 export function watchElementSize(
   element: Element,
   onResize: (width: number, height: number) => void,
-  factory: SizeObserverFactory | undefined = defaultSizeObserverFactory(),
+  factory: SizeObserverFactory | undefined,
 ): () => void {
   if (!factory) return () => {}
 

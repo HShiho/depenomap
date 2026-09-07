@@ -20,7 +20,7 @@
  */
 import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue'
 
-import { watchElementSize } from './canvas-size'
+import { defaultSizeObserverFactory, watchElementSize } from './canvas-size'
 import { useViewState } from './view-state'
 
 const state = useViewState()
@@ -29,7 +29,9 @@ const canvas = useTemplateRef<HTMLElement>('canvas')
 let stopWatching: () => void = () => {}
 
 onMounted(() => {
-  if (canvas.value) stopWatching = watchElementSize(canvas.value, state.setCanvasSize)
+  if (canvas.value) {
+    stopWatching = watchElementSize(canvas.value, state.setCanvasSize, defaultSizeObserverFactory())
+  }
 })
 
 onBeforeUnmount(() => stopWatching())
