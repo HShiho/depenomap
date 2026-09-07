@@ -1,5 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { loadGraphFromValue } from '@/core/graph/loader'
 import { buildViewModel } from '@/core/ir/view-model'
@@ -26,6 +26,13 @@ function setup(options: { withGraph?: boolean } = {}) {
 }
 
 beforeEach(() => setActivePinia(createPinia()))
+
+/*
+ * テーマのコントローラはモジュールに 1 つで、pinia を作り直しても共有される。
+ * 後始末を `it` の末尾に置くと、手前の `expect` が落ちた時点で実行されず、
+ * 次のテストへ選択が漏れる。失敗しても必ず戻す。
+ */
+afterEach(() => useViewState().selectTheme('system'))
 
 describe('初期状態', () => {
   it('ファイル粒度・層の軸・選択なしから始まる', () => {
@@ -214,9 +221,6 @@ describe('テーマ', () => {
 
     state.toggleTheme()
     expect(state.themeResolved).toBe('light')
-
-    // 後続のテストへ持ち越さない（記憶は UT-04 側にある）
-    state.selectTheme('system')
   })
 })
 
