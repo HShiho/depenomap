@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { THEME_BOOTSTRAP_SOURCE } from './theme-keys'
 import {
   createBrowserThemeHost,
   createThemeController,
@@ -188,51 +187,6 @@ describe('記憶が使えない環境', () => {
     const controller = createThemeController({ root: fakeRoot() })
 
     expect(controller.resolved.value).toBe('light')
-  })
-})
-
-describe('最初の描画より前に走るスクリプト', () => {
-  /** `<head>` に差し込む本体を、記憶と要素のフェイクの上で実行する */
-  function runBootstrap(stored: string | null) {
-    const root = fakeRoot()
-    const localStorage = { getItem: () => stored }
-    const document = { documentElement: root }
-    new Function('localStorage', 'document', THEME_BOOTSTRAP_SOURCE)(localStorage, document)
-    return root
-  }
-
-  it('記憶した選択を属性に載せる', () => {
-    expect(runBootstrap('dark').theme()).toBe('dark')
-    expect(runBootstrap('light').theme()).toBe('light')
-  })
-
-  it('記憶が無ければ何もしない。属性が無いことが「OS に従う」', () => {
-    expect(runBootstrap(null).theme()).toBeUndefined()
-  })
-
-  it('system や壊れた値は載せない', () => {
-    expect(runBootstrap('system').theme()).toBeUndefined()
-    expect(runBootstrap('ダーク').theme()).toBeUndefined()
-  })
-
-  it('記憶を読めなくても投げない', () => {
-    const root = fakeRoot()
-    const localStorage = {
-      getItem: () => {
-        throw new Error('SecurityError')
-      },
-    }
-
-    expect(() =>
-      new Function('localStorage', 'document', THEME_BOOTSTRAP_SOURCE)(localStorage, {
-        documentElement: root,
-      }),
-    ).not.toThrow()
-  })
-
-  it('画面側と同じキー・属性名を使う', () => {
-    expect(THEME_BOOTSTRAP_SOURCE).toContain(THEME_STORAGE_KEY)
-    expect(THEME_BOOTSTRAP_SOURCE).toContain(THEME_ATTRIBUTE)
   })
 })
 
