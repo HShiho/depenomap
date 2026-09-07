@@ -55,7 +55,7 @@ onBeforeUnmount(() => stopWatching())
       <slot name="sidebar" />
     </aside>
 
-    <div ref="canvas" class="shell-canvas bg-ground">
+    <main ref="canvas" class="shell-canvas bg-ground" aria-label="ノードマップ">
       <slot name="canvas" />
 
       <div class="shell-overlay">
@@ -70,7 +70,7 @@ onBeforeUnmount(() => stopWatching())
       <div class="shell-toolbar">
         <slot name="toolbar" />
       </div>
-    </div>
+    </main>
   </div>
 </template>
 
@@ -107,27 +107,43 @@ onBeforeUnmount(() => stopWatching())
   overflow: hidden;
 }
 
-/* キャンバスに重ねる要素。位置だけを決め、中身の見た目は差し込む側が持つ */
+/*
+ * キャンバスに重ねる要素。位置だけを決め、中身の見た目は差し込む側が持つ。
+ *
+ * **ポインタは透かす**（`mockup.html` の `.overlay` と同じ）。透かさないと、
+ * 中身が入った時点で重なった範囲がキャンバスの操作（UT-16 のパン・ズーム）を
+ * 横取りする。差し込む中身の側で `pointer-events: auto` に戻す。
+ */
 .shell-overlay,
 .shell-notice,
 .shell-toolbar {
   position: absolute;
   z-index: 1;
+  pointer-events: none;
+}
+
+.shell-overlay > :deep(*),
+.shell-notice > :deep(*),
+.shell-toolbar > :deep(*) {
+  pointer-events: auto;
 }
 
 .shell-overlay {
-  top: 0;
-  left: 0;
+  top: 10px;
+  left: 10px;
 }
 
 .shell-notice {
-  top: 0;
-  right: 0;
+  top: 10px;
+  right: 10px;
 }
 
+/* 下端中央に置く。全幅の帯にすると、幅いっぱいがキャンバスの操作を覆う */
 .shell-toolbar {
-  right: 0;
-  bottom: 0;
-  left: 0;
+  bottom: 14px;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 28px);
+  transform: translateX(-50%);
 }
 </style>
