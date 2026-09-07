@@ -80,7 +80,7 @@ onMounted(() => loadGraphInto(state))
             <h2 class="text-overline text-ink-3 uppercase">正本 JSON を読み込めなかった</h2>
             <ul>
               <li v-for="(error, index) in state.errors" :key="index" class="font-mono text-meta">
-                {{ error }}
+                {{ error.type }}
               </li>
             </ul>
           </section>

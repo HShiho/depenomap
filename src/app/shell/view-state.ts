@@ -17,7 +17,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 
-import type { LoadWarning } from '@/core/graph/loader'
+import type { LoadError, LoadWarning } from '@/core/graph/loader'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
 
 /** 列を並べる軸（US-04）。切り替えそのものは UT-08 */
@@ -46,8 +46,14 @@ export const useViewState = defineStore('view-state', () => {
   const status = ref<GraphStatus>({ kind: 'loading' })
   /** 読み込みは成否によらず警告を返す。成功時も失敗時も同じ場所に出す */
   const warnings = ref<readonly LoadWarning[]>([])
-  /** 読めなかった理由。表示の文言は出さず、種別だけを持つ（判定は UT-01） */
-  const errors = ref<readonly string[]>([])
+  /**
+   * 読めなかった理由。**UT-01 が返した形のまま持つ**。
+   *
+   * 種別だけに潰すと、どのファイルの何が壊れているか（`read-failed` のパス、
+   * `schema-mismatch` の issue、`integrity-violated` の報告）が状態から消え、
+   * 後続の UT が出せなくなる。文言を組み立てないことと、素材を捨てることは別。
+   */
+  const errors = ref<readonly LoadError[]>([])
 
   /* --- 見え方 ---------------------------------------------------------- */
 

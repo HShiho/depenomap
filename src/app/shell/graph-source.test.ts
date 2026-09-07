@@ -50,7 +50,10 @@ describe('グラフを状態へ載せる', () => {
     )
 
     expect(state.status).toEqual({ kind: 'invalid' })
-    expect(state.errors).toEqual(['read-failed'])
+    // 種別に潰さず、どのファイルの何が起きたかを持ったまま運ぶ
+    expect(state.errors).toEqual([
+      { type: 'read-failed', path: '/srv/graph.json', message: 'ENOENT' },
+    ])
     expect(state.viewModel).toBeUndefined()
   })
 

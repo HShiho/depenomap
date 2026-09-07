@@ -34,8 +34,8 @@ export async function loadGraphInto(state: ViewState, fetchImpl?: typeof fetch):
   state.warnings = result.warnings
 
   if (!result.ok) {
-    // 表示の文言はここで決めない。種別だけを運び、見せ方は画面が決める
-    state.errors = result.errors.map((error) => error.type)
+    // 表示の文言はここで決めない。素材はそのまま運び、見せ方は画面が決める
+    state.errors = result.errors
     state.status = { kind: 'invalid' }
     return
   }
