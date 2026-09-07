@@ -69,25 +69,27 @@
 
 ### 色
 
-| カタログ                         | トークン                               | ユーティリティ例              | 用途                                 |
-| -------------------------------- | -------------------------------------- | ----------------------------- | ------------------------------------ |
-| `--ground`                       | `--color-ground`                       | `bg-ground`                   | アプリの地。キャンバス背景           |
-| `--surface`                      | `--color-surface`                      | `bg-surface`                  | パネル・ヘッダ・浮動要素の面         |
-| `--surface-2`                    | `--color-surface-2`                    | `bg-surface-2`                | 入力欄・ボタン・行 hover の面        |
-| `--surface-3`                    | `--color-surface-3`                    | `bg-surface-3`                | ボタン hover・バーの溝               |
-| `--ink`                          | `--color-ink`                          | `text-ink`                    | 主テキスト・見出し・数値             |
-| `--ink-2`                        | `--color-ink-2`                        | `text-ink-2`                  | 副テキスト・非選択のラベル           |
-| `--ink-3`                        | `--color-ink-3`                        | `text-ink-3`                  | 補助・キャプション・プレースホルダ   |
-| `--line`                         | `--color-line`                         | `border-line`                 | 構造の境界                           |
-| `--line-2`                       | `--color-line-2`                       | `border-line-2`               | 内部の区切り                         |
-| `--accent`                       | `--color-accent`                       | `bg-accent` / `stroke-accent` | 選択・フォーカス・経由辺・主要ボタン |
-| `--accent-ink`                   | `--color-accent-ink`                   | `text-accent-ink`             | アクセント面上の文字                 |
-| `--accent-soft`                  | `--color-accent-soft`                  | `bg-accent-soft`              | ON 状態の背景・フォーカスリング      |
-| `--warn`                         | `--color-warn`                         | `text-warn` / `stroke-warn`   | 循環している依存                     |
-| `--warn-soft`                    | `--color-warn-soft`                    | `bg-warn-soft`                | 同上の面                             |
-| `--layer-presentation` ほか 5 色 | `--color-layer-1` 〜 `--color-layer-6` | `fill-layer-3`                | 層の識別（下記）                     |
-| `--tint`                         | `--tint`                               | （変数のみ）                  | 層カラーをノード面に混ぜる割合       |
-| `--shadow`                       | `--shadow-float`（生の変数）           | `shadow-float`                | 浮いている要素だけ                   |
+| カタログ                         | トークン                               | ユーティリティ例              | 用途                                    |
+| -------------------------------- | -------------------------------------- | ----------------------------- | --------------------------------------- |
+| `--ground`                       | `--color-ground`                       | `bg-ground`                   | アプリの地。キャンバス背景              |
+| `--surface`                      | `--color-surface`                      | `bg-surface`                  | パネル・ヘッダ・浮動要素の面            |
+| `--surface-2`                    | `--color-surface-2`                    | `bg-surface-2`                | 入力欄・ボタン・行 hover の面           |
+| `--surface-3`                    | `--color-surface-3`                    | `bg-surface-3`                | ボタン hover・バーの溝                  |
+| `--ink`                          | `--color-ink`                          | `text-ink`                    | 主テキスト・見出し・数値                |
+| `--ink-2`                        | `--color-ink-2`                        | `text-ink-2`                  | 副テキスト・非選択のラベル              |
+| `--ink-3`                        | `--color-ink-3`                        | `text-ink-3`                  | 補助・キャプション・プレースホルダ      |
+| `--line`                         | `--color-line`                         | `border-line`                 | 構造の境界                              |
+| `--line-2`                       | `--color-line-2`                       | `border-line-2`               | 内部の区切り                            |
+| `--accent`                       | `--color-accent`                       | `bg-accent` / `stroke-accent` | 選択・フォーカス・経由辺・主要ボタン    |
+| `--accent-ink`                   | `--color-accent-ink`                   | `text-accent-ink`             | アクセント面上の文字                    |
+| `--accent-soft`                  | `--color-accent-soft`                  | `bg-accent-soft`              | ON 状態の背景・フォーカスリング         |
+| `--warn`                         | `--color-warn`                         | `text-warn` / `stroke-warn`   | 循環している依存                        |
+| `--warn-soft`                    | `--color-warn-soft`                    | `bg-warn-soft`                | 同上の面                                |
+| `--layer-presentation` ほか 5 色 | `--color-layer-1` 〜 `--color-layer-6` | `fill-layer-3`                | 層の識別（下記）                        |
+| `--tint`                         | `--tint`                               | （変数のみ）                  | 層カラーをノード面に混ぜる割合          |
+| （なし）                         | `--rail-width`                         | （変数のみ）                  | シェル左端のレールの幅（UT-05）         |
+| （なし）                         | `--panel-width`                        | （変数のみ）                  | 一覧パネルの幅。折りたたむと 0（UT-05） |
+| `--shadow`                       | `--shadow-float`（生の変数）           | `shadow-float`                | 浮いている要素だけ                      |
 
 ### 書体・余白
 
