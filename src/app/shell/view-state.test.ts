@@ -47,7 +47,7 @@ describe('選択と履歴', () => {
     state.select('b')
 
     expect(state.selectedNodeId).toBe('b')
-    expect(state.history).toEqual(['a', 'b'])
+    expect(state.history.map((entry) => entry.nodeId)).toEqual(['a', 'b'])
     expect(state.canGoBack).toBe(true)
     expect(state.canGoForward).toBe(false)
   })
@@ -58,7 +58,7 @@ describe('選択と履歴', () => {
     state.select('a')
     state.select('a')
 
-    expect(state.history).toEqual(['a'])
+    expect(state.history.map((entry) => entry.nodeId)).toEqual(['a'])
   })
 
   it('戻る・進むで選択が動く', () => {
@@ -82,7 +82,7 @@ describe('選択と履歴', () => {
 
     state.select('c')
 
-    expect(state.history).toEqual(['a', 'c'])
+    expect(state.history.map((entry) => entry.nodeId)).toEqual(['a', 'c'])
     expect(state.canGoForward).toBe(false)
   })
 
@@ -106,7 +106,7 @@ describe('選択と履歴', () => {
     state.clearSelection()
 
     expect(state.selectedNodeId).toBeUndefined()
-    expect(state.history).toEqual(['a', 'b'])
+    expect(state.history.map((entry) => entry.nodeId)).toEqual(['a', 'b'])
     state.back()
     expect(state.selectedNodeId).toBe('a')
   })
@@ -151,6 +151,27 @@ describe('粒度の切り替え', () => {
     state.setGranularity('file')
 
     expect(state.history).toEqual(before)
+  })
+
+  it('選んだノードが表示できない粒度なら、粒度を合わせる', () => {
+    const state = setup()
+
+    state.select(someMethod.id)
+
+    expect(state.granularity).toBe('method')
+  })
+
+  it('粒度をまたいで戻っても、見えないノードが選ばれた状態にならない', () => {
+    const state = setup()
+    state.granularity = 'method'
+    state.select(someMethod.id)
+    state.setGranularity('file')
+    state.select(someFile.id)
+
+    state.back()
+
+    expect(state.granularity).toBe('method')
+    expect(state.selectedNode?.kind).toBe('method')
   })
 
   it('同じ粒度を指定しても選択を触らない', () => {

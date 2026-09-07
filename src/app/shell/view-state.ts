@@ -24,6 +24,18 @@ import type { Granularity, ViewModel } from '@/core/ir/view-model'
 export type ColumnAxis = 'layer' | 'depth'
 
 /**
+ * 移動の履歴に積む 1 件。**粒度も一緒に持つ**。
+ *
+ * ノード ID だけを積むと、粒度をまたいで戻ったときに「ファイル粒度なのに
+ * メソッドが選ばれている」状態ができる。戻る・進むは、そのとき見ていた
+ * 見え方ごと復元する。
+ */
+export interface HistoryEntry {
+  nodeId: string
+  granularity: Granularity
+}
+
+/**
  * グラフの読み込み状況。
  *
  * 「サーバーに届かなかった」と「正本 JSON を読めなかった」は直す場所が違う
@@ -81,7 +93,7 @@ export const useViewState = defineStore('view-state', () => {
    * 移動の履歴（US-13）。**選択したノードの列**であり、粒度の切り替えや
    * 絞り込みの ON/OFF は積まない。それらは「移動」ではない。
    */
-  const history = ref<string[]>([])
+  const history = ref<HistoryEntry[]>([])
   const historyIndex = ref(-1)
 
   const selectedNode = computed(() =>
@@ -102,14 +114,24 @@ export const useViewState = defineStore('view-state', () => {
   /**
    * ノードを選ぶ。履歴に積む。
    *
+   * 選んだノードが**いまの粒度で表示できないなら、粒度をそちらへ合わせる**。
+   * 合わせないと、表示されていないノードが選択された状態になり、絞り込み
+   * （US-14）や描画（UT-06）がその前提で動くことになる。
+   *
    * 戻ったあとに別のノードを選ぶと、進む先は捨てる（ブラウザと同じ）。
    * 同じノードを選び直したときは積まない。
    */
   function select(nodeId: string): void {
-    applySelection(nodeId)
-    if (history.value[historyIndex.value] === nodeId) return
+    const node = viewModel.value?.nodeById.get(nodeId)
+    if (node && node.kind !== granularity.value) granularity.value = node.kind
 
-    history.value = [...history.value.slice(0, historyIndex.value + 1), nodeId]
+    applySelection(nodeId)
+    if (history.value[historyIndex.value]?.nodeId === nodeId) return
+
+    history.value = [
+      ...history.value.slice(0, historyIndex.value + 1),
+      { nodeId, granularity: granularity.value },
+    ]
     historyIndex.value = history.value.length - 1
   }
 
@@ -118,16 +140,23 @@ export const useViewState = defineStore('view-state', () => {
     applySelection(undefined)
   }
 
+  /** 履歴の 1 件へ戻す。そのとき見ていた粒度ごと復元する */
+  function applyEntry(entry: HistoryEntry | undefined): void {
+    if (!entry) return
+    granularity.value = entry.granularity
+    applySelection(entry.nodeId)
+  }
+
   function back(): void {
     if (!canGoBack.value) return
     historyIndex.value -= 1
-    applySelection(history.value[historyIndex.value])
+    applyEntry(history.value[historyIndex.value])
   }
 
   function forward(): void {
     if (!canGoForward.value) return
     historyIndex.value += 1
-    applySelection(history.value[historyIndex.value])
+    applyEntry(history.value[historyIndex.value])
   }
 
   /**
