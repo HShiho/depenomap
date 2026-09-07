@@ -121,7 +121,7 @@ describe('選択と履歴', () => {
   it('選択が無くなれば絞り込みも解ける', () => {
     const state = setup()
     state.select('a')
-    state.narrowedToSelection = true
+    state.setNarrowedToSelection(true)
 
     state.clearSelection()
 
@@ -228,7 +228,7 @@ describe('グラフの入れ替え', () => {
   it('グラフを落とすと、そのグラフを指していた状態も落ちる', () => {
     const state = setup()
     state.select(someFile.id)
-    state.narrowedToSelection = true
+    state.setNarrowedToSelection(true)
 
     state.setGraph(undefined)
 
@@ -262,5 +262,24 @@ describe('不変条件を持つ状態の書き込み', () => {
     expect(state.granularity).toBe('file')
     expect(state.selectedNodeId).toBe(someFile.id)
     expect(state.historyIndex).toBe(0)
+  })
+})
+
+describe('選択に絞る', () => {
+  it('選択があれば立てられる', () => {
+    const state = setup()
+    state.select(someFile.id)
+
+    state.setNarrowedToSelection(true)
+
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('選択が無ければ立たない。絞る対象がない', () => {
+    const state = setup()
+
+    state.setNarrowedToSelection(true)
+
+    expect(state.narrowedToSelection).toBe(false)
   })
 })

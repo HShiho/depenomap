@@ -155,6 +155,18 @@ export const useViewState = defineStore('view-state', () => {
     historyIndex.value = history.value.length - 1
   }
 
+  /**
+   * 選択に絞るかを切り替える（US-14）。
+   *
+   * 選択が無ければ絞り込みは成立しないので、そのときは倒す。値を素で公開すると
+   * 「何も選んでいないのに絞り込み ON」が作れ、描画側は選択とその隣接で絞って
+   * 0 件になる。落とす側（`applySelection` / `setGraph`）だけが守っていても、
+   * 立てる側が開いていれば同じ状態に行き着く。
+   */
+  function setNarrowedToSelection(next: boolean): void {
+    narrowedToSelection.value = next && selectedNodeId.value !== undefined
+  }
+
   /** 選択を外す。履歴は消さない（戻れば直前のノードへ帰れる） */
   function clearSelection(): void {
     applySelection(undefined)
@@ -251,7 +263,9 @@ export const useViewState = defineStore('view-state', () => {
     columnAxis,
     query,
     sidebarOpen,
-    narrowedToSelection,
+
+    // 読むだけ。選択に従属するので setNarrowedToSelection が整合を見る
+    narrowedToSelection: computed(() => narrowedToSelection.value),
 
     // 読むだけ。実寸は setCanvasSize が入れる
     canvasWidth: computed(() => canvasWidth.value),
@@ -266,6 +280,7 @@ export const useViewState = defineStore('view-state', () => {
     canGoForward,
 
     setGraph,
+    setNarrowedToSelection,
     select,
     clearSelection,
     back,
