@@ -320,3 +320,13 @@ describe('履歴の中身', () => {
     }
   })
 })
+
+describe('購読の仕方', () => {
+  it('$state に残るのは不変条件を持たない値だけ', () => {
+    const state = setup()
+
+    // 選択や粒度は getter で公開しているため $state には無い。
+    // 変化を待つ側は watch(() => state.selectedNodeId, …) を使う
+    expect(Object.keys(state.$state).sort()).toEqual(['columnAxis', 'query', 'sidebarOpen'])
+  })
+})
