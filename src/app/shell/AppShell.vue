@@ -135,21 +135,21 @@ onBeforeUnmount(() => stopWatching())
 }
 
 .shell-overlay {
-  top: 10px;
-  left: 10px;
+  top: var(--overlay-inset);
+  left: var(--overlay-inset);
 }
 
 .shell-notice {
-  top: 10px;
-  right: 10px;
+  top: var(--overlay-inset);
+  right: var(--overlay-inset);
 }
 
 /* 下端中央に置く。全幅の帯にすると、幅いっぱいがキャンバスの操作を覆う */
 .shell-toolbar {
-  bottom: 14px;
+  bottom: var(--toolbar-inset);
   left: 50%;
   width: max-content;
-  max-width: calc(100% - 28px);
+  max-width: calc(100% - var(--toolbar-inset) * 2);
   transform: translateX(-50%);
 }
 </style>
