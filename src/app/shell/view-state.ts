@@ -228,8 +228,14 @@ export const useViewState = defineStore('view-state', () => {
     warnings,
     errors,
 
-    themeChoice: theme.choice,
-    themeResolved: theme.resolved,
+    /*
+     * どちらも読むだけの値なので getter に揃える。`theme.choice` をそのまま
+     * 返すと readonly な ref が **state として登録され**、`$state` に
+     * 「器が所有せず localStorage に永続する値」が 1 つだけ混ざる。
+     * 書き込みも型では通り、実行時に黙って失敗する。
+     */
+    themeChoice: computed(() => theme.choice.value),
+    themeResolved: computed(() => theme.resolved.value),
     selectTheme: theme.select,
     toggleTheme: theme.toggle,
 

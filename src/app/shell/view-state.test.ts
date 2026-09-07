@@ -233,3 +233,13 @@ describe('グラフの入れ替え', () => {
     expect(state.narrowedToSelection).toBe(false)
   })
 })
+
+describe('器の分類', () => {
+  it('読むだけの値は状態として登録しない', () => {
+    const state = setup()
+
+    // `$state` は「この器が持つ揮発する状態」。テーマの値は UT-04 が持つ
+    expect(Object.keys(state.$state)).not.toContain('themeChoice')
+    expect(Object.keys(state.$state)).not.toContain('themeResolved')
+  })
+})
