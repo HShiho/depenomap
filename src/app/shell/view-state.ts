@@ -202,6 +202,21 @@ export const useViewState = defineStore('view-state', () => {
     if (next === 'method' && current.kind === 'file') applySelection(undefined)
   }
 
+  /**
+   * グラフを入れ替える。**グラフから派生した状態も一緒に落とす**。
+   *
+   * 選択・履歴・絞り込みは、いま載っているグラフのノード ID を指している。
+   * グラフだけを差し替えると「ID はあるのにノードが引けない」状態が残り、
+   * 空の詳細や 0 件の絞り込みとして表に出る。
+   */
+  function setGraph(next: ViewModel | undefined): void {
+    viewModel.value = next
+    selectedNodeId.value = undefined
+    narrowedToSelection.value = false
+    history.value = []
+    historyIndex.value = -1
+  }
+
   function setCanvasSize(width: number, height: number): void {
     canvasWidth.value = width
     canvasHeight.value = height
@@ -233,6 +248,7 @@ export const useViewState = defineStore('view-state', () => {
     canGoBack,
     canGoForward,
 
+    setGraph,
     select,
     clearSelection,
     back,

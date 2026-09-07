@@ -21,7 +21,7 @@ const someFile = viewModel.nodes.file[0]!
 function setup(options: { withGraph?: boolean } = {}) {
   setActivePinia(createPinia())
   const state = useViewState()
-  if (options.withGraph !== false) state.viewModel = viewModel
+  if (options.withGraph !== false) state.setGraph(viewModel)
   return state
 }
 
@@ -217,5 +217,19 @@ describe('テーマ', () => {
 
     // 後続のテストへ持ち越さない（記憶は UT-04 側にある）
     state.selectTheme('system')
+  })
+})
+
+describe('グラフの入れ替え', () => {
+  it('グラフを落とすと、そのグラフを指していた状態も落ちる', () => {
+    const state = setup()
+    state.select(someFile.id)
+    state.narrowedToSelection = true
+
+    state.setGraph(undefined)
+
+    expect(state.selectedNodeId).toBeUndefined()
+    expect(state.history).toEqual([])
+    expect(state.narrowedToSelection).toBe(false)
   })
 })

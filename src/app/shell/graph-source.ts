@@ -40,7 +40,7 @@ async function load(state: ViewState, fetchImpl?: typeof fetch): Promise<void> {
    * 「読み込めていないのに前回のグラフが見えている」状態ができる。
    */
   state.status = { kind: 'loading' }
-  state.viewModel = undefined
+  state.setGraph(undefined)
   state.warnings = []
   state.errors = []
 
@@ -60,6 +60,6 @@ async function load(state: ViewState, fetchImpl?: typeof fetch): Promise<void> {
     return
   }
 
-  state.viewModel = buildViewModel(result.graph)
+  state.setGraph(buildViewModel(result.graph))
   state.status = { kind: 'ready' }
 }
