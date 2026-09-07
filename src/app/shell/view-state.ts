@@ -86,7 +86,12 @@ export const useViewState = defineStore('view-state', () => {
    */
   const viewModel = shallowRef<ViewModel | undefined>(undefined)
   const status = ref<GraphStatus>({ kind: 'loading' })
-  /** 読み込みは成否によらず警告を返す。成功時も失敗時も同じ場所に出す */
+  /**
+   * 読み込みの警告。成功しても失敗しても同じ場所に出す。
+   *
+   * ただし `broken`（想定外の失敗）だけは載せない。応答の本文そのものが
+   * 読み込み結果の形をしていない状況であり、そこから拾った警告も信用できない。
+   */
   const warnings = ref<readonly LoadWarning[]>([])
   /**
    * 読めなかった理由。**UT-01 が返した形のまま持つ**。

@@ -20,6 +20,10 @@ type ViewState = ReturnType<typeof useViewState>
  *
  * **警告は成否によらず載せる。** 読み込みに失敗した場合も、そこまでに
  * 集まった警告は返ってきており、正本を直す側にとっては同時に見えたほうが速い。
+ *
+ * 例外は `broken`（応答が読み込み結果の形をしていない）で、このときは警告も
+ * 載せない。本文そのものが信用できない以上、そこから拾った値だけを信じる
+ * 理由がない。
  */
 export async function loadGraphInto(state: ViewState, fetchImpl?: typeof fetch): Promise<void> {
   try {

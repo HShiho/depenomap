@@ -125,4 +125,19 @@ describe('想定していない失敗', () => {
 
     expect(state.status.kind).toBe('broken')
   })
+
+  it('本文が信用できないときは警告も載せない', async () => {
+    const state = useViewState()
+    const nonsense = vi.fn(
+      async () =>
+        new Response(
+          '{"ok":true,"graph":{},"warnings":[{"type":"schema-version-differs","expected":"1.0.0","actual":"1.1.0"}]}',
+        ),
+    ) as unknown as typeof fetch
+
+    await loadGraphInto(state, nonsense)
+
+    expect(state.status.kind).toBe('broken')
+    expect(state.warnings).toEqual([])
+  })
 })
