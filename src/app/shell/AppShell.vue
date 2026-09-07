@@ -39,6 +39,12 @@ onBeforeUnmount(() => stopWatching())
 
 <template>
   <div class="shell" :data-panel="state.sidebarOpen ? 'open' : 'closed'">
+    <!--
+      画面の見出し。参照仕様は上部に帯を持たず、アプリ名を出す場所が無いため
+      読み上げにだけ出す。見出しが無いと、支援技術からページの主題が辿れない
+    -->
+    <h1 class="sr-only">depenomap</h1>
+
     <nav class="shell-rail border-r border-line bg-surface" aria-label="表示の切り替え">
       <slot name="rail" />
     </nav>
