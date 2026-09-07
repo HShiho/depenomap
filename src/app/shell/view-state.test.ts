@@ -308,9 +308,15 @@ describe('履歴の中身', () => {
     const state = setup()
     state.select(someFile.id)
     const entries = state.history as unknown as { nodeId: string }[]
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-    entries[0]!.nodeId = 'すり替え'
+    try {
+      entries[0]!.nodeId = 'すり替え'
 
-    expect(state.history[0]!.nodeId).toBe(someFile.id)
+      expect(state.history[0]!.nodeId).toBe(someFile.id)
+      expect(warn).toHaveBeenCalledOnce()
+    } finally {
+      warn.mockRestore()
+    }
   })
 })
