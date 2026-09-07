@@ -1,0 +1,54 @@
+{
+  "version": 1.1,
+  "atDirectives": [
+    {
+      "name": "@theme",
+      "description": "Tailwind CSS v4: デザイントークンを定義する。ここに書いた変数は CSS 変数として出力され、対応するユーティリティも生成される。`@theme static` は参照の有無にかかわらず全トークンを出力する。",
+      "references": [{ "name": "Tailwind CSS: theme", "url": "https://tailwindcss.com/docs/theme" }]
+    },
+    {
+      "name": "@custom-variant",
+      "description": "Tailwind CSS v4: 独自のバリアント（`dark:` など）を定義する。適用条件の中に `@slot` を置く。",
+      "references": [
+        {
+          "name": "Tailwind CSS: adding custom variants",
+          "url": "https://tailwindcss.com/docs/adding-custom-styles#adding-custom-variants"
+        }
+      ]
+    },
+    {
+      "name": "@utility",
+      "description": "Tailwind CSS v4: 独自のユーティリティクラスを定義する。バリアント（`hover:` など）と組み合わせられる。",
+      "references": [
+        {
+          "name": "Tailwind CSS: adding custom utilities",
+          "url": "https://tailwindcss.com/docs/adding-custom-styles#adding-custom-utilities"
+        }
+      ]
+    },
+    {
+      "name": "@slot",
+      "description": "Tailwind CSS v4: `@custom-variant` の中で、バリアントが包むスタイルの差し込み位置を示す。"
+    },
+    {
+      "name": "@variant",
+      "description": "Tailwind CSS v4: 素の CSS の中でバリアント（`dark` など）を適用する。"
+    },
+    {
+      "name": "@apply",
+      "description": "Tailwind CSS: 既存のユーティリティを素の CSS 規則へ展開する。"
+    },
+    {
+      "name": "@source",
+      "description": "Tailwind CSS v4: クラス名を走査する対象を追加・除外する。"
+    },
+    {
+      "name": "@plugin",
+      "description": "Tailwind CSS v4: JavaScript プラグインを読み込む。"
+    },
+    {
+      "name": "@reference",
+      "description": "Tailwind CSS v4: 別の CSS のトークンやユーティリティを、出力を複製せずに参照する。"
+    }
+  ]
+}
