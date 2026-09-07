@@ -26,7 +26,7 @@
  */
 
 import { defineStore } from 'pinia'
-import { computed, ref, shallowRef } from 'vue'
+import { computed, readonly, ref, shallowRef } from 'vue'
 
 import { useTheme } from '@/app/design/theme'
 import type { LoadError, LoadWarning } from '@/core/graph/loader'
@@ -43,8 +43,8 @@ export type ColumnAxis = 'layer' | 'depth'
  * 見え方ごと復元する。
  */
 export interface HistoryEntry {
-  nodeId: string
-  granularity: Granularity
+  readonly nodeId: string
+  readonly granularity: Granularity
 }
 
 /**
@@ -297,7 +297,11 @@ export const useViewState = defineStore('view-state', () => {
     // 読むだけ。移動は select / clearSelection / back / forward
     selectedNodeId: computed(() => selectedNodeId.value),
     selectedNode,
-    history: computed(() => history.value as readonly HistoryEntry[]),
+    /*
+     * 配列も要素も読むだけにする。`as readonly` は配列操作しか止められず、
+     * `history[0].nodeId = …` が型でも実行時でも通っていた
+     */
+    history: computed(() => readonly(history.value) as readonly HistoryEntry[]),
     historyIndex: computed(() => historyIndex.value),
     canGoBack,
     canGoForward,

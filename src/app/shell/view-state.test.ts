@@ -295,3 +295,15 @@ describe('選択に絞る', () => {
     expect(state.narrowedToSelection).toBe(false)
   })
 })
+
+describe('履歴の中身', () => {
+  it('要素も読むだけ。すり替えられない', () => {
+    const state = setup()
+    state.select(someFile.id)
+    const entries = state.history as unknown as { nodeId: string }[]
+
+    entries[0]!.nodeId = 'すり替え'
+
+    expect(state.history[0]!.nodeId).toBe(someFile.id)
+  })
+})
