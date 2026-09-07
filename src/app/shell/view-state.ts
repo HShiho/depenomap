@@ -13,6 +13,11 @@
  * **永続化しない**（C-3）。テーマだけは例外で、依存グラフの見え方ではなく
  * 閲覧環境の設定であるため UT-04 の口が記憶を持つ。
  *
+ * **不変条件を持つ状態は、書き込みの口をアクションに限る。** 粒度と選択と
+ * 履歴は互いに整合していなければならず（見えない粒度のノードが選ばれない、
+ * 履歴はそのとき見ていた粒度ごと戻る）、生の `ref` として公開すると
+ * アクションを通さない代入でその整合を破れる。読むだけの値として公開する。
+ *
  * **URL にも載せない**（UT-05 決定事項）。載せれば閲覧位置を共有できるが、
  * 正本 JSON は起動時にパスで指定するもの（ADR-004）であり、URL を渡した先が
  * 同じグラフを見ている保証がない。「どのグラフの、どこ」を URL で表すには
@@ -223,7 +228,8 @@ export const useViewState = defineStore('view-state', () => {
   }
 
   return {
-    viewModel,
+    // 読むだけ。入れ替えは setGraph（グラフ由来の状態も一緒に落ちる）
+    viewModel: computed(() => viewModel.value),
     status,
     warnings,
     errors,
@@ -239,18 +245,23 @@ export const useViewState = defineStore('view-state', () => {
     selectTheme: theme.select,
     toggleTheme: theme.toggle,
 
-    granularity,
+    // 読むだけ。切り替えは setGranularity（選択の読み替えを伴う）
+    granularity: computed(() => granularity.value),
+
     columnAxis,
     query,
     sidebarOpen,
-    canvasWidth,
-    canvasHeight,
-
-    selectedNodeId,
-    selectedNode,
     narrowedToSelection,
-    history,
-    historyIndex,
+
+    // 読むだけ。実寸は setCanvasSize が入れる
+    canvasWidth: computed(() => canvasWidth.value),
+    canvasHeight: computed(() => canvasHeight.value),
+
+    // 読むだけ。移動は select / clearSelection / back / forward
+    selectedNodeId: computed(() => selectedNodeId.value),
+    selectedNode,
+    history: computed(() => history.value as readonly HistoryEntry[]),
+    historyIndex: computed(() => historyIndex.value),
     canGoBack,
     canGoForward,
 

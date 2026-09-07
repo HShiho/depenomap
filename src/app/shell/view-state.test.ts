@@ -125,7 +125,7 @@ describe('選択と履歴', () => {
 describe('粒度の切り替え', () => {
   it('メソッドを選んだままファイル粒度へ行くと、所属ファイルへ読み替える', () => {
     const state = setup()
-    state.granularity = 'method'
+    state.setGranularity('method')
     state.select(someMethod.id)
 
     state.setGranularity('file')
@@ -144,7 +144,7 @@ describe('粒度の切り替え', () => {
 
   it('切り替えは移動ではないので、履歴に積まない', () => {
     const state = setup()
-    state.granularity = 'method'
+    state.setGranularity('method')
     state.select(someMethod.id)
     const before = [...state.history]
 
@@ -163,7 +163,7 @@ describe('粒度の切り替え', () => {
 
   it('粒度をまたいで戻っても、見えないノードが選ばれた状態にならない', () => {
     const state = setup()
-    state.granularity = 'method'
+    state.setGranularity('method')
     state.select(someMethod.id)
     state.setGranularity('file')
     state.select(someFile.id)
@@ -185,7 +185,7 @@ describe('粒度の切り替え', () => {
 
   it('グラフが無ければ、読み替えられない選択は外す', () => {
     const state = setup({ withGraph: false })
-    state.granularity = 'method'
+    state.setGranularity('method')
     state.select('どこかのメソッド')
 
     state.setGranularity('file')
@@ -241,5 +241,22 @@ describe('器の分類', () => {
     // `$state` は「この器が持つ揮発する状態」。テーマの値は UT-04 が持つ
     expect(Object.keys(state.$state)).not.toContain('themeChoice')
     expect(Object.keys(state.$state)).not.toContain('themeResolved')
+  })
+})
+
+describe('不変条件を持つ状態の書き込み', () => {
+  it('アクションを通さない代入では変わらない', () => {
+    const state = setup()
+    state.select(someFile.id)
+    // 型では通らない。実行時にも黙って通らないことを固定する
+    const writable = state as unknown as Record<string, unknown>
+
+    writable.granularity = 'method'
+    writable.selectedNodeId = 'どこか'
+    writable.historyIndex = 99
+
+    expect(state.granularity).toBe('file')
+    expect(state.selectedNodeId).toBe(someFile.id)
+    expect(state.historyIndex).toBe(0)
   })
 })
