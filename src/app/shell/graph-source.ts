@@ -22,6 +22,19 @@ type ViewState = ReturnType<typeof useViewState>
  * 集まった警告は返ってきており、正本を直す側にとっては同時に見えたほうが速い。
  */
 export async function loadGraphInto(state: ViewState, fetchImpl?: typeof fetch): Promise<void> {
+  try {
+    await load(state, fetchImpl)
+  } catch (cause) {
+    /*
+     * 投げたままにすると `status` が `loading` に固定され、画面は
+     * 「読み込み中…」を出し続ける。理由はコンソールにしか残らない。
+     * 想定外の失敗も状態へ落とし、画面が黙って止まらないようにする。
+     */
+    state.status = { kind: 'broken', message: (cause as Error).message }
+  }
+}
+
+async function load(state: ViewState, fetchImpl?: typeof fetch): Promise<void> {
   /*
    * 前回の結果を落としてから始める。残すと、2 回目が失敗したときに
    * 「読み込めていないのに前回のグラフが見えている」状態ができる。

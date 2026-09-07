@@ -15,7 +15,7 @@ import { useViewState } from './shell/view-state'
 const state = useViewState()
 const theme = useTheme()
 
-onMounted(() => loadGraphInto(state))
+onMounted(() => void loadGraphInto(state))
 </script>
 
 <template>
@@ -62,6 +62,11 @@ onMounted(() => loadGraphInto(state))
         <!-- サーバーに届かなかった。正本 JSON の問題ではない -->
         <p v-else-if="state.status.kind === 'unreachable'" class="text-ink-2">
           グラフを取得できなかった: {{ state.status.message }}
+        </p>
+
+        <!-- 想定外の失敗。起動の問題でも正本の問題でもない -->
+        <p v-else-if="state.status.kind === 'broken'" class="text-ink-2">
+          グラフを読み込めなかった: {{ state.status.message }}
         </p>
 
         <template v-else>

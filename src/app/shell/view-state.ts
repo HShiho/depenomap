@@ -34,6 +34,11 @@ export type GraphStatus =
   | { kind: 'ready' }
   | { kind: 'unreachable'; message: string }
   | { kind: 'invalid' }
+  /**
+   * 想定していない失敗。応答が `LoadResult` の形でない、変換の途中で投げた、など。
+   * 起動の問題でも正本の問題でもないため、上の 2 つと分けて持つ
+   */
+  | { kind: 'broken'; message: string }
 
 export const useViewState = defineStore('view-state', () => {
   /* --- グラフ ---------------------------------------------------------- */

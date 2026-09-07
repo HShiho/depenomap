@@ -112,3 +112,17 @@ describe('読み込み直し', () => {
     expect(state.warnings).toEqual([])
   })
 })
+
+describe('想定していない失敗', () => {
+  it('応答が読み込み結果の形でなくても、読み込み中のまま固まらない', async () => {
+    const state = useViewState()
+    // 取得の口は本文の形を検査しない（UT-03）。壊れた本文はここまで届く
+    const nonsense = vi.fn(
+      async () => new Response('{"ok":true,"graph":{},"warnings":[]}'),
+    ) as unknown as typeof fetch
+
+    await loadGraphInto(state, nonsense)
+
+    expect(state.status.kind).toBe('broken')
+  })
+})
