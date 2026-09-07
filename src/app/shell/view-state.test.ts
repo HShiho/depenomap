@@ -1,5 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { loadGraphFromValue } from '@/core/graph/loader'
 import { buildViewModel } from '@/core/ir/view-model'
@@ -261,19 +261,26 @@ describe('器の分類', () => {
 })
 
 describe('不変条件を持つ状態の書き込み', () => {
-  it('アクションを通さない代入では変わらない', () => {
+  it('アクションを通さない代入では変わらない。開発時は警告で気付ける', () => {
     const state = setup()
     state.select(someFile.id)
-    // 型では通らない。実行時にも黙って通らないことを固定する
+    // 型では通らない。実行時にも通らないことと、黙って落ちないことを固定する
     const writable = state as unknown as Record<string, unknown>
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-    writable.granularity = 'method'
-    writable.selectedNodeId = 'どこか'
-    writable.historyIndex = 99
+    try {
+      writable.granularity = 'method'
+      writable.selectedNodeId = 'どこか'
+      writable.historyIndex = 99
 
-    expect(state.granularity).toBe('file')
-    expect(state.selectedNodeId).toBe(someFile.id)
-    expect(state.historyIndex).toBe(0)
+      expect(state.granularity).toBe('file')
+      expect(state.selectedNodeId).toBe(someFile.id)
+      expect(state.historyIndex).toBe(0)
+      // 本番ビルドでは警告自体が落ちる。開発時に気付ける形であることを固定する
+      expect(warn).toHaveBeenCalledTimes(3)
+    } finally {
+      warn.mockRestore()
+    }
   })
 })
 
