@@ -203,3 +203,19 @@ describe('キャンバスの実寸', () => {
     expect([state.canvasWidth, state.canvasHeight]).toEqual([1280, 720])
   })
 })
+
+describe('テーマ', () => {
+  it('器から読み書きできる。値は UT-04 の口が持つ', () => {
+    const state = setup()
+
+    state.selectTheme('dark')
+    expect(state.themeResolved).toBe('dark')
+    expect(state.themeChoice).toBe('dark')
+
+    state.toggleTheme()
+    expect(state.themeResolved).toBe('light')
+
+    // 後続のテストへ持ち越さない（記憶は UT-04 側にある）
+    state.selectTheme('system')
+  })
+})

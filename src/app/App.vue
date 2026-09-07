@@ -7,13 +7,11 @@
  */
 import { onMounted } from 'vue'
 
-import { useTheme } from '@/app/design/theme'
 import AppShell from './shell/AppShell.vue'
 import { loadGraphInto } from './shell/graph-source'
 import { useViewState } from './shell/view-state'
 
 const state = useViewState()
-const theme = useTheme()
 
 onMounted(() => void loadGraphInto(state))
 </script>
@@ -39,9 +37,9 @@ onMounted(() => void loadGraphInto(state))
         <button
           type="button"
           class="rounded-control px-6 py-4 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink"
-          :aria-label="`配色を切り替え（現在: ${theme.resolved.value === 'dark' ? 'ダーク' : 'ライト'}）`"
-          :title="`配色を切り替え（現在: ${theme.resolved.value === 'dark' ? 'ダーク' : 'ライト'}）`"
-          @click="theme.toggle()"
+          :aria-label="`配色を切り替え（現在: ${state.themeResolved === 'dark' ? 'ダーク' : 'ライト'}）`"
+          :title="`配色を切り替え（現在: ${state.themeResolved === 'dark' ? 'ダーク' : 'ライト'}）`"
+          @click="state.toggleTheme()"
         >
           ◐
         </button>

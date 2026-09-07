@@ -17,6 +17,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 
+import { useTheme } from '@/app/design/theme'
 import type { LoadError, LoadWarning } from '@/core/graph/loader'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
 
@@ -73,6 +74,14 @@ export const useViewState = defineStore('view-state', () => {
   const errors = ref<readonly LoadError[]>([])
 
   /* --- 見え方 ---------------------------------------------------------- */
+
+  /*
+   * テーマ（US-20）。**記憶と属性の操作は UT-04 が持つ**。ここは器として
+   * 再公開するだけで、値を二重に持たない。器の一覧に無いと、レールなどの
+   * 機能 UT が UT-04 を直接 import することになり、「状態の器だけで連携する」
+   * という契約が崩れる。
+   */
+  const theme = useTheme()
 
   const granularity = ref<Granularity>('file')
   const columnAxis = ref<ColumnAxis>('layer')
@@ -197,6 +206,11 @@ export const useViewState = defineStore('view-state', () => {
     status,
     warnings,
     errors,
+
+    themeChoice: theme.choice,
+    themeResolved: theme.resolved,
+    selectTheme: theme.select,
+    toggleTheme: theme.toggle,
 
     granularity,
     columnAxis,
