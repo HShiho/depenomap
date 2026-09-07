@@ -29,6 +29,11 @@
   // Tailwind v4 は設定ファイルを持たないため、CSS エントリを明示する
   "tailwindCSS.experimental.configFile": "src/app/design/tokens.css",
 
+  // 組み込みの CSS バリデータに Tailwind v4 の at-rule を教える。
+  // 警告を一律で止めないのは、打ち間違い（@theem など）の検出を残すため。
+  // ビルドは未知の at-rule をそのまま出力するだけで、綴りを見ない
+  "css.customData": [".vscode/css-custom-data.json"],
+
   "files.eol": "\n",
   "search.exclude": {
     "**/node_modules": true,

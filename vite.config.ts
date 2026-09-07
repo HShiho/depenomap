@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vitest/config'
 
+import { themeBootstrapPlugin } from './src/app/design/theme-bootstrap.node.ts'
 import { DEFAULT_PORT, resolveConfig } from './src/server/config.ts'
 import { graphApiPlugin } from './src/server/vite-plugin.ts'
 
@@ -19,7 +20,7 @@ const devPort = resolved.ok ? resolved.config.port : DEFAULT_PORT
 
 export default defineConfig({
   // UT-03: dev では Hono を Vite の middleware として載せる（プロセスを分けない）
-  plugins: [vue(), tailwindcss(), graphApiPlugin()],
+  plugins: [vue(), tailwindcss(), themeBootstrapPlugin(), graphApiPlugin()],
   server: {
     // dev と本番で同じ URL で開けるようにする
     port: devPort,
@@ -38,6 +39,8 @@ export default defineConfig({
   },
   test: {
     include: ['src/**/*.test.ts'],
+    // 画面のテストも含めて node で走らせる。いまはどれも DOM を触らず、
+    // 触るテスト（UT-05 以降のコンポーネント）が出た時点で環境を足す（ADR-005）
     environment: 'node',
   },
 })

@@ -1,8 +1,396 @@
 /*
- * デザイントークンのエントリ（ADR-005: Tailwind CSS v4）。
+ * デザイントークンの正（UT-04 / ADR-005: Tailwind CSS v4）。
  *
- * W0 では Tailwind を読み込むところまでを用意する。
- * トークンの定義（@theme）とライト／ダークの切り替え（@custom-variant）は
- * UT-04 の責務であり、ここには書かない。
+ * 値をここ 1 箇所に集め、画面側では直値を書かない（QR-3）。`@theme` に
+ * 書いたトークンは、実 CSS 変数（`var(--color-ink)`）としても、そこから
+ * 生成されるユーティリティ（`text-ink`）としても同じ値を指す。
+ *
+ * 出典は `plan/inception/design-catalog.html` と `mockup.html`。
+ * トークン名の対応表と、拡張するときのルールは同じディレクトリの
+ * `README.md` にある。**トークンを足すときは README も更新する。**
  */
+
 @import 'tailwindcss';
+@import './fonts.css';
+
+/*
+ * ダークの適用条件（ADR-005）。
+ *
+ * 明示的な選択（`data-theme`）を第一とし、未選択のときだけ OS の設定に従う。
+ * 色そのものはトークンの入れ替えで切り替わるため、この variant を使うのは
+ * 色以外（画像の出し分けなど）の例外に限る。
+ */
+@custom-variant dark {
+  &:where([data-theme='dark'], [data-theme='dark'] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme='light']), :root:not([data-theme='light']) *) {
+      @slot;
+    }
+  }
+}
+
+@theme static {
+  /*
+   * `static` を付けて**全トークンを常に出力する**。既定の `@theme` は
+   * 参照されていないトークンを出力から落とすため、ライト側だけが消えて
+   * 「ダークにしか無いトークン」ができる。名前を組み立てて `var()` で引く
+   * 使い方（層カラー）では、その落ちたトークンが実行時に未定義になる。
+   */
+
+  /*
+   * Tailwind の既定値を消してから、この画面のトークンだけを積む。
+   * 既定を残すと `bg-red-500` のような「トークンでない色」が書けてしまい、
+   * 「直値を書かない」が規約だけの約束になる。ここで機械的に閉じる。
+   */
+  --color-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+
+  /* 色を持たない指定はユーティリティとして残す */
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-inherit: inherit;
+
+  /* --- 書体 ------------------------------------------------------------ */
+
+  /** 説明文・ラベル・日本語。OS の書体に任せる（`fonts.css`） */
+  --font-sans: system-ui, -apple-system, 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif;
+  /** 識別子（ファイル名・クラス名・メソッド名・パス） */
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  /* --- 余白 ------------------------------------------------------------ */
+
+  /*
+   * 数値ユーティリティを **px そのもの**にする（`p-9` = 9px、`gap-7` = 7px）。
+   * この画面は 4px グリッドではなく、実測で詰めた奇数値を許容している。
+   * 4 の倍数へ丸める体系にすると、カタログの密度をそのまま写せない。
+   */
+  --spacing: 1px;
+
+  /* --- 色（ライト） ---------------------------------------------------- */
+  /* ダーク側の値はこのブロックの下で入れ替える。両モードに必ず両方書く */
+
+  /** アプリの地。キャンバス背景 */
+  --color-ground: #edf0f4;
+  /** パネル・ヘッダ・浮動要素の面 */
+  --color-surface: #ffffff;
+  /** 入力欄・ボタン・行 hover の面 */
+  --color-surface-2: #f5f8fa;
+  /** ボタン hover・バーの溝 */
+  --color-surface-3: #e9eef3;
+
+  /** 主テキスト・見出し・数値 */
+  --color-ink: #141c24;
+  /** 副テキスト・非選択のラベル */
+  --color-ink-2: #4a5b6b;
+  /** 補助・キャプション・プレースホルダ */
+  --color-ink-3: #7c8a98;
+
+  /** 構造の境界（ヘッダ下・パネル間・部品の枠） */
+  --color-line: #d3dbe4;
+  /** 内部の区切り（表の行・セクション間） */
+  --color-line-2: #e4eaf0;
+
+  /** 選択・フォーカス・経由辺・主要ボタン。量の濃淡もこの色で作る */
+  --color-accent: #0f6e8c;
+  /** アクセント面上の文字 */
+  --color-accent-ink: #ffffff;
+  /** ON 状態の背景・フォーカスリング */
+  --color-accent-soft: rgba(15, 110, 140, 0.12);
+
+  /*
+   * 意味を持つ色は **循環している依存**だけに割り当てる。
+   * 良い・悪いを表す色は持たない。正誤の判定はこのツールの責務ではない（N-1）。
+   */
+  --color-warn: #96631a;
+  --color-warn-soft: rgba(150, 99, 26, 0.12);
+
+  /*
+   * 層カラー。**層 ID には結び付けない**。層 ID はプロジェクト固有の
+   * 文字列であり（スキーマ §3）、`presentation` のような名前が来る保証はない。
+   * 割り当ては `layers` 配列の並び順で、6 色を超えたら循環する（README 参照）。
+   * 色は識別のためだけにあり、層の良し悪しや序列を表さない。
+   */
+  --color-layer-1: #3f5bc4;
+  --color-layer-2: #1e7f94;
+  --color-layer-3: #2f7d4f;
+  --color-layer-4: #7a55b0;
+  --color-layer-5: #8a6a25;
+  --color-layer-6: #64717f;
+
+  /* --- 角丸 ------------------------------------------------------------ */
+
+  /** 色帯・凡例の四角・pill 内のスウォッチ */
+  --radius-micro: 2px;
+  /** フォーカスリングの角 */
+  --radius-focus: 4px;
+  /** セグメント内ボタン・select・メニュー項目 */
+  --radius-inner: 6px;
+  /** ボタン・入力欄・トグル・アイコンボタン */
+  --radius-control: 7px;
+  /** 一覧の行・統計ブロック */
+  --radius-item: 8px;
+  /** ツールチップ・メニュー・トースト・コールアウト */
+  --radius-float: 9px;
+  /** 凡例・カード・表の外枠 */
+  --radius-panel: 10px;
+  /** 概要シート */
+  --radius-modal: 14px;
+  /** バッジ・pill・チップ・トグルのつまみ */
+  --radius-round: 999px;
+
+  /* --- 文字 ------------------------------------------------------------ */
+  /* 基準は body(13px)。UI 部品はそこから半段ずつ落とす。0.5px 刻みまで使う */
+
+  /** 概要シートの KPI 数値 */
+  --text-metric-xl: 23px;
+  --text-metric-xl--line-height: 1.15;
+  --text-metric-xl--font-weight: 600;
+
+  /** インスペクタの統計値 */
+  --text-metric-l: 19px;
+  --text-metric-l--line-height: 1.2;
+  --text-metric-l--font-weight: 600;
+
+  /** インスペクタの対象名（等幅） */
+  --text-title-mono: 15px;
+  --text-title-mono--font-weight: 600;
+
+  /** モーダル見出し */
+  --text-title: 15px;
+
+  /** アプリ名 */
+  --text-brand: 13.5px;
+  --text-brand--font-weight: 700;
+  --text-brand--letter-spacing: 0.02em;
+
+  /** 基準サイズ。本文 */
+  --text-body: 13px;
+  --text-body--line-height: 1.6;
+
+  /** 一覧のファイル名・ツールチップ見出し・空状態の主文 */
+  --text-name: 12.5px;
+
+  /** ボタン・入力欄・セグメント・メニュー項目・表の本文 */
+  --text-ui: 12px;
+
+  /** チップ・コールアウト本文・ツールチップ本文・行内メタ */
+  --text-meta: 11.5px;
+
+  /** 補助説明・pill・凡例・パス表示・カードのラベル */
+  --text-caption: 11px;
+
+  /** パネル見出し・シート内小見出し（大文字） */
+  --text-overline: 11px;
+  --text-overline--font-weight: 600;
+  --text-overline--letter-spacing: 0.09em;
+
+  /** 操作グループのラベル・表ヘッダ・統計のキャプション（大文字） */
+  --text-label: 10.5px;
+  --text-label--letter-spacing: 0.07em;
+
+  /** インスペクタ最上部の種別表示・バッジの数値（大文字） */
+  --text-kicker: 10px;
+  --text-kicker--letter-spacing: 0.1em;
+
+  /** ズーム率・凡例の小見出し・ノード内の統計 */
+  --text-micro: 9.5px;
+  --text-micro--letter-spacing: 0.08em;
+
+  /** ノード上のフラグ表示（SVG 内） */
+  --text-flag: 9px;
+  --text-flag--font-weight: 700;
+}
+
+/*
+ * ダーク。**同じトークンをすべて書き直す**（片方にしか無い値を作らない）。
+ *
+ * 2 か所に分けているのは、明示的な選択と OS 追従を両立させるため。
+ *   - `@media` 側: 未選択（`data-theme` 無し）のときだけ効く
+ *   - `[data-theme='dark']` 側: 選択されていれば OS の設定より優先する
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-ground: #0e141a;
+    --color-surface: #161e26;
+    --color-surface-2: #1c262f;
+    --color-surface-3: #222e38;
+
+    --color-ink: #e6ecf2;
+    --color-ink-2: #a9b7c4;
+    --color-ink-3: #7c8b99;
+
+    --color-line: #2b3742;
+    --color-line-2: #212b35;
+
+    --color-accent: #4fc3d9;
+    --color-accent-ink: #06202a;
+    --color-accent-soft: rgba(79, 195, 217, 0.16);
+
+    --color-warn: #e5ac55;
+    --color-warn-soft: rgba(229, 172, 85, 0.14);
+
+    --color-layer-1: #7d93f0;
+    --color-layer-2: #47b6ce;
+    --color-layer-3: #5fbe85;
+    --color-layer-4: #b48ae8;
+    --color-layer-5: #c6a24e;
+    --color-layer-6: #93a2b0;
+
+    --shadow-float: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.45);
+
+    --tint: 20%;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-ground: #0e141a;
+  --color-surface: #161e26;
+  --color-surface-2: #1c262f;
+  --color-surface-3: #222e38;
+
+  --color-ink: #e6ecf2;
+  --color-ink-2: #a9b7c4;
+  --color-ink-3: #7c8b99;
+
+  --color-line: #2b3742;
+  --color-line-2: #212b35;
+
+  --color-accent: #4fc3d9;
+  --color-accent-ink: #06202a;
+  --color-accent-soft: rgba(79, 195, 217, 0.16);
+
+  --color-warn: #e5ac55;
+  --color-warn-soft: rgba(229, 172, 85, 0.14);
+
+  --color-layer-1: #7d93f0;
+  --color-layer-2: #47b6ce;
+  --color-layer-3: #5fbe85;
+  --color-layer-4: #b48ae8;
+  --color-layer-5: #c6a24e;
+  --color-layer-6: #93a2b0;
+
+  --shadow-float: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.45);
+
+  --tint: 20%;
+}
+
+/*
+ * ユーティリティを持たない生の変数。
+ *
+ * Tailwind に対応するユーティリティが無い領域（`stroke-dasharray`、
+ * `marker-end`、`color-mix` の混合率など）で `var()` として参照する。
+ * ここに置いたものも**トークンであり、画面側で直値に置き換えない**。
+ */
+:root {
+  /*
+   * 影。浮いている要素（チップ・凡例・メニュー・トースト）にだけ使う。
+   * パネル・カード・入力欄には付けない。
+   *
+   * `@theme` に置くと、Tailwind の `shadow-*` が値を**インライン展開**するため、
+   * 生成されるクラスにライトの値が焼き込まれ、ダークの上書きが効かなくなる。
+   * 生の変数として持ち、下の `@utility` から参照する。
+   */
+  --shadow-float: 0 1px 2px rgba(20, 28, 36, 0.06), 0 8px 24px rgba(20, 28, 36, 0.08);
+
+  /** 層カラーをノード面に混ぜる割合。ライト 14% / ダーク 20% */
+  --tint: 14%;
+
+  /* グラフ描画（SVG）— 線の太さ */
+
+  /** ノードの枠 */
+  --node-stroke: 1px;
+  /** 選択中のノードの枠 */
+  --node-stroke-selected: 2.6px;
+  /** 循環に含まれるノードの枠 */
+  --node-stroke-cyclic: 1.8px;
+  /** 依存の辺 */
+  --edge-stroke: 1.3px;
+  /** 実装の辺 */
+  --edge-stroke-implements: 1px;
+  /** interface を経由する辺 */
+  --edge-stroke-via: 1.7px;
+  /** 循環している依存の辺 */
+  --edge-stroke-cyclic: 2px;
+  /** 強調（hover）した辺 */
+  --edge-stroke-emphasis: 3px;
+  /** 辺の当たり判定（透明・太い線を重ねる） */
+  --edge-stroke-hit: 16px;
+
+  /* グラフ描画（SVG）— 破線パターン */
+
+  /** 循環に含まれるノードの枠 */
+  --node-dash-cyclic: 6 3;
+  /** 実装の辺 */
+  --edge-dash-implements: 2 4;
+  /** 循環している依存の辺 */
+  --edge-dash-cyclic: 9 4;
+  /** 追跡できなかった依存の辺 */
+  --edge-dash-unresolved: 7 5;
+
+  /* グラフ描画（SVG）— 不透明度 */
+
+  /** 辺の既定 */
+  --edge-opacity: 0.62;
+  /** 実装の辺 */
+  --edge-opacity-implements: 0.5;
+  /** 絞り込みに該当しない辺 */
+  --edge-opacity-dimmed: 0.13;
+  /** 絞り込みに該当しないノード */
+  --node-opacity-dimmed: 0.2;
+}
+
+/**
+ * 浮いている要素の影。値の入れ替えが効くよう、変数を参照する形で公開する。
+ *
+ * `box-shadow` を直接書かず、Tailwind の合成（`--tw-shadow` と ring 系）に載せる。
+ * 直接書くと、`ring-*` と併用したときに後に出たほうが相手を黙って消す。
+ */
+@utility shadow-float {
+  --tw-shadow: var(--shadow-float);
+  box-shadow:
+    var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow),
+    var(--tw-ring-shadow), var(--tw-shadow);
+}
+
+/*
+ * 地の設定。トークンで塗り、画面側の各部品が背景色を持ち回らなくてよい形にする。
+ */
+html {
+  /*
+   * UA が描く部分（スクロールバー・フォーム部品・キャレット・選択範囲）の明暗。
+   * **選択があればそれに合わせる**。ここを `light dark` のままにすると、
+   * OS がダークのまま利用者がライトを選んだとき、白い画面に暗いスクロールバーが
+   * 残る（逆も同じ）。属性が無いときだけ OS に任せる。
+   */
+  color-scheme: light dark;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  background: var(--color-ground);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: 1.6;
+}
+
+/** 操作の意図がない動きは出さない */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

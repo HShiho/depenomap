@@ -7,5 +7,13 @@
     "allowImportingTsExtensions": true,
     "types": ["node"]
   },
-  "include": ["src/core/**/*.ts", "src/server/**/*.ts", "vite.config.ts", "**/*.test.ts"]
+  // core とサーバーのコード、および Node 専用のモジュール・テスト（*.node.*）を見る。
+  // 画面のテストは DOM の型を使うため tsconfig.app.json 側で検査する
+  "include": [
+    "src/core/**/*.ts",
+    "src/server/**/*.ts",
+    "src/**/*.node.ts",
+    "src/**/*.node.test.ts",
+    "vite.config.ts"
+  ]
 }
