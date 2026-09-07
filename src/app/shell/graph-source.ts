@@ -22,7 +22,14 @@ type ViewState = ReturnType<typeof useViewState>
  * 集まった警告は返ってきており、正本を直す側にとっては同時に見えたほうが速い。
  */
 export async function loadGraphInto(state: ViewState, fetchImpl?: typeof fetch): Promise<void> {
+  /*
+   * 前回の結果を落としてから始める。残すと、2 回目が失敗したときに
+   * 「読み込めていないのに前回のグラフが見えている」状態ができる。
+   */
   state.status = { kind: 'loading' }
+  state.viewModel = undefined
+  state.warnings = []
+  state.errors = []
 
   const outcome = await fetchGraph(fetchImpl)
   if (!outcome.reached) {
@@ -40,7 +47,6 @@ export async function loadGraphInto(state: ViewState, fetchImpl?: typeof fetch):
     return
   }
 
-  state.errors = []
   state.viewModel = buildViewModel(result.graph)
   state.status = { kind: 'ready' }
 }

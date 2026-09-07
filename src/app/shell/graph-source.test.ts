@@ -80,3 +80,35 @@ describe('グラフを状態へ載せる', () => {
     expect(loaded.warnings).toEqual([warning])
   })
 })
+
+describe('読み込み直し', () => {
+  const failing = respondWith({
+    ok: false,
+    errors: [{ type: 'read-failed', path: '/x', message: 'ENOENT' }],
+    warnings: [],
+  })
+
+  it('2 回目が失敗したら、前回のグラフを残さない', async () => {
+    const state = useViewState()
+    await loadGraphInto(state, respondWith({ ok: true, graph: fixture as never, warnings: [] }))
+
+    await loadGraphInto(state, failing)
+
+    expect(state.status).toEqual({ kind: 'invalid' })
+    expect(state.viewModel).toBeUndefined()
+  })
+
+  it('サーバーに届かなくなったら、前回の理由と警告を残さない', async () => {
+    const state = useViewState()
+    await loadGraphInto(state, failing)
+
+    const unreachable = vi.fn(async () => {
+      throw new Error('Failed to fetch')
+    }) as unknown as typeof fetch
+    await loadGraphInto(state, unreachable)
+
+    expect(state.status.kind).toBe('unreachable')
+    expect(state.errors).toEqual([])
+    expect(state.warnings).toEqual([])
+  })
+})

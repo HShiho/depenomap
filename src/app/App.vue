@@ -65,7 +65,7 @@ onMounted(() => loadGraphInto(state))
         </p>
 
         <template v-else>
-          <dl v-if="state.viewModel">
+          <dl v-if="state.status.kind === 'ready' && state.viewModel">
             <dt class="text-label text-ink-3 uppercase">規模</dt>
             <dd class="tabular-nums">
               ファイル {{ state.viewModel.nodes.file.length }} / メソッド
