@@ -64,6 +64,19 @@ export type GraphStatus =
    */
   | { kind: 'broken'; message: string }
 
+/**
+ * 読み込みの結果。**状況と中身を 1 つの値で渡す**。
+ *
+ * 別々に書ける形にすると「`ready` なのにグラフが無い」「グラフを載せたのに
+ * `loading` のまま」を作れてしまい、受け取る側が毎回両方を確かめることになる。
+ */
+export type LoadOutcome =
+  | { kind: 'loading' }
+  | { kind: 'ready'; viewModel: ViewModel; warnings: readonly LoadWarning[] }
+  | { kind: 'unreachable'; message: string }
+  | { kind: 'invalid'; errors: readonly LoadError[]; warnings: readonly LoadWarning[] }
+  | { kind: 'broken'; message: string }
+
 export const useViewState = defineStore('view-state', () => {
   /* --- グラフ ---------------------------------------------------------- */
 
@@ -220,14 +233,24 @@ export const useViewState = defineStore('view-state', () => {
   }
 
   /**
-   * グラフを入れ替える。**グラフから派生した状態も一緒に落とす**。
+   * 読み込みの結果を反映する。**状況・グラフ・警告・理由を同時に決める**唯一の口。
    *
-   * 選択・履歴・絞り込みは、いま載っているグラフのノード ID を指している。
-   * グラフだけを差し替えると「ID はあるのにノードが引けない」状態が残り、
-   * 空の詳細や 0 件の絞り込みとして表に出る。
+   * グラフから派生した状態（選択・履歴・絞り込み）も一緒に落とす。それらは
+   * いま載っているグラフのノード ID を指しており、グラフだけを差し替えると
+   * 「ID はあるのにノードが引けない」状態が残る。
    */
-  function setGraph(next: ViewModel | undefined): void {
-    viewModel.value = next
+  function applyLoadOutcome(outcome: LoadOutcome): void {
+    status.value =
+      outcome.kind === 'ready' || outcome.kind === 'invalid'
+        ? { kind: outcome.kind }
+        : outcome.kind === 'loading'
+          ? { kind: 'loading' }
+          : { kind: outcome.kind, message: outcome.message }
+
+    viewModel.value = outcome.kind === 'ready' ? outcome.viewModel : undefined
+    warnings.value = 'warnings' in outcome ? outcome.warnings : []
+    errors.value = outcome.kind === 'invalid' ? outcome.errors : []
+
     selectedNodeId.value = undefined
     narrowedToSelection.value = false
     history.value = []
@@ -240,11 +263,11 @@ export const useViewState = defineStore('view-state', () => {
   }
 
   return {
-    // 読むだけ。入れ替えは setGraph（グラフ由来の状態も一緒に落ちる）
+    // 読むだけ。入れ替えは applyLoadOutcome（4 つが同時に決まる）
     viewModel: computed(() => viewModel.value),
-    status,
-    warnings,
-    errors,
+    status: computed(() => status.value),
+    warnings: computed(() => warnings.value),
+    errors: computed(() => errors.value),
 
     /*
      * どちらも読むだけの値なので getter に揃える。`theme.choice` をそのまま
@@ -279,7 +302,7 @@ export const useViewState = defineStore('view-state', () => {
     canGoBack,
     canGoForward,
 
-    setGraph,
+    applyLoadOutcome,
     setNarrowedToSelection,
     select,
     clearSelection,

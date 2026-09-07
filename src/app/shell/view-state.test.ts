@@ -21,7 +21,9 @@ const someFile = viewModel.nodes.file[0]!
 function setup(options: { withGraph?: boolean } = {}) {
   setActivePinia(createPinia())
   const state = useViewState()
-  if (options.withGraph !== false) state.setGraph(viewModel)
+  if (options.withGraph !== false) {
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+  }
   return state
 }
 
@@ -224,13 +226,23 @@ describe('テーマ', () => {
   })
 })
 
-describe('グラフの入れ替え', () => {
+describe('読み込み結果の反映', () => {
+  it('状況と中身が同時に決まる', () => {
+    const state = setup({ withGraph: false })
+
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    expect([state.status.kind, state.viewModel !== undefined]).toEqual(['ready', true])
+
+    state.applyLoadOutcome({ kind: 'unreachable', message: '届かない' })
+    expect([state.status.kind, state.viewModel]).toEqual(['unreachable', undefined])
+  })
+
   it('グラフを落とすと、そのグラフを指していた状態も落ちる', () => {
     const state = setup()
     state.select(someFile.id)
     state.setNarrowedToSelection(true)
 
-    state.setGraph(undefined)
+    state.applyLoadOutcome({ kind: 'loading' })
 
     expect(state.selectedNodeId).toBeUndefined()
     expect(state.history).toEqual([])

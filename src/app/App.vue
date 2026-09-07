@@ -68,11 +68,11 @@ onMounted(() => void loadGraphInto(state))
         </p>
 
         <template v-else>
-          <dl v-if="state.status.kind === 'ready' && state.viewModel">
+          <dl v-if="state.status.kind === 'ready'">
             <dt class="text-label text-ink-3 uppercase">規模</dt>
             <dd class="tabular-nums">
-              ファイル {{ state.viewModel.nodes.file.length }} / メソッド
-              {{ state.viewModel.nodes.method.length }}
+              ファイル {{ state.viewModel?.nodes.file.length }} / メソッド
+              {{ state.viewModel?.nodes.method.length }}
             </dd>
             <dt class="mt-9 text-label text-ink-3 uppercase">粒度</dt>
             <dd>{{ state.granularity === 'file' ? 'ファイル' : 'メソッド' }}</dd>

@@ -30,7 +30,7 @@ export async function loadGraphInto(state: ViewState, fetchImpl?: typeof fetch):
      * 「読み込み中…」を出し続ける。理由はコンソールにしか残らない。
      * 想定外の失敗も状態へ落とし、画面が黙って止まらないようにする。
      */
-    state.status = { kind: 'broken', message: (cause as Error).message }
+    state.applyLoadOutcome({ kind: 'broken', message: (cause as Error).message })
   }
 }
 
@@ -39,27 +39,24 @@ async function load(state: ViewState, fetchImpl?: typeof fetch): Promise<void> {
    * 前回の結果を落としてから始める。残すと、2 回目が失敗したときに
    * 「読み込めていないのに前回のグラフが見えている」状態ができる。
    */
-  state.status = { kind: 'loading' }
-  state.setGraph(undefined)
-  state.warnings = []
-  state.errors = []
+  state.applyLoadOutcome({ kind: 'loading' })
 
   const outcome = await fetchGraph(fetchImpl)
   if (!outcome.reached) {
-    state.status = { kind: 'unreachable', message: outcome.message }
+    state.applyLoadOutcome({ kind: 'unreachable', message: outcome.message })
     return
   }
 
   const result = outcome.result
-  state.warnings = result.warnings
-
   if (!result.ok) {
     // 表示の文言はここで決めない。素材はそのまま運び、見せ方は画面が決める
-    state.errors = result.errors
-    state.status = { kind: 'invalid' }
+    state.applyLoadOutcome({ kind: 'invalid', errors: result.errors, warnings: result.warnings })
     return
   }
 
-  state.setGraph(buildViewModel(result.graph))
-  state.status = { kind: 'ready' }
+  state.applyLoadOutcome({
+    kind: 'ready',
+    viewModel: buildViewModel(result.graph),
+    warnings: result.warnings,
+  })
 }
