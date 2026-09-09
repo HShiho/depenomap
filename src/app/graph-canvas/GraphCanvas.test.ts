@@ -1,0 +1,139 @@
+// @vitest-environment jsdom
+
+import { mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+import { beforeEach, describe, expect, it } from 'vitest'
+
+import { loadGraphFromValue } from '@/core/graph/loader'
+import { buildViewModel } from '@/core/ir/view-model'
+import { useViewState } from '../shell/view-state'
+import GraphCanvas from './GraphCanvas.vue'
+
+import fixture from '../../../test-data/dependency-graph.complex.json'
+
+/**
+ * 描画そのものの検査。配置・経路・変換は純粋関数側で見ているので、ここは
+ * **それらが実際に組み立てられ、操作が器へ返ること**を押さえる。
+ */
+
+const result = loadGraphFromValue(fixture)
+if (!result.ok) throw new Error('フィクスチャが読めない')
+const viewModel = buildViewModel(result.graph)
+
+function setup(options: { withGraph?: boolean } = {}) {
+  const state = useViewState()
+  if (options.withGraph !== false) {
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+  }
+  state.setCanvasSize(1200, 800)
+  return { state, wrapper: mount(GraphCanvas) }
+}
+
+beforeEach(() => setActivePinia(createPinia()))
+
+describe('描くもの', () => {
+  it('ファイルをノード、依存を矢印として描く', () => {
+    const { wrapper } = setup()
+
+    expect(wrapper.findAll('g.node')).toHaveLength(viewModel.nodes.file.length)
+    expect(wrapper.findAll('path.edge').length).toBeGreaterThan(0)
+    // 矢尻は「使う側 → 使われる側」の向きを示す
+    expect(wrapper.find('path.edge').attributes('marker-end')).toBe('url(#arrow)')
+  })
+
+  it('層を列にして、名前は正本 JSON の定義から取る（ADR-002）', () => {
+    const { wrapper } = setup()
+
+    const heads = wrapper.findAll('text.head').map((head) => head.text())
+    expect(heads).toEqual(result.graph.layers.map((layer) => layer.name))
+  })
+
+  it('ノードには識別子・パス・被依存/依存数を出す', () => {
+    const { wrapper } = setup()
+    const node = wrapper.find('g.node')
+
+    expect(node.find('text.name').text().length).toBeGreaterThan(0)
+    expect(node.find('text.path').text().length).toBeGreaterThan(0)
+    expect(node.find('text.stat').text()).toMatch(/↙\d+ ↗\d+/)
+  })
+
+  it('グラフが無ければ何も描かない。落ちもしない', () => {
+    const { wrapper } = setup({ withGraph: false })
+
+    expect(wrapper.findAll('g.node')).toHaveLength(0)
+    expect(wrapper.findAll('path.edge')).toHaveLength(0)
+  })
+})
+
+describe('層が未設定のノード', () => {
+  it('破綻せずに置かれる', () => {
+    const state = useViewState()
+    const raw = structuredClone(fixture) as { nodes: { layer?: string }[] }
+    delete raw.nodes[0]!.layer
+
+    const loaded = loadGraphFromValue(raw)
+    if (!loaded.ok) throw new Error('層を外したフィクスチャが読めない')
+    state.applyLoadOutcome({ kind: 'ready', viewModel: buildViewModel(loaded.graph), warnings: [] })
+    state.setCanvasSize(1200, 800)
+
+    const wrapper = mount(GraphCanvas)
+
+    expect(wrapper.findAll('g.node')).toHaveLength(
+      loaded.graph.nodes.filter((n) => n.kind === 'file').length,
+    )
+    expect(wrapper.findAll('text.head').map((head) => head.text())).toContain('層なし')
+  })
+})
+
+describe('操作の口', () => {
+  it('ノードのクリックで選択する', async () => {
+    const { state, wrapper } = setup()
+
+    await wrapper.find('g.node').trigger('click')
+
+    expect(state.selectedNodeId).toBeDefined()
+    expect(wrapper.find('g.node').classes()).toContain('selected')
+  })
+
+  it('背景のクリックで選択を外す', async () => {
+    const { state, wrapper } = setup()
+    await wrapper.find('g.node').trigger('click')
+
+    await wrapper.find('svg').trigger('click')
+
+    expect(state.selectedNodeId).toBeUndefined()
+  })
+
+  it('右クリックは口を開けておく。中身は後続 UT が載せる', async () => {
+    const { wrapper } = setup()
+
+    await wrapper.find('g.node').trigger('contextmenu')
+
+    const emitted = wrapper.emitted('nodeContextMenu')
+    expect(emitted).toHaveLength(1)
+    expect((emitted![0]![0] as { kind: string }).kind).toBe('file')
+  })
+})
+
+describe('ビューポートの口', () => {
+  it('全体表示は図を画面へ収める', () => {
+    const { wrapper } = setup()
+
+    const viewport = (wrapper.vm as unknown as { viewport: { scale: number } }).viewport
+    expect(viewport.scale).toBeLessThanOrEqual(1)
+    expect(viewport.scale).toBeGreaterThan(0)
+  })
+
+  it('ノードへ寄せられる', () => {
+    const { wrapper } = setup()
+    const canvas = wrapper.vm as unknown as {
+      viewport: { x: number; y: number }
+      focusNode: (id: string) => void
+    }
+    const before = { ...canvas.viewport }
+
+    canvas.focusNode(viewModel.nodes.file[10]!.id)
+
+    expect(canvas.viewport).not.toEqual(before)
+  })
+})
