@@ -7,6 +7,7 @@
  */
 import { onMounted } from 'vue'
 
+import GraphCanvas from './graph-canvas/GraphCanvas.vue'
 import AppShell from './shell/AppShell.vue'
 import { loadGraphInto } from './shell/graph-source'
 import { useViewState } from './shell/view-state'
@@ -18,6 +19,10 @@ onMounted(() => void loadGraphInto(state))
 
 <template>
   <AppShell>
+    <template #canvas>
+      <GraphCanvas />
+    </template>
+
     <template #rail>
       <div class="flex h-full flex-col items-center gap-9 py-9">
         <!-- 一覧の開閉（US-08 の受け皿。操作そのものは UT-12 が置き換える） -->
@@ -68,18 +73,8 @@ onMounted(() => void loadGraphInto(state))
         </p>
 
         <template v-else>
-          <dl v-if="state.status.kind === 'ready'">
-            <dt class="text-label text-ink-3 uppercase">規模</dt>
-            <dd class="tabular-nums">
-              ファイル {{ state.viewModel?.nodes.file.length }} / メソッド
-              {{ state.viewModel?.nodes.method.length }}
-            </dd>
-            <dt class="mt-9 text-label text-ink-3 uppercase">粒度</dt>
-            <dd>{{ state.granularity === 'file' ? 'ファイル' : 'メソッド' }}</dd>
-          </dl>
-
           <!-- 読み込みには到達したが、正本 JSON が読めなかった -->
-          <section v-else>
+          <section v-if="state.status.kind === 'invalid'">
             <h2 class="text-overline text-ink-3 uppercase">正本 JSON を読み込めなかった</h2>
             <ul>
               <li v-for="(error, index) in state.errors" :key="index" class="font-mono text-meta">
