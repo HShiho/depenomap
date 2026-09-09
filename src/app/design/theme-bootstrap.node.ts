@@ -7,7 +7,7 @@
 
 import type { Plugin } from 'vite'
 
-import { THEME_BOOTSTRAP_SOURCE } from './theme-keys'
+import { THEME_BOOTSTRAP_SOURCE } from './theme-keys.ts'
 
 /** プラグイン名。テストからも参照するため、文字列を 2 か所に書かない */
 export const THEME_BOOTSTRAP_PLUGIN = 'depenomap:theme-bootstrap'

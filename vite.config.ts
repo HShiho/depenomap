@@ -39,8 +39,8 @@ export default defineConfig({
   },
   test: {
     include: ['src/**/*.test.ts'],
-    // 画面のテストも含めて node で走らせる。いまはどれも DOM を触らず、
-    // 触るテスト（UT-05 以降のコンポーネント）が出た時点で環境を足す（ADR-005）
+    // 既定は node。DOM が要るテスト（コンポーネント）は、ファイル先頭の
+    // `@vitest-environment jsdom` で個別に切り替える（ADR-005）
     environment: 'node',
   },
 })
