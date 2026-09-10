@@ -59,7 +59,12 @@ onMounted(() => void loadGraphInto(state))
     </template>
 
     <template #notice>
-      <div class="p-12 text-body">
+      <!--
+        出すものが無いときは箱ごと消す。空でも余白ぶんの大きさを持ち、
+        キャンバスに重ねた層はポインタを受け取るため、見えない当たり判定が
+        キャンバスの操作（選択の解除・UT-16 のパン）を奪う
+      -->
+      <div v-if="state.status.kind !== 'ready' || state.warnings.length > 0" class="p-12 text-body">
         <p v-if="state.status.kind === 'loading'" class="text-ink-2">読み込み中…</p>
 
         <!-- サーバーに届かなかった。正本 JSON の問題ではない -->
