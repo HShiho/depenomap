@@ -216,3 +216,42 @@ function mountWithFixture() {
 function shortNameOf(nodeId: string): string {
   return nodeId.split('/').at(-1) ?? nodeId
 }
+
+describe('全体表示のあとの移動', () => {
+  it('リサイズで巻き戻らない', async () => {
+    const { state, wrapper } = setup()
+    const canvas = wrapper.vm as unknown as {
+      viewport: { x: number; y: number }
+      focusNode: (id: string) => void
+    }
+
+    canvas.focusNode(viewModel.nodes.file[10]!.id)
+    const moved = { ...canvas.viewport }
+    // 一覧の開閉には 0.18 秒のアニメーションがあり、実寸が連続して変わる
+    state.setCanvasSize(1500, 800)
+    await wrapper.vm.$nextTick()
+
+    expect(canvas.viewport.x).toBeCloseTo(moved.x)
+    expect(canvas.viewport.y).toBeCloseTo(moved.y)
+  })
+
+  it('図が入れ替わったら、また全体表示に戻す', async () => {
+    const { state, wrapper } = setup()
+    const canvas = wrapper.vm as unknown as {
+      viewport: { x: number }
+      focusNode: (id: string) => void
+    }
+    canvas.focusNode(viewModel.nodes.file[10]!.id)
+    const moved = canvas.viewport.x
+
+    // 読み込み直すと、同じ内容でも別のグラフとして届く
+    state.applyLoadOutcome({
+      kind: 'ready',
+      viewModel: buildViewModel(result.graph),
+      warnings: [],
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(canvas.viewport.x).not.toBeCloseTo(moved)
+  })
+})

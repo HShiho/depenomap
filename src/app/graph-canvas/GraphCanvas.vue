@@ -181,20 +181,41 @@ function focusNode(nodeId: string): void {
 
 defineExpose({ viewport, fitToContent, focusNode })
 
+/**
+ * この図に対して一度でも全体表示を合わせたか。
+ *
+ * リサイズのたびに合わせ直すと、寄せた位置（`focusNode`）やこの先のパン・
+ * ズーム（UT-16）が、ウィンドウの変形やサイドバーの開閉で毎回巻き戻る。
+ * 一覧の開閉には 0.18 秒のアニメーションがあり、そのあいだ実寸が連続して
+ * 変わるため、図が動き続けることになる。
+ */
+let fitted = false
+
 /*
  * 図が入れ替わったら全体表示に戻す。読み込み直後は「どこを見ているか」の
  * 前提が無く、前のグラフの位置を保っても意味を持たない。
  *
  * **キャンバスの実寸も一緒に見る。** グラフが実寸の観測より先に届くと、
  * そのときの画面は 0×0 で全体表示が成立せず、あとからサイズが入っても
- * 等倍・左上のまま固定されてしまう。両方が揃った最初の時点で合わせる。
+ * 等倍・左上のまま固定されてしまう。両方が揃った最初の時点で合わせ、
+ * 以降のリサイズでは動かさない。
  */
+// 図そのものが入れ替わったら、合わせ直す対象になる。大きさで見ると、
+// 別のグラフがたまたま同じ寸法になったときに合わせ直せない
+watch(
+  () => state.viewModel,
+  () => {
+    fitted = false
+  },
+)
+
 watch(
   () => [layout.value.width, layout.value.height, view.value.width, view.value.height],
   ([contentWidth, contentHeight, viewWidth, viewHeight]) => {
-    if (contentWidth! > 0 && contentHeight! > 0 && viewWidth! > 0 && viewHeight! > 0) {
-      fitToContent()
-    }
+    const ready = contentWidth! > 0 && contentHeight! > 0 && viewWidth! > 0 && viewHeight! > 0
+    if (!ready || fitted) return
+    fitted = true
+    fitToContent()
   },
   { immediate: true },
 )
