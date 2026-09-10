@@ -140,21 +140,31 @@ defineExpose({ viewport, fitToContent, focusNode })
 /*
  * 図が入れ替わったら全体表示に戻す。読み込み直後は「どこを見ているか」の
  * 前提が無く、前のグラフの位置を保っても意味を持たない。
+ *
+ * **キャンバスの実寸も一緒に見る。** グラフが実寸の観測より先に届くと、
+ * そのときの画面は 0×0 で全体表示が成立せず、あとからサイズが入っても
+ * 等倍・左上のまま固定されてしまう。両方が揃った最初の時点で合わせる。
  */
 watch(
-  () => layout.value.width + layout.value.height,
-  (size) => {
-    if (size > 0) fitToContent()
+  () => [layout.value.width, layout.value.height, view.value.width, view.value.height],
+  ([contentWidth, contentHeight, viewWidth, viewHeight]) => {
+    if (contentWidth! > 0 && contentHeight! > 0 && viewWidth! > 0 && viewHeight! > 0) {
+      fitToContent()
+    }
   },
   { immediate: true },
 )
 </script>
 
 <template>
+  <!--
+    実寸が観測できない環境（`ResizeObserver` が無い）では 0 になる。その場合は
+    領域いっぱいに広げる。全体表示は効かないが、図そのものは見える
+  -->
   <svg
     class="canvas"
-    :width="state.canvasWidth"
-    :height="state.canvasHeight"
+    :width="state.canvasWidth || '100%'"
+    :height="state.canvasHeight || '100%'"
     @click="onBackgroundClick"
   >
     <defs>

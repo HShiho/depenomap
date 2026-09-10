@@ -137,3 +137,29 @@ describe('ビューポートの口', () => {
     expect(canvas.viewport).not.toEqual(before)
   })
 })
+
+describe('全体表示のタイミング', () => {
+  it('マウントのあとにグラフと実寸が届いても全体表示になる', async () => {
+    const state = useViewState()
+    const wrapper = mount(GraphCanvas)
+
+    // 実アプリの順序: 骨格が立ってから、読み込みと実寸の観測が届く
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    await wrapper.vm.$nextTick()
+    state.setCanvasSize(1200, 800)
+    await wrapper.vm.$nextTick()
+
+    const canvas = wrapper.vm as unknown as { viewport: { scale: number } }
+    expect(canvas.viewport.scale).toBeLessThan(1)
+  })
+
+  it('実寸が来ていないうちは合わせようとしない', () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+
+    const wrapper = mount(GraphCanvas)
+
+    const canvas = wrapper.vm as unknown as { viewport: { scale: number } }
+    expect(canvas.viewport.scale).toBe(1)
+  })
+})
