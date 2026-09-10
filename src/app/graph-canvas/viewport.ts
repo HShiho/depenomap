@@ -77,18 +77,28 @@ export function fit(content: Size, view: Size): Viewport {
     return IDENTITY
   }
 
+  /*
+   * 余白を引いた結果が 0 以下になる（画面が余白より狭い）ときは、余白なしで
+   * 収める。負の幅で割ると倍率が負になり、下限へ丸められた結果として
+   * 「収める」はずの計算が画面外を指す
+   */
+  const usable = {
+    width: Math.max(1, view.width - FIT_MARGIN * 2),
+    height: Math.max(1, view.height - FIT_MARGIN * 2),
+  }
   const scale = clampScale(
-    Math.min(
-      1,
-      (view.width - FIT_MARGIN * 2) / content.width,
-      (view.height - FIT_MARGIN * 2) / content.height,
-    ),
+    Math.min(1, usable.width / content.width, usable.height / content.height),
   )
 
+  /*
+   * 収まるときは中央へ。収まりきらないとき（下限の倍率でも画面より大きい）は
+   * 左上を起点にする。中央寄せの式をそのまま使うと負の座標になり、図の左上が
+   * 画面の外に出て「収める」計算が収まらない位置を返す
+   */
   return {
     scale,
-    x: (view.width - content.width * scale) / 2,
-    y: (view.height - content.height * scale) / 2,
+    x: Math.max(0, (view.width - content.width * scale) / 2),
+    y: Math.max(0, (view.height - content.height * scale) / 2),
   }
 }
 

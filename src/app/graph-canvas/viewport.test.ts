@@ -67,6 +67,14 @@ describe('全体表示', () => {
     expect(viewport.y).toBe((view.height - 100) / 2)
   })
 
+  it('画面が余白より狭くても、図を画面外へ飛ばさない', () => {
+    const viewport = fit({ width: 1900, height: 700 }, { width: 40, height: 800 })
+
+    // 収まりきらないのは仕方がないが、左上より外から描き始めない
+    expect(viewport.x).toBeGreaterThanOrEqual(0)
+    expect(viewport.scale).toBeGreaterThan(0)
+  })
+
   it('図も画面も大きさが無ければ何もしない', () => {
     expect(fit({ width: 0, height: 0 }, view)).toEqual(IDENTITY)
     expect(fit({ width: 100, height: 100 }, { width: 0, height: 0 })).toEqual(IDENTITY)
