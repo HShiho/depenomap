@@ -120,6 +120,30 @@ function statsOf(node: GraphNode): string {
   return `↙${fanIn} ↗${fanOut}`
 }
 
+/**
+ * ノード 1 つぶんの表示物。**配置が変わったときだけ作り直す**。
+ *
+ * テンプレートから `statsOf` を直接呼ぶと、選択が変わるだけの再描画でも
+ * 全ノードぶんの数え直し（依存のたどりと並べ替え）が走る。規模が大きい正本
+ * JSON では、クリックのたびにその計算を払うことになる。
+ */
+const nodeVisuals = computed(() => {
+  const visuals = new Map<string, { name: string; path: string; stat: string; colour: string }>()
+  const viewModel = state.viewModel
+  if (!viewModel) return visuals
+
+  for (const placed of layout.value.nodes) {
+    const node = placed.node
+    visuals.set(node.id, {
+      name: truncateName(node.name),
+      path: truncatePath(pathOf(node)),
+      stat: statsOf(node),
+      colour: layerColour(viewModel.layerOf(node.id).key),
+    })
+  }
+  return visuals
+})
+
 /* --- 操作の口。後続 UT はここから受け取る ---------------------------- */
 
 const emit = defineEmits<{
@@ -218,7 +242,7 @@ watch(
         :key="placed.node.id"
         class="node"
         :class="{ selected: placed.node.id === state.selectedNodeId }"
-        :style="{ '--lc': layerColour(state.viewModel?.layerOf(placed.node.id).key) }"
+        :style="{ '--lc': nodeVisuals.get(placed.node.id)?.colour }"
         :transform="`translate(${placed.x},${placed.y})`"
         @click.stop="onNodeClick(placed.node)"
         @contextmenu="emit('nodeContextMenu', placed.node, $event)"
@@ -226,10 +250,10 @@ watch(
         <rect class="box" :width="NODE_WIDTH" :height="NODE_HEIGHT" rx="9" />
         <!-- 層の色帯。上下に余白を残した短い帯（参照仕様） -->
         <rect class="bar" x="1" y="9" width="3.5" :height="NODE_HEIGHT - 18" rx="2" />
-        <text x="14" y="23" class="name">{{ truncateName(placed.node.name) }}</text>
-        <text x="14" y="38" class="path">{{ truncatePath(pathOf(placed.node)) }}</text>
+        <text x="14" y="23" class="name">{{ nodeVisuals.get(placed.node.id)?.name }}</text>
+        <text x="14" y="38" class="path">{{ nodeVisuals.get(placed.node.id)?.path }}</text>
         <text :x="NODE_WIDTH - 10" y="38" class="stat" text-anchor="end">
-          {{ statsOf(placed.node) }}
+          {{ nodeVisuals.get(placed.node.id)?.stat }}
         </text>
       </g>
     </g>
