@@ -200,6 +200,8 @@ describe('ノードに出す数', () => {
         ?.find('text.stat')
         .text()
 
+    // 探索が外れて undefined どうしを比べても通る形にしない
+    expect(statOf(wrapper, sample.from)).toMatch(/↙\d+ ↗\d+/)
     expect(statOf(wrapper, sample.from)).toBe(statOf(before, sample.from))
   })
 })
