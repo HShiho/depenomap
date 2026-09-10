@@ -71,12 +71,19 @@ describe('同じ列', () => {
 
 describe('自分自身への依存', () => {
   it('点に潰れず、輪として見える', () => {
-    const path = edgePath(at(0, 0), at(0, 0))
+    const path = edgePath(at(0, 0), at(0, 0), { selfLoop: true })
     const coordinates = points(path)
 
     // 始点と終点が別の位置にあり、右側へ張り出している
     expect(coordinates[0]).not.toEqual(coordinates.at(-1))
     expect(Math.max(...coordinates.map(([x]) => x!))).toBeGreaterThan(NODE_WIDTH)
+  })
+
+  it('たまたま重なった別のノードへの依存は、輪にしない', () => {
+    // 座標で見分けると、2 者間の依存が片方の自己ループとして消える
+    const path = edgePath(at(40, 74), at(55, 74.5))
+
+    expect(path).not.toBe(edgePath(at(40, 74), at(40, 74), { selfLoop: true }))
   })
 })
 

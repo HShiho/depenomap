@@ -59,7 +59,7 @@ const edges = computed(() =>
     // 位置が引けないエッジは描かない。参照整合性は UT-01 が保証済みで、
     // ここに来るのは絞り込み（UT-14）で片側が消えている場合だけ
     if (!from || !to) return []
-    return [{ id: edge.id, d: edgePath(from, to) }]
+    return [{ id: edge.id, d: edgePath(from, to, { selfLoop: edge.from === edge.to }) }]
   }),
 )
 

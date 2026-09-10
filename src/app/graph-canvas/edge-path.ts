@@ -16,6 +16,11 @@ export interface EdgeEnd {
   y: number
 }
 
+export interface EdgePathOptions {
+  /** 自分自身への依存か。座標ではなくエッジの両端で決まる */
+  selfLoop?: boolean
+}
+
 /** 同じ列とみなす横方向のずれ。手で動かした直後の微差を「別の列」にしない */
 const SAME_COLUMN = 20
 
@@ -27,9 +32,6 @@ const MIN_BOW_BACKWARD = 64
 
 /** 列を大きく飛び越す線を上へ逃がす量の上限 */
 const MAX_LIFT = 66
-
-/** 同じ行（＝自分自身への依存）とみなす縦方向のずれ */
-const SAME_ROW = 1
 
 /** 自分自身への依存を描く輪の大きさ */
 const LOOP_RADIUS = 18
@@ -49,7 +51,20 @@ function centreY(end: EdgeEnd): number {
  *     同じ列    ⤿   右辺から出て、右辺へ戻る
  * ```
  */
-export function edgePath(from: EdgeEnd, to: EdgeEnd): string {
+export function edgePath(from: EdgeEnd, to: EdgeEnd, options: EdgePathOptions = {}): string {
+  /*
+   * 自分自身への依存。座標で見分けると、たまたま重なった 2 ノードの依存まで
+   * 片方の自己ループとして描き、依存が 1 本消える（手で動かせるようになる
+   * UT-17 で実際に起こりうる）。呼び出し側はエッジを持っているので、
+   * 同一性はそちらから渡してもらう
+   */
+  if (options.selfLoop) {
+    const edgeX = from.x + NODE_WIDTH
+    const top = centreY(from) - LOOP_RADIUS
+    const bottom = centreY(from) + LOOP_RADIUS
+    return `M${edgeX},${top} C${edgeX + LOOP_RADIUS * 2},${top} ${edgeX + LOOP_RADIUS * 2},${bottom} ${edgeX},${bottom}`
+  }
+
   const fromY = centreY(from)
   const toY = centreY(to)
 
@@ -70,17 +85,6 @@ export function edgePath(from: EdgeEnd, to: EdgeEnd): string {
     const endX = to.x + NODE_WIDTH
     const bow = Math.max(MIN_BOW_BACKWARD, (startX - endX) / 2 + 30)
     return `M${startX},${fromY} C${startX - bow},${fromY} ${endX + bow},${toY} ${endX},${toY}`
-  }
-
-  /*
-   * 自分自身への依存。同じ列の扱いのままだと始点・終点・制御点がすべて同じ
-   * 座標に潰れ、線が消える。右側へ小さな輪を描いて 1 本として見せる
-   */
-  if (Math.abs(to.y - from.y) < SAME_ROW) {
-    const edgeX = from.x + NODE_WIDTH
-    const top = fromY - LOOP_RADIUS
-    const bottom = fromY + LOOP_RADIUS
-    return `M${edgeX},${top} C${edgeX + LOOP_RADIUS * 2},${top} ${edgeX + LOOP_RADIUS * 2},${bottom} ${edgeX},${bottom}`
   }
 
   // 同じ列。右側へ膨らませて戻す。左へ出すと隣の列との線と重なる
