@@ -69,6 +69,17 @@ describe('同じ列', () => {
   })
 })
 
+describe('自分自身への依存', () => {
+  it('点に潰れず、輪として見える', () => {
+    const path = edgePath(at(0, 0), at(0, 0))
+    const coordinates = points(path)
+
+    // 始点と終点が別の位置にあり、右側へ張り出している
+    expect(coordinates[0]).not.toEqual(coordinates.at(-1))
+    expect(Math.max(...coordinates.map(([x]) => x!))).toBeGreaterThan(NODE_WIDTH)
+  })
+})
+
 describe('依存の良し悪しを形で表さない（N-1）', () => {
   it('列を戻る依存も、進む依存と同じ組み立ての曲線で描く', () => {
     const forward = edgePath(at(0, 0), at(COLUMN_WIDTH, 0))
