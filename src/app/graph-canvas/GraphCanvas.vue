@@ -63,7 +63,14 @@ const edges = computed(() =>
   }),
 )
 
-/** 列見出し。層の名前は JSON の定義から取る（ビューアは推測しない / ADR-002） */
+/**
+ * 列見出し。層の名前は JSON の定義から取る（ビューアは推測しない / ADR-002）。
+ *
+ * **ノードが 1 件も無い層は列に出ない**（UT-06 決定事項）。列は「ノードの置き場」
+ * であって層の一覧ではなく、空の列を残すと絞り込み（UT-14）のたびに図が横へ
+ * 間延びする。定義されている層をすべて確認したい側には凡例があり、そちらは
+ * `layerKeys`（空の層も残る）から作る。
+ */
 const columnHeads = computed(() => {
   const viewModel = state.viewModel
   if (!viewModel) return []
