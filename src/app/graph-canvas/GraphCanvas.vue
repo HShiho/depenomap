@@ -99,11 +99,21 @@ function pathOf(node: GraphNode): string {
   return node.kind === 'file' ? node.path : node.name
 }
 
+/**
+ * 被依存数と依存数。**どちらもノード単位で数える**。
+ *
+ * `fanInOf` は同じ 2 ノード間に何本エッジがあっても 1 と数える（UT-02 決定事項）
+ * のに対し、`dependenciesOf` はエッジ 1 本につき 1 件返す。そのまま並べると
+ * 「使われている数」と「使っている数」で単位が違い、同じ図の中で数が噛み合わない。
+ * 型の import と値の import が別エッジになる抽出結果では実際に起きる。
+ */
 function statsOf(node: GraphNode): string {
   const viewModel = state.viewModel
   if (!viewModel) return ''
   const fanIn = viewModel.fanInOf(node.id, 'file')
-  const fanOut = viewModel.dependenciesOf(node.id, 'file').length
+  const fanOut = new Set(
+    viewModel.dependenciesOf(node.id, 'file').map((dependency) => dependency.node.id),
+  ).size
   return `↙${fanIn} ↗${fanOut}`
 }
 

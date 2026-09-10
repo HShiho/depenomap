@@ -174,3 +174,45 @@ describe('全体表示のタイミング', () => {
     expect(canvas.viewport.scale).toBe(1)
   })
 })
+
+describe('ノードに出す数', () => {
+  it('同じ相手への依存が 2 本あっても 1 と数える（被依存と単位を揃える）', () => {
+    const raw = structuredClone(fixture) as {
+      edges: { id: string; from: string; to: string; kind: string; granularity: string }[]
+    }
+    const sample = raw.edges.find((edge) => edge.kind === 'import')!
+    // 型の import と値の import は別エッジになる。同じ 2 ノード間に 2 本引く
+    raw.edges.push({ ...sample, id: `${sample.id}#type`, importKind: 'type' } as never)
+
+    const loaded = loadGraphFromValue(raw)
+    if (!loaded.ok) throw new Error('エッジを足したフィクスチャが読めない')
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel: buildViewModel(loaded.graph), warnings: [] })
+    state.setCanvasSize(1200, 800)
+
+    const wrapper = mount(GraphCanvas)
+    const before = mountWithFixture()
+
+    const statOf = (w: ReturnType<typeof mount>, id: string) =>
+      w
+        .findAll('g.node')
+        .find((node) => node.text().includes(shortNameOf(id)))
+        ?.find('text.stat')
+        .text()
+
+    expect(statOf(wrapper, sample.from)).toBe(statOf(before, sample.from))
+  })
+})
+
+/** 素のフィクスチャで描いたもの。数え方の比較に使う */
+function mountWithFixture() {
+  setActivePinia(createPinia())
+  const state = useViewState()
+  state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+  state.setCanvasSize(1200, 800)
+  return mount(GraphCanvas)
+}
+
+function shortNameOf(nodeId: string): string {
+  return nodeId.split('/').at(-1) ?? nodeId
+}
