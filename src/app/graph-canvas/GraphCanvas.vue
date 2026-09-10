@@ -12,7 +12,7 @@
 import { computed, ref, watch } from 'vue'
 
 import type { GraphNode } from '@/core/graph/schema'
-import { NO_LAYER, type LayerKey } from '@/core/ir/view-model'
+import { NO_LAYER, type LayerKey, type ViewModel } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
 import { edgePath } from './edge-path'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
@@ -185,14 +185,18 @@ function focusNode(nodeId: string): void {
 defineExpose({ viewport, fitToContent, focusNode })
 
 /**
- * この図に対して一度でも全体表示を合わせたか。
+ * 最後に全体表示を合わせたグラフ。**1 つのグラフにつき 1 回だけ**合わせる。
  *
  * リサイズのたびに合わせ直すと、寄せた位置（`focusNode`）やこの先のパン・
  * ズーム（UT-16）が、ウィンドウの変形やサイドバーの開閉で毎回巻き戻る。
  * 一覧の開閉には 0.18 秒のアニメーションがあり、そのあいだ実寸が連続して
  * 変わるため、図が動き続けることになる。
+ *
+ * 「合わせたか」を真偽値で持ち、解除を別の `watch` に置くと、2 つの watch の
+ * **登録順**が正しさの条件になる。合わせた対象そのものを覚えておけば、
+ * 判定が 1 つの式で閉じる。
  */
-let fitted = false
+let lastFitted: ViewModel | undefined
 
 /*
  * 図が入れ替わったら全体表示に戻す。読み込み直後は「どこを見ているか」の
@@ -203,21 +207,19 @@ let fitted = false
  * 等倍・左上のまま固定されてしまう。両方が揃った最初の時点で合わせ、
  * 以降のリサイズでは動かさない。
  */
-// 図そのものが入れ替わったら、合わせ直す対象になる。大きさで見ると、
-// 別のグラフがたまたま同じ寸法になったときに合わせ直せない
 watch(
-  () => state.viewModel,
-  () => {
-    fitted = false
-  },
-)
-
-watch(
-  () => [layout.value.width, layout.value.height, view.value.width, view.value.height],
-  ([contentWidth, contentHeight, viewWidth, viewHeight]) => {
-    const ready = contentWidth! > 0 && contentHeight! > 0 && viewWidth! > 0 && viewHeight! > 0
-    if (!ready || fitted) return
-    fitted = true
+  () =>
+    [
+      state.viewModel,
+      layout.value.width,
+      layout.value.height,
+      view.value.width,
+      view.value.height,
+    ] as const,
+  ([viewModel, contentWidth, contentHeight, viewWidth, viewHeight]) => {
+    const ready = contentWidth > 0 && contentHeight > 0 && viewWidth > 0 && viewHeight > 0
+    if (!ready || viewModel === lastFitted) return
+    lastFitted = viewModel
     fitToContent()
   },
   { immediate: true },
