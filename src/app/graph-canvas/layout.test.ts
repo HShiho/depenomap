@@ -4,6 +4,7 @@ import type { GraphEdge, GraphNode } from '@/core/graph/schema'
 import {
   buildLayout,
   COLUMN_WIDTH,
+  PADDING_BOTTOM,
   NODE_HEIGHT,
   NODE_WIDTH,
   PADDING_X,
@@ -156,7 +157,7 @@ describe('図の大きさ', () => {
     })
 
     expect(layout.width).toBe(PADDING_X * 2 + COLUMN_WIDTH + NODE_WIDTH)
-    expect(layout.height).toBe(PADDING_Y + ROW_HEIGHT + NODE_HEIGHT + PADDING_X)
+    expect(layout.height).toBe(PADDING_Y + ROW_HEIGHT + NODE_HEIGHT + PADDING_BOTTOM)
   })
 
   it('ノードが無ければ 0', () => {

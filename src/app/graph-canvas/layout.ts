@@ -19,6 +19,8 @@ export const COLUMN_WIDTH = 320
 export const ROW_HEIGHT = 82
 export const PADDING_X = 40
 export const PADDING_Y = 74
+/** 図の下端に残す余白。上（`PADDING_Y`）は列見出しのぶんだけ広い */
+export const PADDING_BOTTOM = 40
 
 /** 列内の並べ替えを何回繰り返すか。増やしても交差はほとんど減らない */
 const SWEEPS = 4
@@ -167,6 +169,6 @@ export function buildLayout(input: LayoutInput): Layout {
     })),
     width:
       columns.length === 0 ? 0 : PADDING_X * 2 + (columns.length - 1) * COLUMN_WIDTH + NODE_WIDTH,
-    height: rows === 0 ? 0 : PADDING_Y + (rows - 1) * ROW_HEIGHT + NODE_HEIGHT + PADDING_X,
+    height: rows === 0 ? 0 : PADDING_Y + (rows - 1) * ROW_HEIGHT + NODE_HEIGHT + PADDING_BOTTOM,
   }
 }
