@@ -72,6 +72,9 @@ const columnHeads = computed(() => {
     const key = viewModel.layerKeys[column.column]
     const layer = key === undefined ? undefined : viewModel.layerOfKey(key)
     return {
+      // 層の名前は一意とは限らない（正本 JSON が保証しているのは id だけ）。
+      // 差分更新のキーには、構造上一意な列番号を使う
+      column: column.column,
       x: column.x,
       count: column.count,
       label: layer?.name ?? '層なし',
@@ -194,7 +197,7 @@ watch(
 
     <g :transform="transformOf(viewport)">
       <!-- 列見出し。層の名前は JSON の定義（ADR-002） -->
-      <g v-for="head in columnHeads" :key="head.label" :transform="`translate(${head.x},0)`">
+      <g v-for="head in columnHeads" :key="head.column" :transform="`translate(${head.x},0)`">
         <rect y="30" width="3" height="14" rx="2" :fill="head.colour" />
         <text x="10" y="42" class="head">{{ head.label }}</text>
         <text x="10" y="56" class="head-count">{{ head.count }}</text>
