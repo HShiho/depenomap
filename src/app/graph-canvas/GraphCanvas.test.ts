@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { loadGraphFromValue } from '@/core/graph/loader'
 import { buildViewModel } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
+import { buildLayout } from './layout'
 import GraphCanvas from './GraphCanvas.vue'
 
 import fixture from '../../../test-data/dependency-graph.complex.json'
@@ -118,10 +119,20 @@ describe('操作の口', () => {
 describe('ビューポートの口', () => {
   it('全体表示は図を画面へ収める', () => {
     const { wrapper } = setup()
+    const canvas = wrapper.vm as unknown as {
+      viewport: { x: number; y: number; scale: number }
+    }
 
-    const viewport = (wrapper.vm as unknown as { viewport: { scale: number } }).viewport
-    expect(viewport.scale).toBeLessThanOrEqual(1)
-    expect(viewport.scale).toBeGreaterThan(0)
+    // 「倍率が 1 以下」だけだと、一度も合わせていない状態（等倍）でも通る。
+    // 図が実際に画面へ収まっていることを見る
+    const layout = buildLayout({
+      nodes: viewModel.nodes.file,
+      edges: viewModel.edges.file,
+      columnOf: (node) => viewModel.layerKeys.indexOf(viewModel.layerOf(node.id).key),
+    })
+    expect(layout.width * canvas.viewport.scale).toBeLessThanOrEqual(1200)
+    expect(layout.height * canvas.viewport.scale).toBeLessThanOrEqual(800)
+    expect(canvas.viewport.scale).toBeLessThan(1)
   })
 
   it('ノードへ寄せられる', () => {
