@@ -13,6 +13,9 @@ export const NAME_LIMIT = 22
 /** 同じく、2 行目のパス */
 export const PATH_LIMIT = 24
 
+/** 切り詰めても必ず残す `owner` の文字数。ここが 0 になると所属の手がかりが消える */
+const OWNER_MIN = 1
+
 /**
  * 見出し。メソッドは `owner.name`（例 `TodoController.post`）にする。
  * トップレベル関数は `owner` を持たないため名前だけ（スキーマ §3）。
@@ -20,20 +23,25 @@ export const PATH_LIMIT = 24
  * 長いときは**メソッド名を残して `owner` 側を削る**。先頭から一律に切ると、
  * 同じクラスの別メソッドが同じラベルになり、ノードを見分けられなくなる。
  *
- * メソッド名だけで上限を超える場合も、**所属があったことの印は残す**
- * （`….name`）。丸ごと落とすと、別のクラスの同名メソッドどうしが同じ見出しに
- * なるうえ、トップレベル関数とも区別がつかなくなる。
+ * メソッド名だけで上限を超える場合も、`owner` を丸ごと落とさない。落とすと、
+ * 別のクラスの同名メソッドどうしが同じ見出しになる（`ITodoRepository` と
+ * `TodoRepository` の同名メソッドなど）うえ、トップレベル関数とも区別が
+ * つかなくなる。`owner` を `OWNER_MIN` まで削ったうえで、メソッド名のほうも
+ * 削って上限に収める。
+ *
+ * 上限が 22 文字である以上、これでも一意にはならない。
  */
 export function titleOf(node: GraphNode): string {
-  if (node.kind === 'file') return truncateName(node.name)
-  if (node.owner === null) return truncateName(node.name)
+  if (node.kind === 'file') return truncate(node.name, NAME_LIMIT)
+  if (node.owner === null) return truncate(node.name, NAME_LIMIT)
 
   const full = `${node.owner}.${node.name}`
   if (full.length <= NAME_LIMIT) return full
 
+  // `….` の 2 文字を差し引いた残りを、owner とメソッド名で分け合う
   const room = NAME_LIMIT - node.name.length - 2
-  if (room < 1) return `….${truncateName(node.name)}`
-  return `${node.owner.slice(0, room)}….${node.name}`
+  if (room >= OWNER_MIN) return `${node.owner.slice(0, room)}….${node.name}`
+  return `${node.owner.slice(0, OWNER_MIN)}….${truncate(node.name, NAME_LIMIT - OWNER_MIN - 2)}`
 }
 
 /**
@@ -48,8 +56,8 @@ export function subtitleOf(
   return truncatePath(path ?? '')
 }
 
-function truncateName(value: string): string {
-  return value.length > NAME_LIMIT ? `${value.slice(0, NAME_LIMIT - 1)}…` : value
+function truncate(value: string, limit: number): string {
+  return value.length > limit ? `${value.slice(0, limit - 1)}…` : value
 }
 
 /** パスは先頭を落とす。末尾（ファイルに近いほう）のほうが見分けに効く */

@@ -42,17 +42,27 @@ describe('見出し', () => {
     expect(save).not.toBe(remove)
   })
 
-  it('メソッド名だけで上限を超えても、所属の印を残す', () => {
+  it('メソッド名だけで上限を超えても、所属で見分けがつく', () => {
     // 実データに無い長さ。ここが落ちると、別クラスの同名メソッドが衝突する
     const long = 'findByOwnerAndStatusAndDueDate'
     const fromInterface = titleOf(method('ITodoRepository', long))
     const fromClass = titleOf(method('TodoRepository', long))
     const topLevel = titleOf(method(null, long))
 
-    expect(fromInterface).toContain('…')
-    // 所属があること自体は、トップレベル関数と区別がつく形で残る
+    // インターフェースと実装は隣り合って出るため、ここが同形だと図が読めない
+    expect(fromInterface).not.toBe(fromClass)
+    // 所属があること自体も、トップレベル関数と区別がつく形で残る
     expect(fromInterface).not.toBe(topLevel)
     expect(fromClass).not.toBe(topLevel)
+  })
+
+  it.each([10, 19, 20, 21, 22, 23, 30, 60])('名前が %i 文字でも上限に収まる', (length) => {
+    // 長さで分岐が変わるため、境界をまたいで全部見る
+    const name = 'x'.repeat(length)
+
+    expect(titleOf(method('InMemoryTodoRepository', name)).length).toBeLessThanOrEqual(NAME_LIMIT)
+    expect(titleOf(method(null, name)).length).toBeLessThanOrEqual(NAME_LIMIT)
+    expect(titleOf(file(`${name}.ts`)).length).toBeLessThanOrEqual(NAME_LIMIT)
   })
 })
 
