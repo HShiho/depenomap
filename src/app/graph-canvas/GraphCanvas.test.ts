@@ -320,3 +320,55 @@ describe('メソッド粒度', () => {
     expect(state.selectedNodeId).toMatch(/^method:/)
   })
 })
+
+describe('呼び出しの形の描き分け', () => {
+  function setupMethods() {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    state.setCanvasSize(1200, 800)
+    state.setGranularity('method')
+    return mount(GraphCanvas)
+  }
+
+  it('クラスとインターフェースの対応を、他と違う線で描く', () => {
+    const wrapper = setupMethods()
+    const implementsEdges = viewModel.edges.method.filter((edge) => edge.kind === 'implements')
+
+    expect(implementsEdges.length).toBeGreaterThan(0)
+    expect(wrapper.findAll('path.edge.implements')).toHaveLength(implementsEdges.length)
+  })
+
+  it('経由の呼び出しは、線と印の両方で示す', () => {
+    const wrapper = setupMethods()
+    const viaEdges = viewModel.edges.method.filter(
+      (edge) => 'resolution' in edge && edge.resolution === 'via-interface',
+    )
+
+    expect(viaEdges.length).toBeGreaterThan(0)
+    expect(wrapper.findAll('path.edge.via')).toHaveLength(viaEdges.length)
+    expect(wrapper.findAll('circle.via-dot')).toHaveLength(viaEdges.length)
+  })
+
+  it('経由の呼び出しは、型検査器の答え（インターフェース宛）に向かう', () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    state.setCanvasSize(1200, 800)
+    state.setGranularity('method')
+
+    const via = viewModel.edges.method.find(
+      (edge) => 'resolution' in edge && edge.resolution === 'via-interface',
+    )!
+    // 実装は `implements` のエッジが別に持つので、両方が図に残る
+    expect(viewModel.nodeById.get(via.to)?.kind).toBe('method')
+    expect(
+      viewModel.edges.method.some((edge) => edge.kind === 'implements' && edge.to === via.to),
+    ).toBe(true)
+  })
+
+  it('ファイル粒度では import を特別扱いしない', () => {
+    const { wrapper } = setup()
+
+    expect(wrapper.findAll('path.edge.implements')).toHaveLength(0)
+    expect(wrapper.findAll('circle.via-dot')).toHaveLength(0)
+  })
+})

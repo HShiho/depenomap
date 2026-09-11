@@ -21,6 +21,19 @@ export interface EdgePathOptions {
   selfLoop?: boolean
 }
 
+/** 3 次ベジェの 4 点。経路の文字列と中点は、どちらもここから作る */
+export interface EdgeCurve {
+  start: Point
+  control1: Point
+  control2: Point
+  end: Point
+}
+
+interface Point {
+  x: number
+  y: number
+}
+
 /** 同じ列とみなす横方向のずれ。手で動かした直後の微差を「別の列」にしない */
 const SAME_COLUMN = 20
 
@@ -55,6 +68,26 @@ function centreY(end: EdgeEnd): number {
  * ```
  */
 export function edgePath(from: EdgeEnd, to: EdgeEnd, options: EdgePathOptions = {}): string {
+  const { start, control1, control2, end } = edgeCurve(from, to, options)
+  return `M${start.x},${start.y} C${control1.x},${control1.y} ${control2.x},${control2.y} ${end.x},${end.y}`
+}
+
+/**
+ * 経路の**中点**。経由を示す印（UT-07）など、線の途中に何かを置くときに使う。
+ *
+ * 端点の中間ではなく曲線上の点を返す。曲線は大きく膨らむことがあり、
+ * 端点の中間だと線から離れた場所に印が浮く。
+ */
+export function edgeMidpoint(from: EdgeEnd, to: EdgeEnd, options: EdgePathOptions = {}): Point {
+  const { start, control1, control2, end } = edgeCurve(from, to, options)
+  // 3 次ベジェの t = 0.5。各項の係数は 1/8, 3/8, 3/8, 1/8
+  return {
+    x: (start.x + 3 * control1.x + 3 * control2.x + end.x) / 8,
+    y: (start.y + 3 * control1.y + 3 * control2.y + end.y) / 8,
+  }
+}
+
+function edgeCurve(from: EdgeEnd, to: EdgeEnd, options: EdgePathOptions): EdgeCurve {
   /*
    * 自分自身への依存。座標で見分けると、たまたま重なった 2 ノードの依存まで
    * 片方の自己ループとして描き、依存が 1 本消える（手で動かせるようになる
@@ -65,7 +98,12 @@ export function edgePath(from: EdgeEnd, to: EdgeEnd, options: EdgePathOptions = 
     const edgeX = from.x + NODE_WIDTH
     const top = centreY(from) - LOOP_RADIUS
     const bottom = centreY(from) + LOOP_RADIUS
-    return `M${edgeX},${top} C${edgeX + LOOP_RADIUS * 2},${top} ${edgeX + LOOP_RADIUS * 2},${bottom} ${edgeX},${bottom}`
+    return {
+      start: { x: edgeX, y: top },
+      control1: { x: edgeX + LOOP_RADIUS * 2, y: top },
+      control2: { x: edgeX + LOOP_RADIUS * 2, y: bottom },
+      end: { x: edgeX, y: bottom },
+    }
   }
 
   const fromY = centreY(from)
@@ -80,18 +118,33 @@ export function edgePath(from: EdgeEnd, to: EdgeEnd, options: EdgePathOptions = 
      * 通ると、どこから来た線なのかが読めなくなる
      */
     const lift = endX - startX > 320 ? -Math.min(MAX_LIFT, (endX - startX) / 8) : 0
-    return `M${startX},${fromY} C${startX + bow},${fromY + lift} ${endX - bow},${toY + lift} ${endX},${toY}`
+    return {
+      start: { x: startX, y: fromY },
+      control1: { x: startX + bow, y: fromY + lift },
+      control2: { x: endX - bow, y: toY + lift },
+      end: { x: endX, y: toY },
+    }
   }
 
   if (to.x < from.x - SAME_COLUMN) {
     const startX = from.x
     const endX = to.x + NODE_WIDTH
     const bow = Math.max(MIN_BOW_BACKWARD, (startX - endX) / 2 + 30)
-    return `M${startX},${fromY} C${startX - bow},${fromY} ${endX + bow},${toY} ${endX},${toY}`
+    return {
+      start: { x: startX, y: fromY },
+      control1: { x: startX - bow, y: fromY },
+      control2: { x: endX + bow, y: toY },
+      end: { x: endX, y: toY },
+    }
   }
 
   // 同じ列。右側へ膨らませて戻す。左へ出すと隣の列との線と重なる
   const startX = from.x + NODE_WIDTH
   const endX = to.x + NODE_WIDTH
-  return `M${startX},${fromY} C${startX + 110},${fromY} ${endX + 110},${toY} ${endX},${toY}`
+  return {
+    start: { x: startX, y: fromY },
+    control1: { x: startX + 110, y: fromY },
+    control2: { x: endX + 110, y: toY },
+    end: { x: endX, y: toY },
+  }
 }

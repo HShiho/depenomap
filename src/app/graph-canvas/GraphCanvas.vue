@@ -11,10 +11,10 @@
  */
 import { computed, ref, watch } from 'vue'
 
-import type { GraphNode } from '@/core/graph/schema'
+import type { GraphEdge, GraphNode } from '@/core/graph/schema'
 import { NO_LAYER, type LayerKey, type ViewModel } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
-import { edgePath } from './edge-path'
+import { edgeMidpoint, edgePath } from './edge-path'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import { centreOn, fit, transformOf, type Viewport } from './viewport'
 
@@ -69,6 +69,29 @@ const positions = computed(
   () => new Map(layout.value.nodes.map((placed) => [placed.node.id, placed])),
 )
 
+/**
+ * エッジの見た目の区別（UT-07）。
+ *
+ * **依存の良し悪しではなく、依存の形を表す**（N-1）。層をまたぐかどうかで
+ * 区別しない。
+ *
+ *   - `implements`: クラスとインターフェースの対応。破線
+ *   - `via`: インターフェースを経由する呼び出し。アクセント色と中点の印
+ *   - `plain`: それ以外
+ *
+ * `via-interface` の呼び出しは**型検査器の答え（インターフェース宛）に描く**。
+ * 実装との対応は `implements` のエッジが別に持つため、図の上で両方たどれる
+ * （UT-07 決定事項。論理／実の切り替えは設けない — 切り替えると、見ているあいだ
+ * もう一方が消える）。
+ */
+type EdgeVariant = 'plain' | 'implements' | 'via'
+
+function variantOf(edge: GraphEdge): EdgeVariant {
+  if (edge.kind === 'implements') return 'implements'
+  if ('resolution' in edge && edge.resolution === 'via-interface') return 'via'
+  return 'plain'
+}
+
 const edges = computed(() =>
   (state.viewModel?.edges[state.granularity] ?? []).flatMap((edge) => {
     const from = positions.value.get(edge.from)
@@ -76,7 +99,18 @@ const edges = computed(() =>
     // 位置が引けないエッジは描かない。参照整合性は UT-01 が保証済みで、
     // ここに来るのは絞り込み（UT-14）で片側が消えている場合だけ
     if (!from || !to) return []
-    return [{ id: edge.id, d: edgePath(from, to, { selfLoop: edge.from === edge.to }) }]
+
+    const options = { selfLoop: edge.from === edge.to }
+    const variant = variantOf(edge)
+    return [
+      {
+        id: edge.id,
+        variant,
+        d: edgePath(from, to, options),
+        // 経由の印は曲線上に置く。端点の中間だと線から離れて浮く
+        midpoint: variant === 'via' ? edgeMidpoint(from, to, options) : undefined,
+      },
+    ]
   }),
 )
 
@@ -281,6 +315,19 @@ watch(
       >
         <path d="M0,1 L10,5 L0,9 z" fill="var(--color-ink-3)" />
       </marker>
+
+      <!-- 経由の呼び出し。線と同じ色にする -->
+      <marker
+        id="arrow-via"
+        viewBox="0 0 10 10"
+        refX="9"
+        refY="5"
+        markerWidth="7"
+        markerHeight="7"
+        orient="auto-start-reverse"
+      >
+        <path d="M0,1 L10,5 L0,9 z" fill="var(--color-accent)" />
+      </marker>
     </defs>
 
     <g :transform="transformOf(viewport)">
@@ -292,13 +339,22 @@ watch(
       </g>
 
       <g class="edges">
-        <path
-          v-for="edge in edges"
-          :key="edge.id"
-          :d="edge.d"
-          class="edge"
-          marker-end="url(#arrow)"
-        />
+        <template v-for="edge in edges" :key="edge.id">
+          <path
+            :d="edge.d"
+            class="edge"
+            :class="edge.variant"
+            :marker-end="edge.variant === 'via' ? 'url(#arrow-via)' : 'url(#arrow)'"
+          />
+          <!-- 経由であることの印。インターフェース宛であることを線の上で示す -->
+          <circle
+            v-if="edge.midpoint"
+            class="via-dot"
+            :cx="edge.midpoint.x"
+            :cy="edge.midpoint.y"
+            r="3.4"
+          />
+        </template>
       </g>
 
       <g
@@ -344,12 +400,31 @@ watch(
   fill: var(--color-ink-3);
 }
 
-/* エッジ。種類による描き分けは UT-09 / UT-10 が足す */
+/* エッジ。循環の描き分けは UT-10 が足す */
 .edge {
   fill: none;
   stroke: var(--color-ink-3);
   stroke-width: var(--edge-stroke);
   opacity: var(--edge-opacity);
+}
+
+/* クラスとインターフェースの対応。線の形で区別し、色では区別しない（N-1） */
+.edge.implements {
+  stroke-width: var(--edge-stroke-implements);
+  stroke-dasharray: var(--edge-dash-implements);
+  opacity: var(--edge-opacity-implements);
+}
+
+/* インターフェースを経由する呼び出し */
+.edge.via {
+  stroke: var(--color-accent);
+  stroke-width: var(--edge-stroke-via);
+}
+
+.via-dot {
+  fill: var(--color-surface);
+  stroke: var(--color-accent);
+  stroke-width: 1.6;
 }
 
 /* ノード。塗りは層の色を混ぜ、状態は枠線だけで表す（参照仕様） */
