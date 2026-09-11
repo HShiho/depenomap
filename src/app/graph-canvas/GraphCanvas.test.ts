@@ -5,7 +5,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { loadGraphFromValue } from '@/core/graph/loader'
-import { buildViewModel } from '@/core/ir/view-model'
+import { buildViewModel, type Granularity } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
 import { buildLayout } from './layout'
 import GraphCanvas from './GraphCanvas.vue'
@@ -21,12 +21,13 @@ const result = loadGraphFromValue(fixture)
 if (!result.ok) throw new Error('フィクスチャが読めない')
 const viewModel = buildViewModel(result.graph)
 
-function setup(options: { withGraph?: boolean } = {}) {
+function setup(options: { withGraph?: boolean; granularity?: Granularity } = {}) {
   const state = useViewState()
   if (options.withGraph !== false) {
     state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
   }
   state.setCanvasSize(1200, 800)
+  if (options.granularity) state.setGranularity(options.granularity)
   return { state, wrapper: mount(GraphCanvas) }
 }
 
@@ -398,5 +399,24 @@ describe('粒度を切り替えたときの視点', () => {
 
     const lowest = Math.max(...bottoms) * canvas.viewport.scale + canvas.viewport.y
     expect(lowest).toBeLessThanOrEqual(800)
+  })
+})
+
+describe('見出しの切り詰め', () => {
+  it('同じクラスの別メソッドが、同じラベルにならない', () => {
+    const { wrapper } = setup({ granularity: 'method' })
+
+    const names = wrapper.findAll('text.name').map((text) => text.text())
+    expect(new Set(names).size).toBe(names.length)
+  })
+
+  it('削るのは owner 側。メソッド名は残す', () => {
+    const { wrapper } = setup({ granularity: 'method' })
+    const names = wrapper.findAll('text.name').map((text) => text.text())
+
+    const truncated = names.filter((name) => name.includes('…'))
+    expect(truncated.length).toBeGreaterThan(0)
+    // 切り詰めても末尾のメソッド名は読める
+    expect(truncated.every((name) => !name.endsWith('…'))).toBe(true)
   })
 })

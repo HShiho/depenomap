@@ -162,10 +162,22 @@ function truncatePath(value: string): string {
 /**
  * ノードの見出し。メソッドは `owner.name`（例 `TodoController.post`）にする。
  * トップレベル関数は `owner` を持たないため名前だけ（スキーマ §3）。
+ *
+ * 長いときは**メソッド名を残して `owner` 側を削る**。先頭から一律に切ると、
+ * 同じクラスの別メソッドが同じラベルになり、ノードを見分けられなくなる
+ * （`InMemoryTodoRepositor…` が 5 件並ぶ、など）。
  */
 function titleOf(node: GraphNode): string {
   if (node.kind === 'file') return node.name
-  return node.owner === null ? node.name : `${node.owner}.${node.name}`
+  if (node.owner === null) return node.name
+
+  const full = `${node.owner}.${node.name}`
+  if (full.length <= NAME_LIMIT) return full
+
+  // メソッド名だけで上限を超えるなら、そちらを切るしかない
+  const room = NAME_LIMIT - node.name.length - 2
+  if (room < 2) return node.name
+  return `${node.owner.slice(0, room)}….${node.name}`
 }
 
 /**
