@@ -15,6 +15,7 @@ import type { GraphEdge, GraphNode } from '@/core/graph/schema'
 import { NO_LAYER, type Granularity, type LayerKey, type ViewModel } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
 import { edgeMidpoint, edgePath } from './edge-path'
+import { subtitleOf, titleOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import { centreOn, fit, transformOf, type Viewport } from './viewport'
 
@@ -22,10 +23,6 @@ const state = useViewState()
 
 /** 層カラーは 6 色を循環させる。層 ID には結び付けない（UT-04 の決定） */
 const LAYER_COLOURS = 6
-
-/** ノード内の識別子とパスは、この長さで切り詰める（参照仕様） */
-const NAME_LIMIT = 22
-const PATH_LIMIT = 24
 
 const viewport = ref<Viewport>({ x: 0, y: 0, scale: 1 })
 
@@ -152,53 +149,6 @@ function layerColour(key: LayerKey | undefined): string {
   return `var(--color-layer-${(index % LAYER_COLOURS) + 1})`
 }
 
-function truncateName(value: string): string {
-  return value.length > NAME_LIMIT ? `${value.slice(0, NAME_LIMIT - 1)}…` : value
-}
-
-/** パスは先頭を落とす。末尾（ファイルに近いほう）のほうが見分けに効く */
-function truncatePath(value: string): string {
-  return value.length > PATH_LIMIT ? `…${value.slice(value.length - PATH_LIMIT + 1)}` : value
-}
-
-/**
- * ノードの見出し。メソッドは `owner.name`（例 `TodoController.post`）にする。
- * トップレベル関数は `owner` を持たないため名前だけ（スキーマ §3）。
- *
- * 長いときは**メソッド名を残して `owner` 側を削る**。先頭から一律に切ると、
- * 同じクラスの別メソッドが同じラベルになり、ノードを見分けられなくなる
- * （`InMemoryTodoRepositor…` が 5 件並ぶ、など）。
- */
-function titleOf(node: GraphNode): string {
-  if (node.kind === 'file') return node.name
-  if (node.owner === null) return node.name
-
-  const full = `${node.owner}.${node.name}`
-  if (full.length <= NAME_LIMIT) return full
-
-  // メソッド名だけで上限を超えるなら、そちらを切るしかない
-  const room = NAME_LIMIT - node.name.length - 2
-  if (room < 2) return node.name
-  return `${node.owner.slice(0, room)}….${node.name}`
-}
-
-/**
- * ノードの 2 行目。**メソッドは所属ファイルのパス**を出す（US-02）。
- * どのファイルの処理なのかが、ノード単体で分かる必要がある。
- */
-function subtitleOf(node: GraphNode): string {
-  if (node.kind === 'file') return node.path
-  return state.viewModel?.fileOfMethod(node.id)?.path ?? ''
-}
-
-/**
- * 被依存数と依存数。**どちらもノード単位で数える**。
- *
- * `fanInOf` は同じ 2 ノード間に何本エッジがあっても 1 と数える（UT-02 決定事項）
- * のに対し、`dependenciesOf` はエッジ 1 本につき 1 件返す。そのまま並べると
- * 「使われている数」と「使っている数」で単位が違い、同じ図の中で数が噛み合わない。
- * 型の import と値の import が別エッジになる抽出結果では実際に起きる。
- */
 function statsOf(node: GraphNode): string {
   const viewModel = state.viewModel
   if (!viewModel) return ''
@@ -224,8 +174,8 @@ const nodeVisuals = computed(() => {
   for (const placed of layout.value.nodes) {
     const node = placed.node
     visuals.set(node.id, {
-      name: truncateName(titleOf(node)),
-      path: truncatePath(subtitleOf(node)),
+      name: titleOf(node),
+      path: subtitleOf(node, (id) => viewModel.fileOfMethod(id)?.path),
       stat: statsOf(node),
       colour: layerColour(viewModel.layerOf(node.id).key),
     })
