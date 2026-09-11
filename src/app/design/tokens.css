@@ -352,6 +352,8 @@
   --edge-opacity: 0.62;
   /** 実装の辺 */
   --edge-opacity-implements: 0.5;
+  /** interface を経由する辺。他より濃く出す */
+  --edge-opacity-via: 0.9;
   /** 絞り込みに該当しない辺 */
   --edge-opacity-dimmed: 0.13;
   /** 絞り込みに該当しないノード */

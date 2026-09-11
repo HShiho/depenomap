@@ -141,7 +141,8 @@
     辺          --edge-stroke / --edge-stroke-implements / --edge-stroke-via
                 --edge-stroke-cyclic / --edge-stroke-emphasis / --edge-stroke-hit
                 --edge-dash-implements / --edge-dash-cyclic / --edge-dash-unresolved
-                --edge-opacity / --edge-opacity-implements / --edge-opacity-dimmed
+                --edge-opacity / --edge-opacity-implements / --edge-opacity-via
+                --edge-opacity-dimmed
 ```
 
 状態は**枠線の色・太さ・破線パターン**だけで表し、塗りは変えない。

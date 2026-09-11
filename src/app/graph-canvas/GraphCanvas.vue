@@ -441,6 +441,7 @@ watch(
 .edge.via {
   stroke: var(--color-accent);
   stroke-width: var(--edge-stroke-via);
+  opacity: var(--edge-opacity-via);
 }
 
 .via-dot {
