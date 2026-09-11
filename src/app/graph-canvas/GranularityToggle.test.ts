@@ -69,4 +69,20 @@ describe('読み上げ', () => {
     const labelId = group.attributes('aria-labelledby')!
     expect(wrapper.find(`#${labelId}`).text()).toBe('粒度')
   })
+
+  it('同じ画面に 2 つ置いても id が衝突しない', () => {
+    // 別々にマウントすると id の採番がやり直されるため、1 つの画面に 2 つ置く
+    const wrapper = mount({
+      components: { GranularityToggle },
+      template: '<div><GranularityToggle /><GranularityToggle /></div>',
+    })
+
+    const ids = wrapper
+      .findAll('[role="group"]')
+      .map((group) => group.attributes('aria-labelledby'))
+
+    expect(ids).toHaveLength(2)
+    expect(ids[0]).toBeTruthy()
+    expect(new Set(ids).size).toBe(2)
+  })
 })

@@ -10,10 +10,15 @@
  * いった筐体はここに持たない**。持つと、切り替えが増えるたびに浮動パネルが
  * 積み重なる。
  */
+import { useId } from 'vue'
+
 import type { Granularity } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
 
 const state = useViewState()
+
+// 同じ切り替えを 2 か所に置いても id が衝突しないようにする
+const labelId = useId()
 
 const options: { value: Granularity; label: string }[] = [
   { value: 'file', label: 'ファイル' },
@@ -23,7 +28,7 @@ const options: { value: Granularity; label: string }[] = [
 
 <template>
   <div class="flex items-center gap-9">
-    <span id="granularity-label" class="text-label text-ink-3 uppercase">粒度</span>
+    <span :id="labelId" class="text-label text-ink-3 uppercase">粒度</span>
 
     <!--
       選択中は `aria-pressed` で示す。見た目だけで表すと、読み上げでどちらが
@@ -35,7 +40,7 @@ const options: { value: Granularity; label: string }[] = [
     -->
     <div
       role="group"
-      aria-labelledby="granularity-label"
+      :aria-labelledby="labelId"
       class="flex rounded-control border border-line p-1"
     >
       <button
