@@ -361,6 +361,7 @@ watch(
       <g class="edges">
         <template v-for="edge in edges" :key="edge.id">
           <path
+            :data-edge-id="edge.id"
             :d="edge.d"
             class="edge"
             :class="edge.variant"
@@ -380,6 +381,7 @@ watch(
       <g
         v-for="placed in layout.nodes"
         :key="placed.node.id"
+        :data-node-id="placed.node.id"
         class="node"
         :class="{ selected: placed.node.id === state.selectedNodeId }"
         :style="{ '--lc': nodeVisuals.get(placed.node.id)?.colour }"

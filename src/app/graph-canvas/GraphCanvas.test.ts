@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { loadGraphFromValue } from '@/core/graph/loader'
 import { buildViewModel, type Granularity } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
-import { buildLayout } from './layout'
+import { buildLayout, NODE_HEIGHT } from './layout'
 import GraphCanvas from './GraphCanvas.vue'
 
 import fixture from '../../../test-data/dependency-graph.complex.json'
@@ -351,19 +351,27 @@ describe('呼び出しの形の描き分け', () => {
   })
 
   it('経由の呼び出しは、型検査器の答え（インターフェース宛）に向かう', () => {
-    const state = useViewState()
-    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
-    state.setCanvasSize(1200, 800)
-    state.setGranularity('method')
-
+    const { wrapper } = setup({ granularity: 'method' })
     const via = viewModel.edges.method.find(
       (edge) => 'resolution' in edge && edge.resolution === 'via-interface',
     )!
-    // 実装は `implements` のエッジが別に持つので、両方が図に残る
-    expect(viewModel.nodeById.get(via.to)?.kind).toBe('method')
-    expect(
-      viewModel.edges.method.some((edge) => edge.kind === 'implements' && edge.to === via.to),
-    ).toBe(true)
+
+    const path = wrapper
+      .findAll('path.edge')
+      .find((candidate) => candidate.attributes('data-edge-id') === via.id)!
+    const interfaceNode = wrapper
+      .findAll('g.node')
+      .find((node) => node.attributes('data-node-id') === via.to)!
+
+    // 線の終点が、インターフェース側のノードの高さに着いている。
+    // 実装ノードへ向けてしまうと、型検査器の答えが図から消える
+    const transform = /translate\(([\d.-]+),([\d.-]+)\)/.exec(
+      interfaceNode.attributes('transform') ?? '',
+    )!
+    const points = [...(path.attributes('d') ?? '').matchAll(/(-?[\d.]+),(-?[\d.]+)/g)]
+    const end = points.at(-1)!
+
+    expect(Number(end[2])).toBeCloseTo(Number(transform[2]) + NODE_HEIGHT / 2, 0)
   })
 
   it('ファイル粒度では import を特別扱いしない', () => {
