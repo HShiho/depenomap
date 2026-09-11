@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { GraphNode } from '@/core/graph/schema'
-import { NAME_LIMIT, subtitleOf, titleOf } from './node-label'
+import { NAME_LIMIT, subtitleOf, titleOf, tooltipOf } from './node-label'
 
 function method(owner: string | null, name: string): GraphNode {
   return {
@@ -63,6 +63,33 @@ describe('見出し', () => {
     expect(titleOf(method('InMemoryTodoRepository', name)).length).toBeLessThanOrEqual(NAME_LIMIT)
     expect(titleOf(method(null, name)).length).toBeLessThanOrEqual(NAME_LIMIT)
     expect(titleOf(file(`${name}.ts`)).length).toBeLessThanOrEqual(NAME_LIMIT)
+  })
+})
+
+describe('重ねる説明', () => {
+  it('切り詰めた見出しの全文を持つ', () => {
+    // 図の上では 22 文字に収まるため、ここが唯一の確かめる手段になる
+    const long = method('ITodoRepository', 'findByOwnerAndStatusAndDueDate')
+
+    expect(titleOf(long).length).toBeLessThanOrEqual(NAME_LIMIT)
+    expect(tooltipOf(long, () => 'src/infra/TodoRepository.ts')).toContain(
+      'ITodoRepository.findByOwnerAndStatusAndDueDate',
+    )
+  })
+
+  it('切り詰めたパスの全文も持つ', () => {
+    const deep = file('src/very/deep/nested/path/to/Module.ts')
+
+    expect(subtitleOf(deep, () => undefined)).not.toContain('src/very')
+    expect(tooltipOf(deep, () => undefined)).toContain('src/very/deep/nested/path/to/Module.ts')
+  })
+
+  it('所属が引けないときは識別子だけにする', () => {
+    expect(tooltipOf(method('Todo', 'rename'), () => undefined)).toBe('Todo.rename')
+  })
+
+  it('トップレベル関数は名前だけ', () => {
+    expect(tooltipOf(method(null, 'requireUser'), () => undefined)).toBe('requireUser')
   })
 })
 

@@ -29,7 +29,7 @@ const OWNER_MIN = 1
  * つかなくなる。`owner` を `OWNER_MIN` まで削ったうえで、メソッド名のほうも
  * 削って上限に収める。
  *
- * 上限が 22 文字である以上、これでも一意にはならない。
+ * 上限が 22 文字である以上、これでも一意にはならない。全文は `tooltipOf` が持つ。
  */
 export function titleOf(node: GraphNode): string {
   if (node.kind === 'file') return truncate(node.name, NAME_LIMIT)
@@ -54,6 +54,29 @@ export function subtitleOf(
 ): string {
   const path = node.kind === 'file' ? node.path : pathOfMethod(node.id)
   return truncatePath(path ?? '')
+}
+
+/**
+ * ノードに重ねる説明（SVG の `<title>`）。**切り詰める前の全文**を持つ。
+ *
+ * 見出しは 22 文字、パスは 24 文字に収めるため、長い識別子は図の上では
+ * 一意にならない。読み手が確かめる手段がどこにも無いと、同形のノードを
+ * 見分けられない。
+ *
+ * 2 行にするのは、ノードの表示（識別子 / パス）と対応を取るため。改行を
+ * 畳む描画系でも、続けて 1 行に読めるだけで情報は落ちない。
+ */
+export function tooltipOf(
+  node: GraphNode,
+  pathOfMethod: (id: string) => string | undefined,
+): string {
+  const name = node.kind === 'file' ? node.name : fullNameOf(node)
+  const path = node.kind === 'file' ? node.path : pathOfMethod(node.id)
+  return path === undefined || path === '' ? name : `${name}\n${path}`
+}
+
+function fullNameOf(node: GraphNode & { kind: 'method' }): string {
+  return node.owner === null ? node.name : `${node.owner}.${node.name}`
 }
 
 function truncate(value: string, limit: number): string {

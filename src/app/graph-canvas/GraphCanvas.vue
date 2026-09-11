@@ -15,7 +15,7 @@ import type { GraphEdge, GraphNode } from '@/core/graph/schema'
 import { NO_LAYER, type Granularity, type LayerKey, type ViewModel } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
 import { edgeMidpoint, edgePath } from './edge-path'
-import { subtitleOf, titleOf } from './node-label'
+import { subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import { centreOn, fit, transformOf, type Viewport } from './viewport'
 
@@ -167,7 +167,10 @@ function statsOf(node: GraphNode): string {
  * JSON では、クリックのたびにその計算を払うことになる。
  */
 const nodeVisuals = computed(() => {
-  const visuals = new Map<string, { name: string; path: string; stat: string; colour: string }>()
+  const visuals = new Map<
+    string,
+    { name: string; path: string; stat: string; colour: string; tooltip: string }
+  >()
   const viewModel = state.viewModel
   if (!viewModel) return visuals
 
@@ -176,6 +179,7 @@ const nodeVisuals = computed(() => {
     visuals.set(node.id, {
       name: titleOf(node),
       path: subtitleOf(node, (id) => viewModel.fileOfMethod(id)?.path),
+      tooltip: tooltipOf(node, (id) => viewModel.fileOfMethod(id)?.path),
       stat: statsOf(node),
       colour: layerColour(viewModel.layerOf(node.id).key),
     })
@@ -350,6 +354,7 @@ watch(
         @click.stop="onNodeClick(placed.node)"
         @contextmenu="emit('nodeContextMenu', placed.node, $event)"
       >
+        <title>{{ nodeVisuals.get(placed.node.id)?.tooltip }}</title>
         <rect class="box" :width="NODE_WIDTH" :height="NODE_HEIGHT" rx="9" />
         <!-- 層の色帯。上下に余白を残した短い帯（参照仕様） -->
         <rect class="bar" x="1" y="9" width="3.5" :height="NODE_HEIGHT - 18" rx="2" />
