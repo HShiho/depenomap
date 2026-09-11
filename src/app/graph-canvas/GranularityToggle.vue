@@ -22,7 +22,7 @@ const options: { value: Granularity; label: string }[] = [
 </script>
 
 <template>
-  <div class="flex items-center gap-7">
+  <div class="flex items-center gap-9">
     <span id="granularity-label" class="text-label text-ink-3 uppercase">粒度</span>
 
     <!--
