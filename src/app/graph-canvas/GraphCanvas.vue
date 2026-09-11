@@ -368,6 +368,10 @@ watch(
             :marker-end="edge.variant === 'via' ? 'url(#arrow-via)' : 'url(#arrow)'"
           />
           <!-- 経由であることの印。インターフェース宛であることを線の上で示す -->
+          <!--
+            半径は CSS のジオメトリプロパティでトークンから取る。属性側は、
+            それに対応していないブラウザで印が消えないための控え
+          -->
           <circle
             v-if="edge.midpoint"
             class="via-dot"
@@ -447,7 +451,8 @@ watch(
 .via-dot {
   fill: var(--color-surface);
   stroke: var(--color-accent);
-  stroke-width: 1.6;
+  stroke-width: var(--via-dot-stroke);
+  r: var(--via-dot-radius);
 }
 
 /* ノード。塗りは層の色を混ぜ、状態は枠線だけで表す（参照仕様） */

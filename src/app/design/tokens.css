@@ -334,6 +334,10 @@
   --edge-stroke-emphasis: 3px;
   /** 辺の当たり判定（透明・太い線を重ねる） */
   --edge-stroke-hit: 16px;
+  /** 経由を示す中点の印の枠 */
+  --via-dot-stroke: 1.6px;
+  /** 同じく、印の半径 */
+  --via-dot-radius: 3.4px;
 
   /* グラフ描画（SVG）— 破線パターン */
 

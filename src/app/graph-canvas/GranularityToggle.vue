@@ -29,7 +29,7 @@ const options: { value: Granularity; label: string }[] = [
       選択中は `aria-pressed` で示す。見た目だけで表すと、読み上げでどちらが
       効いているのか分からない（参照仕様の拡張ルール）
     -->
-    <div class="seg flex rounded-control border border-line">
+    <div class="flex rounded-control border border-line p-1">
       <button
         v-for="option in options"
         :key="option.value"
@@ -48,10 +48,3 @@ const options: { value: Granularity; label: string }[] = [
     </div>
   </div>
 </template>
-
-<style scoped>
-/* セグメントの内側は角丸を 1 段落とす（参照仕様の inner / control） */
-.seg {
-  padding: 1px;
-}
-</style>
