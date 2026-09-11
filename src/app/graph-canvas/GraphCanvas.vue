@@ -12,7 +12,7 @@
 import { computed, ref, watch } from 'vue'
 
 import type { GraphEdge, GraphNode } from '@/core/graph/schema'
-import { NO_LAYER, type LayerKey, type ViewModel } from '@/core/ir/view-model'
+import { NO_LAYER, type Granularity, type LayerKey, type ViewModel } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
 import { edgeMidpoint, edgePath } from './edge-path'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
@@ -250,7 +250,11 @@ function focusNode(nodeId: string): void {
 defineExpose({ viewport, fitToContent, focusNode })
 
 /**
- * 最後に全体表示を合わせたグラフ。**1 つのグラフにつき 1 回だけ**合わせる。
+ * 最後に全体表示を合わせた対象。**グラフと粒度の組につき 1 回だけ**合わせる。
+ *
+ * 粒度を切り替えると図の大きさが変わる（メソッド粒度はフィクスチャで縦に
+ * 約 2.7 倍）。視点を据え置くと、切り替えた瞬間に下半分が画面の外へ出る。
+ * パンの手段が載るのは UT-16 なので、いまは戻す方法が無い。
  *
  * リサイズのたびに合わせ直すと、寄せた位置（`focusNode`）やこの先のパン・
  * ズーム（UT-16）が、ウィンドウの変形やサイドバーの開閉で毎回巻き戻る。
@@ -261,7 +265,7 @@ defineExpose({ viewport, fitToContent, focusNode })
  * **登録順**が正しさの条件になる。合わせた対象そのものを覚えておけば、
  * 判定が 1 つの式で閉じる。
  */
-let lastFitted: ViewModel | undefined
+let lastFitted: { viewModel: ViewModel | undefined; granularity: Granularity } | undefined
 
 /*
  * 図が入れ替わったら全体表示に戻す。読み込み直後は「どこを見ているか」の
@@ -276,15 +280,19 @@ watch(
   () =>
     [
       state.viewModel,
+      state.granularity,
       layout.value.width,
       layout.value.height,
       view.value.width,
       view.value.height,
     ] as const,
-  ([viewModel, contentWidth, contentHeight, viewWidth, viewHeight]) => {
+  ([viewModel, granularity, contentWidth, contentHeight, viewWidth, viewHeight]) => {
     const ready = contentWidth > 0 && contentHeight > 0 && viewWidth > 0 && viewHeight > 0
-    if (!ready || viewModel === lastFitted) return
-    lastFitted = viewModel
+    if (!ready) return
+    const fitted = lastFitted
+    if (fitted && fitted.viewModel === viewModel && fitted.granularity === granularity) return
+
+    lastFitted = { viewModel, granularity }
     fitToContent()
   },
   { immediate: true },

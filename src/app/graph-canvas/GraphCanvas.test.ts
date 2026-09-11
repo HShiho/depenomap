@@ -372,3 +372,31 @@ describe('呼び出しの形の描き分け', () => {
     expect(wrapper.findAll('circle.via-dot')).toHaveLength(0)
   })
 })
+
+describe('粒度を切り替えたときの視点', () => {
+  it('図の大きさが変わるので、全体表示に合わせ直す', async () => {
+    const { state, wrapper } = setup()
+    const canvas = wrapper.vm as unknown as { viewport: { scale: number } }
+    const before = canvas.viewport.scale
+
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    expect(canvas.viewport.scale).not.toBe(before)
+  })
+
+  it('切り替えたあとも、いちばん下のノードが画面に入る', async () => {
+    const { state, wrapper } = setup()
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    const canvas = wrapper.vm as unknown as { viewport: { scale: number; y: number } }
+    const bottoms = wrapper.findAll('g.node').map((node) => {
+      const y = /translate\([^,]+,([\d.]+)\)/.exec(node.attributes('transform') ?? '')?.[1]
+      return Number(y ?? 0)
+    })
+
+    const lowest = Math.max(...bottoms) * canvas.viewport.scale + canvas.viewport.y
+    expect(lowest).toBeLessThanOrEqual(800)
+  })
+})
