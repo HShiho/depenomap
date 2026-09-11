@@ -59,3 +59,14 @@ describe('粒度の切り替え（US-03）', () => {
     expect(state.selectedNodeId).toBe(method.parent)
   })
 })
+
+describe('読み上げ', () => {
+  it('ボタン群に名前がある', () => {
+    const wrapper = mount(GranularityToggle)
+    const group = wrapper.find('[role="group"]')
+
+    expect(group.exists()).toBe(true)
+    const labelId = group.attributes('aria-labelledby')!
+    expect(wrapper.find(`#${labelId}`).text()).toBe('粒度')
+  })
+})

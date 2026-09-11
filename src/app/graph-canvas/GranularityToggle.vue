@@ -23,13 +23,21 @@ const options: { value: Granularity; label: string }[] = [
   <div
     class="toolbar flex items-center gap-9 rounded-panel border border-line bg-surface px-11 py-7 shadow-float"
   >
-    <span class="text-label text-ink-3 uppercase">粒度</span>
+    <span id="granularity-label" class="text-label text-ink-3 uppercase">粒度</span>
 
     <!--
       選択中は `aria-pressed` で示す。見た目だけで表すと、読み上げでどちらが
       効いているのか分からない（参照仕様の拡張ルール）
     -->
-    <div class="flex rounded-control border border-line p-1">
+    <!--
+      群に名前を与える。`aria-pressed` だけだと「ファイル、押されていません」と
+      しか読まれず、何の切り替えなのかが分からない
+    -->
+    <div
+      role="group"
+      aria-labelledby="granularity-label"
+      class="flex rounded-control border border-line p-1"
+    >
       <button
         v-for="option in options"
         :key="option.value"
