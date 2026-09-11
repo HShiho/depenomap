@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { loadGraphFromValue } from '@/core/graph/loader'
 import { buildViewModel, type Granularity } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
-import { buildLayout, NODE_HEIGHT } from './layout'
+import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import GraphCanvas from './GraphCanvas.vue'
 
 import fixture from '../../../test-data/dependency-graph.complex.json'
@@ -347,15 +347,18 @@ describe('呼び出しの形の描き分け', () => {
       .findAll('g.node')
       .find((node) => node.attributes('data-node-id') === via.to)!
 
-    // 線の終点が、インターフェース側のノードの高さに着いている。
-    // 実装ノードへ向けてしまうと、型検査器の答えが図から消える
+    // 線の終点が、インターフェース側のノードの辺に着いている。
+    // 実装ノードへ向けてしまうと、型検査器の答えが図から消える。
+    // 同じ行には別の列のノードも並ぶため、Y だけでは足りない
     const transform = /translate\(([\d.-]+),([\d.-]+)\)/.exec(
       interfaceNode.attributes('transform') ?? '',
     )!
     const points = [...(path.attributes('d') ?? '').matchAll(/(-?[\d.]+),(-?[\d.]+)/g)]
-    const end = points.at(-1)!
+    const end = { x: Number(points.at(-1)![1]), y: Number(points.at(-1)![2]) }
+    const node = { x: Number(transform[1]), y: Number(transform[2]) }
 
-    expect(Number(end[2])).toBeCloseTo(Number(transform[2]) + NODE_HEIGHT / 2, 0)
+    expect(end.y).toBeCloseTo(node.y + NODE_HEIGHT / 2, 0)
+    expect([node.x, node.x + NODE_WIDTH]).toContainEqual(end.x)
   })
 
   it('ファイル粒度では import を特別扱いしない', () => {
