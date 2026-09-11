@@ -35,16 +35,33 @@ const columnOfLayer = computed(() => {
   return new Map<LayerKey, number>(keys.map((key, index) => [key, index]))
 })
 
+/**
+ * 列の中の**初期の**並び。
+ *
+ * メソッド粒度では所属ファイル → ソース上の行で並べる。同じファイルの処理が
+ * 近くから始まるほうが、読み始めの手がかりになる。ただし最終的な並びは
+ * 交差削減（`layout.ts`）が決めるため、**隣接は保証しない**。
+ *
+ * 所属そのものはノードの 2 行目（所属ファイルのパス）で示す（US-02）。囲み枠で
+ * 束ねると層の列と入れ子になり、線が読めなくなる。
+ */
+function sortKeyOf(node: GraphNode): string {
+  if (node.kind === 'file') return node.path
+  const line = String(node.loc.line).padStart(6, '0')
+  return `${node.parent}#${line}`
+}
+
 const layout = computed(() => {
   const viewModel = state.viewModel
   if (!viewModel) return buildLayout({ nodes: [], edges: [], columnOf: () => 0 })
 
   return buildLayout({
-    nodes: viewModel.nodes.file,
-    edges: viewModel.edges.file,
+    nodes: viewModel.nodes[state.granularity],
+    edges: viewModel.edges[state.granularity],
     // 層が未設定のノードは末尾の列へ。層が無いこと自体は欠陥ではない（ADR-002 / N-1）
     columnOf: (node) =>
       columnOfLayer.value.get(viewModel.layerOf(node.id).key) ?? LAYER_COLOURS * 99,
+    sortKeyOf,
   })
 })
 
@@ -53,7 +70,7 @@ const positions = computed(
 )
 
 const edges = computed(() =>
-  (state.viewModel?.edges.file ?? []).flatMap((edge) => {
+  (state.viewModel?.edges[state.granularity] ?? []).flatMap((edge) => {
     const from = positions.value.get(edge.from)
     const to = positions.value.get(edge.to)
     // 位置が引けないエッジは描かない。参照整合性は UT-01 が保証済みで、
@@ -108,8 +125,22 @@ function truncatePath(value: string): string {
   return value.length > PATH_LIMIT ? `…${value.slice(value.length - PATH_LIMIT + 1)}` : value
 }
 
-function pathOf(node: GraphNode): string {
-  return node.kind === 'file' ? node.path : node.name
+/**
+ * ノードの見出し。メソッドは `owner.name`（例 `TodoController.post`）にする。
+ * トップレベル関数は `owner` を持たないため名前だけ（スキーマ §3）。
+ */
+function titleOf(node: GraphNode): string {
+  if (node.kind === 'file') return node.name
+  return node.owner === null ? node.name : `${node.owner}.${node.name}`
+}
+
+/**
+ * ノードの 2 行目。**メソッドは所属ファイルのパス**を出す（US-02）。
+ * どのファイルの処理なのかが、ノード単体で分かる必要がある。
+ */
+function subtitleOf(node: GraphNode): string {
+  if (node.kind === 'file') return node.path
+  return state.viewModel?.fileOfMethod(node.id)?.path ?? ''
 }
 
 /**
@@ -123,9 +154,9 @@ function pathOf(node: GraphNode): string {
 function statsOf(node: GraphNode): string {
   const viewModel = state.viewModel
   if (!viewModel) return ''
-  const fanIn = viewModel.fanInOf(node.id, 'file')
+  const fanIn = viewModel.fanInOf(node.id, state.granularity)
   const fanOut = new Set(
-    viewModel.dependenciesOf(node.id, 'file').map((dependency) => dependency.node.id),
+    viewModel.dependenciesOf(node.id, state.granularity).map((dependency) => dependency.node.id),
   ).size
   return `↙${fanIn} ↗${fanOut}`
 }
@@ -145,8 +176,8 @@ const nodeVisuals = computed(() => {
   for (const placed of layout.value.nodes) {
     const node = placed.node
     visuals.set(node.id, {
-      name: truncateName(node.name),
-      path: truncatePath(pathOf(node)),
+      name: truncateName(titleOf(node)),
+      path: truncatePath(subtitleOf(node)),
       stat: statsOf(node),
       colour: layerColour(viewModel.layerOf(node.id).key),
     })

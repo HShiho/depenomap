@@ -257,3 +257,66 @@ describe('全体表示のあとの移動', () => {
     expect(canvas.viewport.x).not.toBeCloseTo(moved)
   })
 })
+
+describe('メソッド粒度', () => {
+  function setupMethods() {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    state.setCanvasSize(1200, 800)
+    state.setGranularity('method')
+    return { state, wrapper: mount(GraphCanvas) }
+  }
+
+  it('メソッドがノード、呼び出しが矢印として出る', () => {
+    const { wrapper } = setupMethods()
+
+    expect(wrapper.findAll('g.node')).toHaveLength(viewModel.nodes.method.length)
+    expect(wrapper.findAll('path.edge').length).toBeGreaterThan(0)
+  })
+
+  it('見出しは owner.name。トップレベル関数は名前だけ', () => {
+    const { wrapper } = setupMethods()
+    const titles = wrapper.findAll('text.name').map((text) => text.text())
+
+    expect(titles).toContain('TodoController.post')
+    // owner を持たないメソッド（トップレベル関数）も落とさない
+    expect(titles).toContain('requireUser')
+  })
+
+  it('どのファイルに属しているかがノードから分かる（US-02）', () => {
+    const { wrapper } = setupMethods()
+    const node = wrapper
+      .findAll('g.node')
+      .find((candidate) => candidate.find('text.name').text() === 'TodoController.post')!
+
+    // 2 行目は所属ファイルのパス（切り詰められていても末尾が残る）
+    expect(node.find('text.path').text()).toContain('TodoController.ts')
+  })
+
+  it('すべてのメソッドが所属ファイルを示す', () => {
+    const { wrapper } = setupMethods()
+    const paths = wrapper.findAll('g.node').map((node) => node.find('text.path').text())
+
+    // 並び順は交差削減が決めるので隣接は見ない。1 つも空にならないことを見る
+    expect(paths).toHaveLength(viewModel.nodes.method.length)
+    expect(paths.every((path) => path.length > 0)).toBe(true)
+  })
+
+  it('粒度を切り替えるとノードが入れ替わる（US-03）', async () => {
+    const { state, wrapper } = setup()
+    expect(wrapper.findAll('g.node')).toHaveLength(viewModel.nodes.file.length)
+
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('g.node')).toHaveLength(viewModel.nodes.method.length)
+  })
+
+  it('切り替えてもクリックで選択できる', async () => {
+    const { state, wrapper } = setupMethods()
+
+    await wrapper.find('g.node').trigger('click')
+
+    expect(state.selectedNodeId).toMatch(/^method:/)
+  })
+})
