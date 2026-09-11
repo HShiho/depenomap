@@ -21,12 +21,15 @@ const result = loadGraphFromValue(fixture)
 if (!result.ok) throw new Error('フィクスチャが読めない')
 const viewModel = buildViewModel(result.graph)
 
+/** 検査で使うキャンバスの実寸。画面に収まるかの判定でも同じ値を使う */
+const CANVAS = { width: 1200, height: 800 }
+
 function setup(options: { withGraph?: boolean; granularity?: Granularity } = {}) {
   const state = useViewState()
   if (options.withGraph !== false) {
     state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
   }
-  state.setCanvasSize(1200, 800)
+  state.setCanvasSize(CANVAS.width, CANVAS.height)
   if (options.granularity) state.setGranularity(options.granularity)
   return { state, wrapper: mount(GraphCanvas) }
 }
@@ -131,8 +134,8 @@ describe('ビューポートの口', () => {
       edges: viewModel.edges.file,
       columnOf: (node) => viewModel.layerKeys.indexOf(viewModel.layerOf(node.id).key),
     })
-    expect(layout.width * canvas.viewport.scale).toBeLessThanOrEqual(1200)
-    expect(layout.height * canvas.viewport.scale).toBeLessThanOrEqual(800)
+    expect(layout.width * canvas.viewport.scale).toBeLessThanOrEqual(CANVAS.width)
+    expect(layout.height * canvas.viewport.scale).toBeLessThanOrEqual(CANVAS.height)
     expect(canvas.viewport.scale).toBeLessThan(1)
   })
 
@@ -392,8 +395,9 @@ describe('粒度を切り替えたときの視点', () => {
       return Number(y ?? 0)
     })
 
-    const lowest = Math.max(...bottoms) * canvas.viewport.scale + canvas.viewport.y
-    expect(lowest).toBeLessThanOrEqual(800)
+    // ノードの上辺ではなく下辺で見る。上辺だけだと、下が切れていても通る
+    const lowest = (Math.max(...bottoms) + NODE_HEIGHT) * canvas.viewport.scale + canvas.viewport.y
+    expect(lowest).toBeLessThanOrEqual(CANVAS.height)
   })
 })
 
