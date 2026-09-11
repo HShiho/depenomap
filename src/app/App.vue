@@ -7,6 +7,7 @@
  */
 import { onMounted } from 'vue'
 
+import GranularityToggle from './graph-canvas/GranularityToggle.vue'
 import GraphCanvas from './graph-canvas/GraphCanvas.vue'
 import AppShell from './shell/AppShell.vue'
 import { loadGraphInto } from './shell/graph-source'
@@ -21,6 +22,11 @@ onMounted(() => void loadGraphInto(state))
   <AppShell>
     <template #canvas>
       <GraphCanvas />
+    </template>
+
+    <!-- 見え方の切り替えはキャンバス下部に集める（参照仕様）。列の軸は UT-08 -->
+    <template #toolbar>
+      <GranularityToggle v-if="state.status.kind === 'ready'" />
     </template>
 
     <template #rail>
