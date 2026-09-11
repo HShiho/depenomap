@@ -94,3 +94,24 @@ describe('ユーティリティを持たない変数', () => {
     expect(darkBySystem.has('--edge-stroke')).toBe(false)
   })
 })
+
+describe('SVG のジオメトリに控えを置いている値', () => {
+  /**
+   * `r` は CSS のジオメトリプロパティ経由でしかトークンを参照できず、
+   * 未対応ブラウザ向けに属性側へ同じ値を控えとして書いている（UT-07）。
+   * 出所が 2 つあるので、ずれていないことをここで見る。
+   */
+  it('経由の印の半径が、トークンと属性で一致する', () => {
+    const canvas = readFileSync(
+      fileURLToPath(new URL('../graph-canvas/GraphCanvas.vue', import.meta.url)),
+      'utf8',
+    )
+
+    const token = /--via-dot-radius:\s*([\d.]+)px/.exec(tokensCss)?.[1]
+    const attribute = /<circle[^>]*class="via-dot"[\s\S]*?r="([\d.]+)"/.exec(canvas)?.[1]
+
+    expect(token).toBeDefined()
+    expect(attribute).toBeDefined()
+    expect(Number(attribute)).toBe(Number(token))
+  })
+})
