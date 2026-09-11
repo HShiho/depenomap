@@ -260,23 +260,15 @@ describe('全体表示のあとの移動', () => {
 })
 
 describe('メソッド粒度', () => {
-  function setupMethods() {
-    const state = useViewState()
-    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
-    state.setCanvasSize(1200, 800)
-    state.setGranularity('method')
-    return { state, wrapper: mount(GraphCanvas) }
-  }
-
   it('メソッドがノード、呼び出しが矢印として出る', () => {
-    const { wrapper } = setupMethods()
+    const { wrapper } = setup({ granularity: 'method' })
 
     expect(wrapper.findAll('g.node')).toHaveLength(viewModel.nodes.method.length)
     expect(wrapper.findAll('path.edge').length).toBeGreaterThan(0)
   })
 
   it('見出しは owner.name。トップレベル関数は名前だけ', () => {
-    const { wrapper } = setupMethods()
+    const { wrapper } = setup({ granularity: 'method' })
     const titles = wrapper.findAll('text.name').map((text) => text.text())
 
     expect(titles).toContain('TodoController.post')
@@ -285,7 +277,7 @@ describe('メソッド粒度', () => {
   })
 
   it('どのファイルに属しているかがノードから分かる（US-02）', () => {
-    const { wrapper } = setupMethods()
+    const { wrapper } = setup({ granularity: 'method' })
     const node = wrapper
       .findAll('g.node')
       .find((candidate) => candidate.find('text.name').text() === 'TodoController.post')!
@@ -295,7 +287,7 @@ describe('メソッド粒度', () => {
   })
 
   it('すべてのメソッドが所属ファイルを示す', () => {
-    const { wrapper } = setupMethods()
+    const { wrapper } = setup({ granularity: 'method' })
     const paths = wrapper.findAll('g.node').map((node) => node.find('text.path').text())
 
     // 並び順は交差削減が決めるので隣接は見ない。1 つも空にならないことを見る
@@ -314,7 +306,7 @@ describe('メソッド粒度', () => {
   })
 
   it('切り替えてもクリックで選択できる', async () => {
-    const { state, wrapper } = setupMethods()
+    const { state, wrapper } = setup({ granularity: 'method' })
 
     await wrapper.find('g.node').trigger('click')
 
@@ -323,16 +315,8 @@ describe('メソッド粒度', () => {
 })
 
 describe('呼び出しの形の描き分け', () => {
-  function setupMethods() {
-    const state = useViewState()
-    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
-    state.setCanvasSize(1200, 800)
-    state.setGranularity('method')
-    return mount(GraphCanvas)
-  }
-
   it('クラスとインターフェースの対応を、他と違う線で描く', () => {
-    const wrapper = setupMethods()
+    const { wrapper } = setup({ granularity: 'method' })
     const implementsEdges = viewModel.edges.method.filter((edge) => edge.kind === 'implements')
 
     expect(implementsEdges.length).toBeGreaterThan(0)
@@ -340,7 +324,7 @@ describe('呼び出しの形の描き分け', () => {
   })
 
   it('経由の呼び出しは、線と印の両方で示す', () => {
-    const wrapper = setupMethods()
+    const { wrapper } = setup({ granularity: 'method' })
     const viaEdges = viewModel.edges.method.filter(
       (edge) => 'resolution' in edge && edge.resolution === 'via-interface',
     )
