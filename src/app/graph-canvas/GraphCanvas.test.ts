@@ -428,3 +428,32 @@ describe('見出しの切り詰め', () => {
     expect(truncated.every((name) => !name.endsWith('…'))).toBe(true)
   })
 })
+
+describe('経由の呼び出しが依っている前提', () => {
+  it('実装は implements のエッジで必ずたどれる', () => {
+    const via = viewModel.edges.method.filter(
+      (edge) => 'resolution' in edge && edge.resolution === 'via-interface',
+    )
+    const implementsByTarget = new Map<string, Set<string>>()
+    for (const edge of viewModel.edges.method) {
+      if (edge.kind !== 'implements') continue
+      const bucket = implementsByTarget.get(edge.to) ?? new Set<string>()
+      bucket.add(edge.from)
+      implementsByTarget.set(edge.to, bucket)
+    }
+
+    /*
+     * 経由の呼び出しはインターフェース宛に描き、実装は `implements` の
+     * エッジが持つ（UT-07 決定事項）。覆われない実装があると、
+     * 「実装が失われない形で表示される」が無警告で破れる。
+     */
+    const uncovered = via.flatMap((edge) =>
+      ('implementations' in edge ? (edge.implementations ?? []) : []).filter(
+        (implementation) => !implementsByTarget.get(edge.to)?.has(implementation),
+      ),
+    )
+
+    expect(via.length).toBeGreaterThan(0)
+    expect(uncovered).toEqual([])
+  })
+})
