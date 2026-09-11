@@ -6,7 +6,9 @@
  * 値は状態の器（UT-05）が持ち、ここは読み書きの口だけを置く。
  *
  * 置き場所はキャンバス下部のツールバー。見え方の切り替えはすべてここへ集める
- * （参照仕様）。列の軸の切り替え（UT-08）も同じ場所に並ぶ。
+ * （参照仕様）。列の軸の切り替え（UT-08）も同じ器の中に並ぶため、**枠や影と
+ * いった筐体はここに持たない**。持つと、切り替えが増えるたびに浮動パネルが
+ * 積み重なる。
  */
 import type { Granularity } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
@@ -20,9 +22,7 @@ const options: { value: Granularity; label: string }[] = [
 </script>
 
 <template>
-  <div
-    class="toolbar flex items-center gap-9 rounded-panel border border-line bg-surface px-11 py-7 shadow-float"
-  >
+  <div class="flex items-center gap-7">
     <span id="granularity-label" class="text-label text-ink-3 uppercase">粒度</span>
 
     <!--

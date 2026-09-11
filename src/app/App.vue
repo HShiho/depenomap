@@ -24,9 +24,17 @@ onMounted(() => void loadGraphInto(state))
       <GraphCanvas />
     </template>
 
-    <!-- 見え方の切り替えはキャンバス下部に集める（参照仕様）。列の軸は UT-08 -->
+    <!--
+      見え方の切り替えはキャンバス下部の 1 つの器に集める（参照仕様）。
+      列の軸（UT-08）もこの中に並べる
+    -->
     <template #toolbar>
-      <GranularityToggle v-if="state.status.kind === 'ready'" />
+      <div
+        v-if="state.status.kind === 'ready'"
+        class="flex items-center gap-9 rounded-panel border border-line bg-surface px-11 py-7 shadow-float"
+      >
+        <GranularityToggle />
+      </div>
     </template>
 
     <template #rail>
