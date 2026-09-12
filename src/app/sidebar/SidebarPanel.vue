@@ -42,6 +42,10 @@ const shownCount = ref(0)
 
 /**
  * 件数は「出ている数 / 全体」。**上限は設けない**（ADR-003 の残課題）。
+ *
+ * 入力に応じて変わる唯一の文字なので、ここが結果の変化を知らせる場所になる。
+ * 一覧そのものは入力欄から遠く、フォーカスは入力欄に留まったままなので、
+ * 読み上げでは件数を通してしか変化が分からない。
  * 多い／少ないの良し悪しは示さない（N-1）。件数が多いときは一覧をそのまま
  * 縦に伸ばし、面の中でスクロールさせる — 途中で打ち切ると、探しているものが
  * 出ていないのか、隠されているのかが読み手に分からない。
@@ -95,7 +99,7 @@ const countLabel = computed(() =>
         </option>
       </select>
 
-      <span class="text-caption text-ink-3">{{ countLabel }}</span>
+      <span role="status" class="text-caption text-ink-3">{{ countLabel }}</span>
     </div>
 
     <div class="min-h-0 grow overflow-y-auto">

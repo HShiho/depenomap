@@ -487,3 +487,29 @@ describe('粒度と検索（ADR-003）', () => {
     expect(inMethod).toEqual(inFile)
   })
 })
+
+describe('結果の変化の知らせ方（UT-11）', () => {
+  it('件数は読み上げに流れる場所に置く', async () => {
+    /*
+     * 入力してもフォーカスは入力欄に留まる。一覧の変化そのものは読まれないので、
+     * 入力に応じて変わる件数が唯一の知らせになる
+     */
+    const { wrapper } = setup()
+    const status = wrapper.find('[role="status"]')
+
+    expect(status.exists()).toBe(true)
+    expect(status.text()).toContain('ファイル')
+
+    await wrapper.find('input[type="search"]').setValue('Todo')
+    expect(wrapper.find('[role="status"]').text()).toContain('/')
+  })
+
+  it('該当なしのときも、件数から 0 件だと分かる', async () => {
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue('どこにも無い文字列')
+
+    expect(wrapper.find('[role="status"]').text()).toBe(
+      `0 / ${viewModel.nodes.file.length} ファイル`,
+    )
+  })
+})
