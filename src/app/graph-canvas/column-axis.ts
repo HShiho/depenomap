@@ -50,9 +50,16 @@ export function buildColumnPlan(input: {
   granularity: Granularity
   axis: ColumnAxis
   selectedNodeId: string | undefined
+  /** 選択の周辺だけに絞っているか（UT-14）。見出しの読み方が変わる */
+  narrowed?: boolean
 }): ColumnPlan {
   if (input.axis === 'layer') return layerColumns(input.viewModel)
-  return depthColumns(input.viewModel, input.granularity, input.selectedNodeId)
+  return depthColumns(
+    input.viewModel,
+    input.granularity,
+    input.selectedNodeId,
+    input.narrowed === true,
+  )
 }
 
 /**
@@ -106,6 +113,7 @@ export function depthColumns(
   viewModel: ViewModel,
   granularity: Granularity,
   selectedNodeId: string | undefined,
+  narrowed = false,
 ): ColumnPlan {
   // 粒度に無いノードを起点にすると、全ノードが深度未定になって列が 1 本に潰れる。
   // 器（UT-05）は選択と粒度を揃えるが、ここは渡された値だけで閉じるようにする
@@ -128,7 +136,15 @@ export function depthColumns(
     },
     headOf: (column) => {
       if (column === TRAILING_COLUMN) {
-        // 起点からたどり着けないだけで、欠陥ではない（ADR-001 / N-1）
+        /*
+         * 起点からたどり着けないだけで、欠陥ではない（ADR-001 / N-1）。
+         *
+         * **絞り込み中は「依存元」と読める。** 深度は選択を起点に依存の向きへ
+         * 数えるので、選択を使っている側は必ず到達不能になる。残っているのは
+         * 直接の相手だけ（UT-14）なので、この列の中身は依存元に限られる。
+         * 「たどり着けない」と出すと、US-14 で見たい相手がそう読めてしまう。
+         */
+        if (narrowed) return { label: '依存元（この行を使う側）', colour: 'var(--color-ink-3)' }
         return {
           label: hasOrigins ? '深度未定' : '深度未定（起点なし）',
           colour: 'var(--color-ink-3)',

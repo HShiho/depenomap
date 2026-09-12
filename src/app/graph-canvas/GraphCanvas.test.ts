@@ -933,3 +933,35 @@ describe('絞り込み中の配置（UT-14）', () => {
     }
   })
 })
+
+describe('深度軸で絞り込んだとき（UT-14 / UT-08）', () => {
+  it('依存元の列が「依存元」と読める', async () => {
+    // US-14 で見たい相手が「たどり着けない」と読めてしまわないようにする
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    const used = viewModel.nodes.file.find((node) => viewModel.fanInOf(node.id, 'file') > 0)!
+    state.moveTo(used.id)
+    await wrapper.vm.$nextTick()
+
+    const heads = wrapper.findAll('text.head').map((head) => head.text())
+    expect(heads.some((head) => head.includes('依存元'))).toBe(true)
+    expect(heads.some((head) => head.includes('深度未定'))).toBe(false)
+  })
+
+  it('絞り込みを解くと、元の見出しに戻る', async () => {
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+    const used = viewModel.nodes.file.find((node) => viewModel.fanInOf(node.id, 'file') > 0)!
+
+    state.moveTo(used.id)
+    await wrapper.vm.$nextTick()
+    state.setNarrowedToSelection(false)
+    await wrapper.vm.$nextTick()
+
+    const heads = wrapper.findAll('text.head').map((head) => head.text())
+    expect(heads.some((head) => head.includes('依存元'))).toBe(false)
+  })
+})
