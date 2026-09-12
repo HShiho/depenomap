@@ -427,13 +427,14 @@ describe('並べ方（US-04 / UT-08）', () => {
     state.columnAxis = 'depth'
     await wrapper.vm.$nextTick()
 
-    const heads = wrapper.findAll('g.head-group').map((group) => {
-      const x = /translate\(([\d.-]+),/.exec(group.attributes('transform') ?? '')?.[1]
-      return { x: Number(x ?? 0), label: group.find('text.head').text() }
-    })
+    /*
+     * ラベルそのものを左から順に固定する。x は列番号の並び順から機械的に
+     * 振られる（layout.ts）ので、「x で並べ替えたら DOM 順と同じ」は恒真で、
+     * 番号の付け方が壊れても気付けない
+     */
+    const labels = wrapper.findAll('g.head-group').map((group) => group.find('text.head').text())
 
-    const ordered = [...heads].sort((a, b) => a.x - b.x).map((head) => head.label)
-    expect(ordered).toEqual(heads.map((head) => head.label))
+    expect(labels).toEqual(['深度 0（起点）', '深度 1', '深度 2', '深度 3'])
   })
 
   it('深度未定のノードは、いちばん右の列へまとまる', async () => {
