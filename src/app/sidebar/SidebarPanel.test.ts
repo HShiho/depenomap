@@ -89,3 +89,38 @@ describe('並べ替え（US-10）', () => {
     expect(wrapper.find(`label[for="${id}"]`).text()).toBe('並べ替え')
   })
 })
+
+describe('持たないもの', () => {
+  it('依存元／依存先の一覧を作らない（N-4）', () => {
+    // ノードマップを見れば分かるものを、面の側に二重に持たない
+    const { wrapper } = setup()
+    const text = wrapper.text()
+
+    for (const word of ['依存元', '依存先', '使っている', '使われている']) {
+      expect(text).not.toContain(word)
+    }
+  })
+
+  it('被依存数を数え直さない', () => {
+    // 面が独自に数えると、図と一覧で違う数が出る
+    const { wrapper } = setup()
+    const rows = wrapper.findAll('[data-node-id]')
+
+    expect(rows.length).toBeGreaterThan(0)
+    for (const row of rows) {
+      const id = row.attributes('data-node-id')!
+      const granularity = id.startsWith('file:') ? 'file' : 'method'
+      expect(row.text()).toContain(String(viewModel.fanInOf(id, granularity)))
+    }
+  })
+
+  it('一覧が縦に伸びても、面の中だけでスクロールする', () => {
+    // 面ごと伸びると、並べ替えや検索（UT-11）が画面の外へ出る
+    const { wrapper } = setup()
+    const scroller = wrapper.find('.overflow-y-auto')
+
+    expect(scroller.exists()).toBe(true)
+    expect(scroller.find('[data-node-id]').exists()).toBe(true)
+    expect(wrapper.find('select').element.closest('.overflow-y-auto')).toBeNull()
+  })
+})
