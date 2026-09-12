@@ -24,14 +24,14 @@ afterEach(() => vi.unstubAllGlobals())
  * 走らせるため、仕込んだグラフはマウントの時点で消える。取りに行く先を
  * 差し替えて、`ready` に落ち着かせてから触る。
  */
-async function setup() {
+async function setup(options: { attach?: boolean } = {}) {
   vi.stubGlobal(
     'fetch',
     vi.fn(() => Promise.resolve(new Response(JSON.stringify(result)))),
   )
 
   const state = useViewState()
-  const wrapper = mount(App)
+  const wrapper = mount(App, options.attach === true ? { attachTo: document.body } : {})
   await vi.waitUntil(() => state.status.kind === 'ready')
   await wrapper.vm.$nextTick()
 
@@ -170,5 +170,52 @@ describe('絞り込みの印と解除（US-12 / UT-14）', () => {
     for (const word of ['警告', 'エラー', '多すぎ', '問題']) {
       expect(chip(wrapper).text()).not.toContain(word)
     }
+  })
+})
+
+describe('絞り込みの解き方（UT-14 の決定）', () => {
+  const press = async (
+    wrapper: Awaited<ReturnType<typeof setup>>['wrapper'],
+    target: Element = document.body,
+  ) => {
+    target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await wrapper.vm.$nextTick()
+  }
+
+  it('Esc で解ける。選択は残る', async () => {
+    // Esc は「絞り込みをやめる」であって「選んでいたことを忘れる」ではない
+    const { state, wrapper } = await setup()
+    const target = state.viewModel!.nodes.file[2]!
+    state.moveTo(target.id)
+    await wrapper.vm.$nextTick()
+
+    await press(wrapper)
+
+    expect(state.narrowedToSelection).toBe(false)
+    expect(state.selectedNodeId).toBe(target.id)
+  })
+
+  it('入力欄で押したときは、検索欄の取り消しを妨げない', async () => {
+    // window で拾うので、文書へ繋がないとイベントが届かない
+    const { state, wrapper } = await setup({ attach: true })
+    state.moveTo(state.viewModel!.nodes.file[2]!.id)
+    await wrapper.vm.$nextTick()
+
+    await press(wrapper, wrapper.find('input[type="search"]').element)
+
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('同じノードをもう一度押しても解ける', async () => {
+    const { state, wrapper } = await setup()
+    const node = wrapper.find('g.node')
+    const id = node.attributes('data-node-id')!
+
+    await node.trigger('click')
+    // 一覧の行も同じ属性を持つ。キャンバスの中を指す
+    await wrapper.find(`svg [data-node-id="${id}"]`).trigger('click')
+
+    expect(state.narrowedToSelection).toBe(false)
+    expect(state.selectedNodeId).toBe(id)
   })
 })

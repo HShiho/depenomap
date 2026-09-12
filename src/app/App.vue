@@ -5,7 +5,7 @@
  * 各領域の中身は UT-06 以降が差し込む。いまレールと通知に入っているのは、
  * 器が動いていることを目で確かめるための**暫定表示**である。
  */
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
 import NarrowingChip from './graph-canvas/NarrowingChip.vue'
@@ -19,6 +19,27 @@ import { useViewState } from './shell/view-state'
 const state = useViewState()
 
 onMounted(() => void loadGraphInto(state))
+
+/**
+ * Esc で絞り込みを解く（UT-14 の決定）。
+ *
+ * 解く口が印の ✕ だけだと、キャンバスを見ている手をそこまで動かすことになる。
+ * **選択は解かない** — Esc は「絞り込みをやめる」であって「選んでいたことを
+ * 忘れる」ではない。
+ *
+ * 画面全体で拾う。絞り込み中はどこを触っていても解けてほしい。入力欄で押した
+ * ときは検索欄の取り消しが先に効くため、そちらを妨げない。
+ */
+function onKeydown(event: KeyboardEvent): void {
+  if (event.key !== 'Escape' || !state.narrowedToSelection) return
+  const target = event.target
+  if (target instanceof HTMLElement && target.closest('input, textarea, select')) return
+
+  state.setNarrowedToSelection(false)
+}
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 /**
  * 絞り込み中に出す名前。絞っていなければ `undefined`。

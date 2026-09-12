@@ -260,9 +260,16 @@ function onNodeClick(node: GraphNode): void {
   state.moveTo(node.id)
 }
 
-function onBackgroundClick(): void {
-  state.clearSelection()
-}
+/**
+ * 背景のクリック（UT-14 の決定）。**何もしない**。
+ *
+ * 絞り込み中は背景の面積が大きく、図を眺めるつもりの空クリックで解けてしまう。
+ * UT-16 でパンが載ると、背景のドラッグとクリックの区別も微妙になる。解く口は
+ * 印の ✕・Esc・同じノードの再クリックの 3 つに絞る（参照仕様）。
+ *
+ * ハンドラ自体は残す。UT-16 がここでドラッグの開始を拾う。
+ */
+function onBackgroundClick(): void {}
 
 /* --- ビューポート操作の口（UT-16 / UT-14 / UT-11 が使う） -------------- */
 

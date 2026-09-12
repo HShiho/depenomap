@@ -105,13 +105,19 @@ describe('操作の口', () => {
     expect(wrapper.find(`[data-node-id="${id}"]`).classes()).toContain('selected')
   })
 
-  it('背景のクリックで選択を外す', async () => {
+  it('背景のクリックでは、選択も絞り込みも解けない（UT-14 の決定）', async () => {
+    /*
+     * 絞り込み中は背景の面積が大きく、図を眺めるつもりの空クリックで解けてしまう。
+     * 解く口は印の ✕・Esc・同じノードの再クリックの 3 つに絞る
+     */
     const { state, wrapper } = setup()
     await wrapper.find('g.node').trigger('click')
+    const selected = state.selectedNodeId
 
     await wrapper.find('svg').trigger('click')
 
-    expect(state.selectedNodeId).toBeUndefined()
+    expect(state.selectedNodeId).toBe(selected)
+    expect(state.narrowedToSelection).toBe(true)
   })
 
   it('右クリックは口を開けておく。中身は後続 UT が載せる', async () => {
