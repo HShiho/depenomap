@@ -49,9 +49,13 @@ export function buildSidebarList(viewModel: ViewModel, sort: SidebarSort): reado
   /*
    * 並びの土台は、使う軸のぶんだけ作る。IR の被依存数降順は呼ぶたびに
    * 並べ替えており（キャッシュを持たない）、既定のパス順では一度も使わない
-   * 並びを作ることになる
+   * 並びを作ることになる。
+   *
+   * **軸と土台を 1 つの値にする。** 別々に渡せる形だと、ファイル行は被依存数順・
+   * メソッドはソース順という、R1-3 で直したはずの状態へ静かに戻れてしまう
    */
-  const methodRank = sort === 'fan-in' ? rankOf(viewModel, 'method') : undefined
+  const order: MethodOrder =
+    sort === 'path' ? { axis: 'path' } : { axis: 'fan-in', rank: rankOf(viewModel, 'method') }
   const colourOf = layerColours(viewModel)
   const files = viewModel.nodes.file.map((file) => ({
     node: file,
@@ -62,8 +66,7 @@ export function buildSidebarList(viewModel: ViewModel, sort: SidebarSort): reado
         node: method,
         fanIn: viewModel.fanInOf(method.id, 'method'),
       })),
-      sort,
-      methodRank,
+      order,
     ),
   }))
 
@@ -75,18 +78,20 @@ export function buildSidebarList(viewModel: ViewModel, sort: SidebarSort): reado
 
 /** IR が決めた被依存数降順の並びを、ID から引ける形にする */
 function rankOf(viewModel: ViewModel, granularity: Granularity): (nodeId: string) => number {
-  const order = new Map(
+  const byRank = new Map(
     viewModel.nodesByFanInDesc(granularity).map((node, index) => [node.id, index]),
   )
-  return (nodeId) => order.get(nodeId) ?? Number.MAX_SAFE_INTEGER
+  return (nodeId) => byRank.get(nodeId) ?? Number.MAX_SAFE_INTEGER
 }
+
+/** 開いた中のメソッドの並べ方。軸と、その軸に要る土台を対で持つ */
+type MethodOrder = { axis: 'path' } | { axis: 'fan-in'; rank: (nodeId: string) => number }
 
 function sortMethods(
   methods: SidebarEntry<MethodNode>[],
-  sort: SidebarSort,
-  rank: ((nodeId: string) => number) | undefined,
+  order: MethodOrder,
 ): readonly SidebarEntry<MethodNode>[] {
-  return sort === 'path' || rank === undefined
+  return order.axis === 'path'
     ? methods.sort((a, b) => a.node.loc.line - b.node.loc.line)
-    : methods.sort((a, b) => rank(a.node.id) - rank(b.node.id))
+    : methods.sort((a, b) => order.rank(a.node.id) - order.rank(b.node.id))
 }
