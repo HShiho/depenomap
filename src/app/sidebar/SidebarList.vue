@@ -40,17 +40,45 @@ const state = useViewState()
 const openedByHand = ref<ReadonlySet<string>>(new Set())
 
 /**
- * 実際に開いているファイル。**手で開いたもの + 選択中のメソッドの所属**。
+ * 実際に開いているファイル。**手で開いたもの + 選択中のメソッドの所属 +
+ * 検索に当たったメソッドの所属**。
  *
  * 選択への追従を「選択が変わったら開く」という出来事で書くと、同じノードを
  * 選び直したときに取りこぼす（`selectedNodeId` が動かないため）。手で閉じた
  * あと同じメソッドをもう一度選ぶと、閉じたまま選択だけ進む。
  * **状態として導く**と、その経路が無くなる。
  */
-const opened = computed(() => {
+const opened = computed(() => new Set([...openedByHand.value, ...pinned.value.keys()]))
+
+/**
+ * 閉じられないファイルと、その理由。
+ *
+ * どちらも**中のメソッドが見えていること自体に意味がある**行なので、閉じると
+ * 行が意味を失う。選択のほうは所属が畳み込まれて残るが、検索のほうは**残さ
+ * ない** — 検索で開いたのだから、検索語を消せば閉じてほしい。
+ */
+const pinned = computed(() => {
+  const reasons = new Map<string, 'selected' | 'matched'>()
+  for (const file of matchedByMethod.value) reasons.set(file, 'matched')
+
   const parent = selectedMethodParent.value
-  return parent === undefined ? openedByHand.value : new Set([...openedByHand.value, parent])
+  if (parent !== undefined) reasons.set(parent, 'selected')
+  return reasons
 })
+
+/**
+ * 自身ではなく、中のメソッドが検索に当たって残ったファイル。
+ *
+ * **絞っていないときは空**。絞っていない一覧では全ファイルが「自身は当たって
+ * いない」形になり、そのまま数えると全部が開いてしまう。
+ */
+const matchedByMethod = computed(() =>
+  state.query.trim() === ''
+    ? []
+    : list.value
+        .filter((file) => file.match === undefined && file.methods.length > 0)
+        .map((file) => file.node.id),
+)
 
 /**
  * 選択中のノードがメソッドなら、その所属ファイル。
@@ -118,12 +146,12 @@ watch(
 
 function toggle(id: string): void {
   /*
-   * 選択中のメソッドを含むファイルは閉じない。**不変条件はここに置く** —
+   * 中のメソッドが見えていることに意味がある行は閉じない。**不変条件はここに置く** —
    * 行側のガードだけに頼ると、行ボタン以外から呼ばれた経路（キーボード、
    * 一括開閉、行を別の場所で使う）で記録から静かに外れ、見た目は開いたまま
    * 選択が外れた瞬間に畳まれる。
    */
-  if (id === selectedMethodParent.value) return
+  if (pinned.value.has(id)) return
 
   const next = new Set(openedByHand.value)
   if (!next.delete(id)) next.add(id)
@@ -138,7 +166,7 @@ function toggle(id: string): void {
         :node="file.node"
         :fan-in="file.fanIn"
         :open="opened.has(file.node.id)"
-        :pinned="selectedMethodParent === file.node.id"
+        :pinned="pinned.get(file.node.id)"
         :selected="state.selectedNodeId === file.node.id"
         :colour="file.colour"
         @toggle="toggle(file.node.id)"

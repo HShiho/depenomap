@@ -298,3 +298,63 @@ describe('件数（UT-11）', () => {
     expect(wrapper.text()).toContain(`${shown} / ${viewModel.nodes.file.length} ファイル`)
   })
 })
+
+describe('一致したメソッドの見せ方（UT-11）', () => {
+  /** 検索に当たるメソッドを持ち、ファイル名自体は当たらないもの */
+  const methodOnly = viewModel.nodes.method.find((method) => {
+    const file = viewModel.nodeById.get(method.parent)!
+    return (
+      file.kind === 'file' &&
+      !`${file.name} ${file.path}`.toLowerCase().includes(method.name.toLowerCase())
+    )
+  })!
+
+  it('メソッドが当たったファイルは、開いた状態で出る', async () => {
+    // 閉じたまま出しても、なぜその行が残っているのか読めない
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue(methodOnly.name)
+
+    expect(wrapper.find(`[data-node-id="${methodOnly.id}"]`).exists()).toBe(true)
+  })
+
+  it('当たったメソッドだけが並ぶ', async () => {
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue(methodOnly.name)
+
+    const shown = wrapper
+      .findAll('[data-node-id]')
+      .map((row) => row.attributes('data-node-id')!)
+      .filter((id) => id.startsWith('method:'))
+
+    expect(shown.length).toBeGreaterThan(0)
+    for (const id of shown) {
+      const node = viewModel.nodeById.get(id)!
+      expect(node.name.toLowerCase()).toContain(methodOnly.name.toLowerCase())
+    }
+  })
+
+  it('検索で開いた行は閉じられない。理由も出す', async () => {
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue(methodOnly.name)
+
+    const caret = wrapper
+      .find(`[data-node-id="${methodOnly.parent}"]`)
+      .element.parentElement!.querySelector('[aria-expanded]')!
+    expect(caret.getAttribute('aria-disabled')).toBe('true')
+    expect(caret.getAttribute('aria-label')).toContain('検索に一致したメソッドを含むため')
+  })
+
+  it('検索語を消すと、また閉じる', async () => {
+    // 検索で開いたのだから、検索語を消せば閉じてほしい
+    const { wrapper } = setup()
+    const search = wrapper.find('input[type="search"]')
+
+    await search.setValue(methodOnly.name)
+    await search.setValue('')
+
+    const caret = wrapper
+      .find(`[data-node-id="${methodOnly.parent}"]`)
+      .element.parentElement!.querySelector('[aria-expanded]')!
+    expect(caret.getAttribute('aria-expanded')).toBe('false')
+  })
+})
