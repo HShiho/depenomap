@@ -5,9 +5,10 @@
  * 各領域の中身は UT-06 以降が差し込む。いまレールと通知に入っているのは、
  * 器が動いていることを目で確かめるための**暫定表示**である。
  */
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
+import NarrowingChip from './graph-canvas/NarrowingChip.vue'
 import SidebarPanel from './sidebar/SidebarPanel.vue'
 import GranularityToggle from './graph-canvas/GranularityToggle.vue'
 import GraphCanvas from './graph-canvas/GraphCanvas.vue'
@@ -18,6 +19,21 @@ import { useViewState } from './shell/view-state'
 const state = useViewState()
 
 onMounted(() => void loadGraphInto(state))
+
+/**
+ * 絞り込み中に出す名前。絞っていなければ `undefined`。
+ *
+ * 図から消えたノードは、消えたこと自体が画面から読めない。何を中心に絞って
+ * いるのかを出す（US-12）。
+ */
+const narrowingLabel = computed(() => {
+  if (!state.narrowedToSelection) return undefined
+  const node = state.selectedNode
+  if (node === undefined) return undefined
+  return node.kind === 'file'
+    ? node.name
+    : `${node.owner ?? ''}${node.owner ? '.' : ''}${node.name}`
+})
 </script>
 
 <template>
@@ -30,6 +46,10 @@ onMounted(() => void loadGraphInto(state))
       見え方の切り替えはキャンバス下部の 1 つの器に集める（参照仕様）。
       列の軸（UT-08）もこの中に並べる
     -->
+    <template #canvas-overlay>
+      <NarrowingChip v-if="narrowingLabel !== undefined" :label="narrowingLabel" />
+    </template>
+
     <template #toolbar>
       <div
         v-if="state.status.kind === 'ready'"

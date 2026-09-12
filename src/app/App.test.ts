@@ -122,3 +122,53 @@ describe('検索の効き方（UT-11）', () => {
     expect(state.history.at(-1)?.nodeId).toBe(id)
   })
 })
+
+describe('絞り込みの印と解除（US-12 / UT-14）', () => {
+  const chip = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+    wrapper.find('.shell-overlay')
+
+  it('絞っていないときは、印を出さない', async () => {
+    const { wrapper } = await setup()
+
+    expect(chip(wrapper).text()).toBe('')
+  })
+
+  it('絞ると、何を中心にしているかを出す', async () => {
+    // 図から消えたノードは、消えたこと自体が画面から読めない
+    const { state, wrapper } = await setup()
+    const target = state.viewModel!.nodes.file[2]!
+
+    state.select(target.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    expect(chip(wrapper).text()).toContain(target.name)
+    expect(chip(wrapper).text()).toContain('周辺だけを表示中')
+  })
+
+  it('印から解ける。選択は残る', async () => {
+    const { state, wrapper } = await setup()
+    const target = state.viewModel!.nodes.file[2]!
+    state.select(target.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    const before = wrapper.findAll('g.node').length
+    await chip(wrapper).find('button').trigger('click')
+
+    expect(state.narrowedToSelection).toBe(false)
+    expect(state.selectedNodeId).toBe(target.id)
+    expect(wrapper.findAll('g.node').length).toBeGreaterThan(before)
+  })
+
+  it('良し悪しは示さない（N-1）', async () => {
+    const { state, wrapper } = await setup()
+    state.select(state.viewModel!.nodes.file[2]!.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    for (const word of ['警告', 'エラー', '多すぎ', '問題']) {
+      expect(chip(wrapper).text()).not.toContain(word)
+    }
+  })
+})

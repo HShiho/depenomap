@@ -83,6 +83,7 @@
 | `--accent`                       | `--color-accent`                       | `bg-accent` / `stroke-accent` | 選択・フォーカス・経由辺・主要ボタン                |
 | `--accent-ink`                   | `--color-accent-ink`                   | `text-accent-ink`             | アクセント面上の文字                                |
 | `--accent-soft`                  | `--color-accent-soft`                  | `bg-accent-soft`              | ON 状態の背景・フォーカスリング                     |
+| （新規）                         | `--color-accent-line`                  | `border-accent-line`          | アクセント面の輪郭（`accent-soft` の上に置く枠）    |
 | `--warn`                         | `--color-warn`                         | `text-warn` / `stroke-warn`   | 循環している依存                                    |
 | `--warn-soft`                    | `--color-warn-soft`                    | `bg-warn-soft`                | 同上の面                                            |
 | `--layer-presentation` ほか 5 色 | `--color-layer-1` 〜 `--color-layer-6` | `fill-layer-3`                | 層の識別（下記）                                    |
