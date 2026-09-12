@@ -15,7 +15,7 @@
  */
 
 import type { FileNode, MethodNode } from '@/core/graph/schema'
-import { matches, normalize } from '@/core/ir/search'
+import { isActiveQuery, matchField } from '@/core/ir/search'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
 import { layerColours } from '../shell/layer-colour'
 
@@ -127,7 +127,7 @@ export function filterSidebarList(
   viewModel: ViewModel,
   query: string,
 ): readonly SidebarFile[] {
-  if (normalize(query).trim() === '') return list
+  if (!isActiveQuery(query)) return list
 
   const kept: SidebarFile[] = []
   for (const file of list) {
@@ -144,11 +144,10 @@ export function filterSidebarList(
   return kept
 }
 
-/** 当たった場所。名前に無ければパス側（ADR-003 の対象は名前とパス） */
+/** 当たった場所。判定は IR に置く（対象と一致方式を書き直さない） */
 function matchOf(viewModel: ViewModel, nodeId: string, query: string): SidebarMatch | undefined {
   const key = viewModel.searchKeyOf(nodeId)
-  if (key === undefined || !matches(key, query)) return undefined
-  return normalize(key.name).includes(normalize(query).trim()) ? 'name' : 'path'
+  return key === undefined ? undefined : matchField(key, query)
 }
 
 /**

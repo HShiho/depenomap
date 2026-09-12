@@ -17,6 +17,7 @@
  */
 import { computed, ref, useId } from 'vue'
 
+import { isActiveQuery } from '@/core/ir/search'
 import { useViewState } from '../shell/view-state'
 import SidebarList from './SidebarList.vue'
 import type { SidebarSort } from './sidebar-list'
@@ -46,7 +47,7 @@ const shownCount = ref(0)
  * 出ていないのか、隠されているのかが読み手に分からない。
  */
 const countLabel = computed(() =>
-  state.query.trim() === ''
+  !isActiveQuery(state.query)
     ? `${fileCount.value} ファイル`
     : `${shownCount.value} / ${fileCount.value} ファイル`,
 )

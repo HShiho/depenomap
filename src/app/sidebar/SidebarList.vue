@@ -24,6 +24,7 @@
  */
 import { computed, ref, watch } from 'vue'
 
+import { isActiveQuery } from '@/core/ir/search'
 import { useViewState } from '../shell/view-state'
 import FileRow from './FileRow.vue'
 import MatchBadge from './MatchBadge.vue'
@@ -74,7 +75,7 @@ const pinned = computed(() => {
  * いない」形になり、そのまま数えると全部が開いてしまう。
  */
 const matchedByMethod = computed(() =>
-  state.query.trim() === ''
+  !isActiveQuery(state.query)
     ? []
     : list.value
         .filter((file) => file.match === undefined && file.methods.length > 0)
@@ -176,7 +177,7 @@ function toggle(id: string): void {
       当たらなかったことを、そのまま伝える。**欠陥として扱わない**（N-1）ので、
       直し方の示唆や警告の見た目にはしない
     -->
-    <p v-if="list.length === 0 && state.query.trim() !== ''" class="px-8 py-24 text-center">
+    <p v-if="list.length === 0 && isActiveQuery(state.query)" class="px-8 py-24 text-center">
       <span class="block text-ui text-ink-2">該当なし</span>
       <span class="mt-4 block text-caption text-ink-3">
         「{{ state.query }}」に一致するファイル・メソッドはありません
