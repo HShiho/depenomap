@@ -23,11 +23,19 @@ function setup() {
   return { state, wrapper: mount(SidebarPanel) }
 }
 
-/** メソッドを持つ最初のファイルを開く */
-async function openFirstFileWithMethods(wrapper: ReturnType<typeof setup>['wrapper']) {
-  const target = viewModel.nodes.file.find(
-    (file) => (viewModel.methodsOfFile.get(file.id) ?? []).length > 0,
-  )!
+/**
+ * 被依存数がばらけているメソッドを持つファイルを開く。
+ *
+ * 「メソッドを持つ最初のファイル」だと、このフィクスチャではファイルも
+ * メソッドも全部 0 で、0 と 0 を照合するだけになる
+ */
+async function openFileWithVaryingCounts(wrapper: ReturnType<typeof setup>['wrapper']) {
+  const target = viewModel.nodes.file.find((file) => {
+    const counts = (viewModel.methodsOfFile.get(file.id) ?? []).map((method) =>
+      viewModel.fanInOf(method.id, 'method'),
+    )
+    return new Set(counts).size > 1
+  })!
   wrapper
     .find(`[data-node-id="${target.id}"]`)
     .element.parentElement!.querySelector('[aria-expanded]')!
@@ -108,22 +116,25 @@ describe('持たないもの', () => {
      * ノードマップを見れば分かるものを、面の側に二重に持たない。
      *
      * 出ている文字で見ると、見出し語を変えた実装（「参照元」など）が素通りする。
-     * **たどっていないこと**を見る — 依存元／依存先の一覧は、この 2 つの口を
-     * 通らずには作れない
+     * **たどっていないこと**を見る — 依存をノード単位で並べる口を、どれも
+     * 呼んでいないことを確かめる
      */
     const dependenciesOf = vi.spyOn(viewModel, 'dependenciesOf')
     const dependentsOf = vi.spyOn(viewModel, 'dependentsOf')
+    const dependentNodesOf = vi.spyOn(viewModel, 'dependentNodesOf')
     try {
       const { state, wrapper } = setup()
-      await openFirstFileWithMethods(wrapper)
+      await openFileWithVaryingCounts(wrapper)
       state.select(viewModel.nodes.file[2]!.id)
       await wrapper.vm.$nextTick()
 
       expect(dependenciesOf).not.toHaveBeenCalled()
       expect(dependentsOf).not.toHaveBeenCalled()
+      expect(dependentNodesOf).not.toHaveBeenCalled()
     } finally {
       dependenciesOf.mockRestore()
       dependentsOf.mockRestore()
+      dependentNodesOf.mockRestore()
     }
   })
 
@@ -131,19 +142,24 @@ describe('持たないもの', () => {
     // 面が独自に数えると、図と一覧で違う数が出る
     const { wrapper } = setup()
     // 初期は全部閉じている。開かないと、メソッド行を一度も見ないまま通る
-    await openFirstFileWithMethods(wrapper)
+    await openFileWithVaryingCounts(wrapper)
 
     const rows = wrapper.findAll('[data-node-id]')
     const kinds = new Set(rows.map((row) => row.attributes('data-node-id')!.split(':')[0]))
     expect(kinds).toEqual(new Set(['file', 'method']))
 
+    const shown = new Set<string>()
     for (const row of rows) {
       const id = row.attributes('data-node-id')!
       const granularity = id.startsWith('file:') ? 'file' : 'method'
       // 行のテキストには名前もパスも混ざる。数の印だけを見て、完全に一致させる
       const badge = row.element.parentElement!.querySelector('[title^="被依存数"]')!
       expect(badge.textContent!.trim()).toBe(String(viewModel.fanInOf(id, granularity)))
+      if (granularity === 'method') shown.add(badge.textContent!.trim())
     }
+
+    // 全部 0 のファイルを開いていると、0 と 0 を照合するだけになる
+    expect(shown.size).toBeGreaterThan(1)
   })
 
   it('一覧が縦に伸びても、面の中だけでスクロールする', () => {
@@ -177,7 +193,7 @@ describe('印の差し込み（UT-10 / UT-11 の受け皿）', () => {
         'method-badges': '<span :data-mark="node.id">•</span>',
       },
     })
-    await openFirstFileWithMethods(wrapper)
+    await openFileWithVaryingCounts(wrapper)
 
     const marked = wrapper.findAll('[data-mark]').map((el) => el.attributes('data-mark')!)
     const rows = wrapper.findAll('[data-node-id]').map((el) => el.attributes('data-node-id')!)
