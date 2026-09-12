@@ -11,11 +11,9 @@
 
 import type { GraphNode } from '@/core/graph/schema'
 import { computeDepths, DEPTH_UNDEFINED, findRootOrigins } from '@/core/ir/depth'
-import { NO_LAYER, type Granularity, type LayerKey, type ViewModel } from '@/core/ir/view-model'
+import type { Granularity, ViewModel } from '@/core/ir/view-model'
+import { layerColours, layerOrder } from '../shell/layer-colour'
 import type { ColumnAxis } from '../shell/view-state'
-
-/** 層カラーは 6 色を循環させる。層 ID には結び付けない（UT-04 の決定） */
-const LAYER_COLOURS = 6
 
 /**
  * 最後尾へ寄せる列。層が未設定のノードと、深度が定まらないノードがここへ来る。
@@ -65,14 +63,15 @@ export function buildColumnPlan(input: {
  * ビューアが別に持つと、正本を書き換えても並びが変わらないことになる。
  */
 export function layerColumns(viewModel: ViewModel): ColumnPlan {
-  const columnOfLayer = indexOfLayer(viewModel)
+  const columnOfLayer = layerOrder(viewModel)
+  const colourOf = layerColours(viewModel)
 
   return {
     columnOf: (node) => columnOfLayer.get(viewModel.layerOf(node.id).key) ?? TRAILING_COLUMN,
     headOf: (column) => {
       const key = viewModel.layerKeys[column]
       const layer = key === undefined ? undefined : viewModel.layerOfKey(key)
-      return { label: layer?.name ?? '層なし', colour: colourOfLayerKey(key, columnOfLayer) }
+      return { label: layer?.name ?? '層なし', colour: colourOf(key) }
     },
   }
 }
@@ -155,32 +154,4 @@ function originInGranularity(
   const node = viewModel.nodeById.get(nodeId)
   if (node === undefined) return undefined
   return node.kind === granularity ? nodeId : undefined
-}
-
-/**
- * 層の色を引く口。**並べる軸に依らない**。
- *
- * 列が深度になってもノードの層は変わらないため、色帯は層の色のままにする。
- */
-export function layerColours(viewModel: ViewModel): (key: LayerKey | undefined) => string {
-  const columnOfLayer = indexOfLayer(viewModel)
-  return (key) => colourOfLayerKey(key, columnOfLayer)
-}
-
-/**
- * 層の索引。**列の番号と色の番号は同じもの**（どちらも `layers[]` の並び順 /
- * `src/app/design/README.md`）なので、組み立てを 1 か所に置く。別々に組むと、
- * 索引の規則を変えたときに色と列が静かにずれる。
- */
-function indexOfLayer(viewModel: ViewModel): ReadonlyMap<LayerKey, number> {
-  return new Map<LayerKey, number>(viewModel.layerKeys.map((key, index) => [key, index]))
-}
-
-function colourOfLayerKey(
-  key: LayerKey | undefined,
-  columnOfLayer: ReadonlyMap<LayerKey, number>,
-): string {
-  if (key === undefined || key === NO_LAYER) return 'var(--color-ink-3)'
-  const index = columnOfLayer.get(key) ?? 0
-  return `var(--color-layer-${(index % LAYER_COLOURS) + 1})`
 }

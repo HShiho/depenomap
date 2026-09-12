@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { loadGraphFromValue } from '@/core/graph/loader'
 import { buildViewModel, NO_LAYER } from '@/core/ir/view-model'
-import { depthColumns, layerColours, layerColumns, TRAILING_COLUMN } from './column-axis'
+import { depthColumns, layerColumns, TRAILING_COLUMN } from './column-axis'
 
 import fixture from '../../../test-data/dependency-graph.complex.json'
 
@@ -102,26 +102,6 @@ describe('層を列にする', () => {
     const stray = { ...nodeOf(viewModel.nodes.file[0]!.id), id: 'file:どこにも無い.ts' }
 
     expect(plan.columnOf(stray)).toBe(TRAILING_COLUMN)
-  })
-})
-
-describe('層の色', () => {
-  it('6 色を循環させる', () => {
-    const colourOf = layerColours(viewModel)
-    const colours = viewModel.layerKeys
-      .filter((key) => key !== NO_LAYER)
-      .map((key) => colourOf(key))
-
-    for (const [index, colour] of colours.entries()) {
-      expect(colour).toBe(`var(--color-layer-${(index % 6) + 1})`)
-    }
-  })
-
-  it('層なしは中立色', () => {
-    const colourOf = layerColours(viewModel)
-
-    expect(colourOf(NO_LAYER)).toBe('var(--color-ink-3)')
-    expect(colourOf(undefined)).toBe('var(--color-ink-3)')
   })
 })
 

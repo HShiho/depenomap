@@ -8,6 +8,7 @@
 import { onMounted } from 'vue'
 
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
+import SidebarPanel from './sidebar/SidebarPanel.vue'
 import GranularityToggle from './graph-canvas/GranularityToggle.vue'
 import GraphCanvas from './graph-canvas/GraphCanvas.vue'
 import AppShell from './shell/AppShell.vue'
@@ -41,7 +42,11 @@ onMounted(() => void loadGraphInto(state))
 
     <template #rail>
       <div class="flex h-full flex-col items-center gap-9 py-9">
-        <!-- 一覧の開閉（US-08 の受け皿。操作そのものは UT-12 が置き換える） -->
+        <!--
+          一覧の開閉（US-08）。**畳んだあとに開き直す口**であり、UT-12 はここを
+          残す判断をした — 閉じると面ごと見えなくなるので、開き直す口は面の外に
+          要る。面の側にも畳む口があり、同じ状態を触る（`SidebarPanel.vue`）
+        -->
         <button
           type="button"
           class="rounded-control px-6 py-4 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink"
@@ -68,10 +73,7 @@ onMounted(() => void loadGraphInto(state))
     </template>
 
     <template #sidebar>
-      <div class="p-12">
-        <h2 class="text-overline text-ink-3 uppercase">ファイル / メソッド</h2>
-        <p class="mt-6 text-caption text-ink-3">一覧は UT-12 が置く</p>
-      </div>
+      <SidebarPanel />
     </template>
 
     <template #notice>
