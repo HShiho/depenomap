@@ -29,6 +29,12 @@ function setup(options: { withGraph?: boolean } = {}) {
 const fileRows = (wrapper: ReturnType<typeof setup>['wrapper']) =>
   wrapper.findAll('[aria-expanded]')
 
+/** ファイル行のキャレット */
+const caretOf = (wrapper: ReturnType<typeof setup>['wrapper'], fileId: string) =>
+  wrapper
+    .find(`[data-node-id="${fileId}"]`)
+    .element.parentElement!.querySelector('[aria-expanded]')!
+
 /** 指定したファイルの行を開く */
 async function openFile(wrapper: ReturnType<typeof setup>['wrapper'], fileId: string) {
   const row = wrapper.find(`[data-node-id="${fileId}"]`)
@@ -205,5 +211,46 @@ describe('図の入れ替え', () => {
       .find(`[data-node-id="${target.id}"]`)
       .element.parentElement!.querySelector('[aria-expanded]')!
     expect(caret.getAttribute('aria-expanded')).toBe('false')
+  })
+})
+
+describe('選択で開いたあと', () => {
+  it('所属ファイルを選び直しても、開いたまま', async () => {
+    // 導出だけにすると、選択が外れた瞬間に操作なしで畳まれる
+    const { state, wrapper } = setup()
+    const method = viewModel.nodes.method[5]!
+
+    state.select(method.id)
+    await wrapper.vm.$nextTick()
+    state.select(method.parent)
+    await wrapper.vm.$nextTick()
+
+    expect(caretOf(wrapper, method.parent).getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('選択を外しても、開いたまま', async () => {
+    const { state, wrapper } = setup()
+    const method = viewModel.nodes.method[5]!
+
+    state.select(method.id)
+    await wrapper.vm.$nextTick()
+    state.clearSelection()
+    await wrapper.vm.$nextTick()
+
+    expect(caretOf(wrapper, method.parent).getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('別ファイルのメソッドへ移っても、前のファイルは畳まれない', async () => {
+    const { state, wrapper } = setup()
+    const first = viewModel.nodes.method[5]!
+    const other = viewModel.nodes.method.find((node) => node.parent !== first.parent)!
+
+    state.select(first.id)
+    await wrapper.vm.$nextTick()
+    state.select(other.id)
+    await wrapper.vm.$nextTick()
+
+    expect(caretOf(wrapper, first.parent).getAttribute('aria-expanded')).toBe('true')
+    expect(caretOf(wrapper, other.parent).getAttribute('aria-expanded')).toBe('true')
   })
 })
