@@ -175,9 +175,15 @@ function toggle(id: string): void {
   <div class="px-6 pt-5 pb-24">
     <!--
       当たらなかったことを、そのまま伝える。**欠陥として扱わない**（N-1）ので、
-      直し方の示唆や警告の見た目にはしない
+      直し方の示唆や警告の見た目にはしない。
+
+      **グラフがあるときだけ出す。** 読み込めていないときにこれを出すと、
+      読み込みの失敗を「そういう名前が無いだけ」と誤って伝える
     -->
-    <p v-if="list.length === 0 && isActiveQuery(state.query)" class="px-8 py-24 text-center">
+    <p
+      v-if="state.viewModel !== undefined && list.length === 0 && isActiveQuery(state.query)"
+      class="px-8 py-24 text-center"
+    >
       <span class="block text-ui text-ink-2">該当なし</span>
       <span class="mt-4 block text-caption text-ink-3">
         「{{ state.query }}」に一致するファイル・メソッドはありません
