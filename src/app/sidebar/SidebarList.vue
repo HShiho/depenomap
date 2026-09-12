@@ -97,13 +97,23 @@ const selectedMethodParent = computed(() => {
   return node?.kind === 'method' ? node.parent : undefined
 })
 
-const list = computed(() => {
-  const viewModel = state.viewModel
-  if (viewModel === undefined) return []
+/**
+ * 並べた一覧。**検索語に依らない**。
+ *
+ * 絞り込みと同じ computed に置くと、1 打鍵ごとに全ファイル・全メソッドの
+ * 並べ替えと引き当てをやり直すことになる。行ごとの引き当てを組み立てのときに
+ * 済ませてある意味（`sidebar-list.ts`）が、検索のたびに消える。
+ */
+const sorted = computed(() =>
+  state.viewModel === undefined ? [] : buildSidebarList(state.viewModel, props.sort),
+)
 
-  // 絞るのは並べたあと。並べ替えの規則は検索語で変わらない
-  return filterSidebarList(buildSidebarList(viewModel, props.sort), viewModel, state.query)
-})
+/** 絞るのは並べたあと。並べ替えの規則は検索語で変わらない */
+const list = computed(() =>
+  state.viewModel === undefined
+    ? []
+    : filterSidebarList(sorted.value, state.viewModel, state.query),
+)
 
 watch(list, (value) => emit('shown', value.length), { immediate: true })
 

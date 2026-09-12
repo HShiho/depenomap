@@ -427,3 +427,36 @@ describe('残っている理由（UT-11）', () => {
     for (const id of shownFiles(wrapper)) expect(badgesIn(wrapper, id)).not.toContain('パス')
   })
 })
+
+describe('検索と並べ替えの計算（UT-11）', () => {
+  it('打鍵のたびに、一覧を並べ直さない', async () => {
+    // 行ごとの引き当てを組み立てのときに済ませてある意味が、検索のたびに消える
+    const spy = vi.spyOn(viewModel, 'fanInOf')
+    try {
+      const { wrapper } = setup()
+      const search = wrapper.find('input[type="search"]')
+      await search.setValue('T')
+      const after = spy.mock.calls.length
+
+      await search.setValue('To')
+      await search.setValue('Tod')
+      await search.setValue('Todo')
+
+      expect(spy.mock.calls.length).toBe(after)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('並べ替えを変えたときは、並べ直す', async () => {
+    const { wrapper } = setup()
+    const spy = vi.spyOn(viewModel, 'fanInOf')
+    try {
+      await wrapper.find('select').setValue('fan-in')
+
+      expect(spy.mock.calls.length).toBeGreaterThan(0)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+})
