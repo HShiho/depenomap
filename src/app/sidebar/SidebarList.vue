@@ -17,7 +17,9 @@ import { layerColours } from '../shell/layer-colour'
 import { useViewState } from '../shell/view-state'
 import FileRow from './FileRow.vue'
 import MethodRow from './MethodRow.vue'
-import { buildSidebarList } from './sidebar-list'
+import { buildSidebarList, type SidebarSort } from './sidebar-list'
+
+const props = defineProps<{ sort: SidebarSort }>()
 
 const state = useViewState()
 
@@ -25,7 +27,7 @@ const state = useViewState()
 const opened = ref<ReadonlySet<string>>(new Set())
 
 const list = computed(() =>
-  state.viewModel === undefined ? [] : buildSidebarList(state.viewModel, 'path'),
+  state.viewModel === undefined ? [] : buildSidebarList(state.viewModel, props.sort),
 )
 
 const colourOf = computed(() =>

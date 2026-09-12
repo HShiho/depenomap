@@ -22,7 +22,7 @@ function setup(options: { withGraph?: boolean } = {}) {
   if (options.withGraph !== false) {
     state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
   }
-  return { state, wrapper: mount(SidebarList) }
+  return { state, wrapper: mount(SidebarList, { props: { sort: 'path' } }) }
 }
 
 /** ファイル行の開閉ボタン。1 行につき 1 つある */
