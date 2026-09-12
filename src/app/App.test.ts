@@ -219,3 +219,56 @@ describe('絞り込みの解き方（UT-14 の決定）', () => {
     expect(state.selectedNodeId).toBe(id)
   })
 })
+
+describe('どこから選んでも同じ経路（UT-14）', () => {
+  const canvasNode = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], id: string) =>
+    wrapper.find(`svg [data-node-id="${id}"]`)
+  const panelRow = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], id: string) =>
+    wrapper.find(`.shell-panel [data-node-id="${id}"]`)
+
+  it('一覧の行から選んでも、絞り込みが立つ', async () => {
+    const { state, wrapper } = await setup()
+    const target = state.viewModel!.nodes.file[3]!
+
+    await panelRow(wrapper, target.id).trigger('click')
+
+    expect(state.selectedNodeId).toBe(target.id)
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('検索の結果から選んでも、絞り込みが立つ', async () => {
+    const { state, wrapper } = await setup()
+    await wrapper.find('input[type="search"]').setValue('Todo')
+
+    const row = wrapper.find('.shell-panel [data-node-id]')
+    const id = row.attributes('data-node-id')!
+    await row.trigger('click')
+
+    expect(state.selectedNodeId).toBe(id)
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('一覧からとキャンバスからで、結果が変わらない', async () => {
+    // 経路が分かれると、どこから来たかで結果が違う状態ができる
+    const { state, wrapper } = await setup()
+    const target = state.viewModel!.nodes.file[3]!
+
+    await panelRow(wrapper, target.id).trigger('click')
+    const fromPanel = {
+      selected: state.selectedNodeId,
+      narrowed: state.narrowedToSelection,
+      shown: wrapper.findAll('svg g.node').length,
+    }
+
+    state.setNarrowedToSelection(false)
+    state.clearSelection()
+    await wrapper.vm.$nextTick()
+    await canvasNode(wrapper, target.id).trigger('click')
+
+    expect({
+      selected: state.selectedNodeId,
+      narrowed: state.narrowedToSelection,
+      shown: wrapper.findAll('svg g.node').length,
+    }).toEqual(fromPanel)
+  })
+})
