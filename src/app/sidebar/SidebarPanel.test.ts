@@ -358,3 +358,32 @@ describe('一致したメソッドの見せ方（UT-11）', () => {
     expect(caret.getAttribute('aria-expanded')).toBe('false')
   })
 })
+
+describe('当たらなかったとき（N-1）', () => {
+  it('該当なしと、何を探したかを出す', async () => {
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue('どこにも無い文字列')
+
+    expect(shownFiles(wrapper)).toHaveLength(0)
+    expect(wrapper.text()).toContain('該当なし')
+    expect(wrapper.text()).toContain('どこにも無い文字列')
+    expect(wrapper.text()).toContain(`0 / ${viewModel.nodes.file.length} ファイル`)
+  })
+
+  it('欠陥として扱わない。警告の見た目にしない', async () => {
+    // 当たらなかったのは、そういう名前が無いだけ
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue('どこにも無い文字列')
+
+    for (const word of ['エラー', '警告', '失敗', '不正']) {
+      expect(wrapper.text()).not.toContain(word)
+    }
+    expect(wrapper.html()).not.toContain('warn')
+  })
+
+  it('絞っていないときは、該当なしを出さない', () => {
+    const { wrapper } = setup()
+
+    expect(wrapper.text()).not.toContain('該当なし')
+  })
+})

@@ -161,6 +161,16 @@ function toggle(id: string): void {
 
 <template>
   <div class="px-6 pt-5 pb-24">
+    <!--
+      当たらなかったことを、そのまま伝える。**欠陥として扱わない**（N-1）ので、
+      直し方の示唆や警告の見た目にはしない
+    -->
+    <p v-if="list.length === 0 && state.query.trim() !== ''" class="px-8 py-24 text-center">
+      <span class="block text-ui text-ink-2">該当なし</span>
+      <span class="mt-4 block text-caption text-ink-3">
+        「{{ state.query }}」に一致するファイル・メソッドはありません
+      </span>
+    </p>
     <div v-for="file in list" :key="file.node.id" class="mb-1">
       <FileRow
         :node="file.node"
