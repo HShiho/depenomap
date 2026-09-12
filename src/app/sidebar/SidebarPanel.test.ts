@@ -271,3 +271,30 @@ describe('検索（US-07 / UT-11）', () => {
     expect(wrapper.find(`label[for="${id}"]`).text()).toBe('検索')
   })
 })
+
+describe('件数（UT-11）', () => {
+  it('絞っていないときは全体の数', () => {
+    const { wrapper } = setup()
+
+    expect(wrapper.text()).toContain(`${viewModel.nodes.file.length} ファイル`)
+  })
+
+  it('絞ると「出ている数 / 全体」になる', async () => {
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue('Todo')
+
+    const shown = shownFiles(wrapper).length
+    expect(shown).toBeLessThan(viewModel.nodes.file.length)
+    expect(wrapper.text()).toContain(`${shown} / ${viewModel.nodes.file.length} ファイル`)
+  })
+
+  it('件数に上限を設けない。出ている数と一覧の行数が一致する', async () => {
+    // 途中で打ち切ると、出ていないのか隠されているのかが読み手に分からない
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue('o')
+
+    const shown = shownFiles(wrapper).length
+    expect(shown).toBeGreaterThan(10)
+    expect(wrapper.text()).toContain(`${shown} / ${viewModel.nodes.file.length} ファイル`)
+  })
+})

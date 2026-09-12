@@ -35,6 +35,21 @@ const options: { value: SidebarSort; label: string }[] = [
 const searchId = useId()
 
 const fileCount = computed(() => state.viewModel?.nodes.file.length ?? 0)
+
+/** 一覧に出ているファイル数。絞っていなければ全体と同じ */
+const shownCount = ref(0)
+
+/**
+ * 件数は「出ている数 / 全体」。**上限は設けない**（ADR-003 の残課題）。
+ * 多い／少ないの良し悪しは示さない（N-1）。件数が多いときは一覧をそのまま
+ * 縦に伸ばし、面の中でスクロールさせる — 途中で打ち切ると、探しているものが
+ * 出ていないのか、隠されているのかが読み手に分からない。
+ */
+const countLabel = computed(() =>
+  state.query.trim() === ''
+    ? `${fileCount.value} ファイル`
+    : `${shownCount.value} / ${fileCount.value} ファイル`,
+)
 </script>
 
 <template>
@@ -79,11 +94,11 @@ const fileCount = computed(() => state.viewModel?.nodes.file.length ?? 0)
         </option>
       </select>
 
-      <span class="text-caption text-ink-3">{{ fileCount }} ファイル</span>
+      <span class="text-caption text-ink-3">{{ countLabel }}</span>
     </div>
 
     <div class="min-h-0 grow overflow-y-auto">
-      <SidebarList :sort="sort">
+      <SidebarList :sort="sort" @shown="shownCount = $event">
         <template #file-badges="{ node }">
           <slot name="file-badges" :node="node" />
         </template>

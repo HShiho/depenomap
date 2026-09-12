@@ -31,6 +31,9 @@ import { buildSidebarList, filterSidebarList, type SidebarSort } from './sidebar
 
 const props = defineProps<{ sort: SidebarSort }>()
 
+/** 面が件数を出せるように、絞った結果の数を伝える */
+const emit = defineEmits<{ shown: [count: number] }>()
+
 const state = useViewState()
 
 /** 手で開いたファイルの ID。**初期は空**（US-09） */
@@ -72,6 +75,8 @@ const list = computed(() => {
   // 絞るのは並べたあと。並べ替えの規則は検索語で変わらない
   return filterSidebarList(buildSidebarList(viewModel, props.sort), viewModel, state.query)
 })
+
+watch(list, (value) => emit('shown', value.length), { immediate: true })
 
 /*
  * 選択で開いたファイルは、**開いたことを手の側の記録に畳み込む**。
