@@ -91,7 +91,7 @@ describe('層を列にする', () => {
     const others = withoutLayers.nodes.file
       .filter((node) => withoutLayers.layerOf(node.id).key !== NO_LAYER)
       .map((node) => plan.columnOf(node))
-    expect(Math.min(...others)).toBeLessThan(column)
+    expect(Math.max(...others)).toBeLessThan(column)
     expect(plan.headOf(column).label).toBe('層なし')
     expect(plan.headOf(column).colour).toBe('var(--color-ink-3)')
   })
