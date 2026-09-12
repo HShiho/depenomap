@@ -65,9 +65,7 @@ export function buildColumnPlan(input: {
  * ビューアが別に持つと、正本を書き換えても並びが変わらないことになる。
  */
 export function layerColumns(viewModel: ViewModel): ColumnPlan {
-  const columnOfLayer = new Map<LayerKey, number>(
-    viewModel.layerKeys.map((key, index) => [key, index]),
-  )
+  const columnOfLayer = indexOfLayer(viewModel)
 
   return {
     columnOf: (node) => columnOfLayer.get(viewModel.layerOf(node.id).key) ?? TRAILING_COLUMN,
@@ -165,10 +163,17 @@ function originInGranularity(
  * 列が深度になってもノードの層は変わらないため、色帯は層の色のままにする。
  */
 export function layerColours(viewModel: ViewModel): (key: LayerKey | undefined) => string {
-  const columnOfLayer = new Map<LayerKey, number>(
-    viewModel.layerKeys.map((key, index) => [key, index]),
-  )
+  const columnOfLayer = indexOfLayer(viewModel)
   return (key) => colourOfLayerKey(key, columnOfLayer)
+}
+
+/**
+ * 層の索引。**列の番号と色の番号は同じもの**（どちらも `layers[]` の並び順 /
+ * `src/app/design/README.md`）なので、組み立てを 1 か所に置く。別々に組むと、
+ * 索引の規則を変えたときに色と列が静かにずれる。
+ */
+function indexOfLayer(viewModel: ViewModel): ReadonlyMap<LayerKey, number> {
+  return new Map<LayerKey, number>(viewModel.layerKeys.map((key, index) => [key, index]))
 }
 
 function colourOfLayerKey(
