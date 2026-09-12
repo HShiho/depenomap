@@ -9,6 +9,7 @@ import { computed, onMounted, onUnmounted } from 'vue'
 
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
 import NarrowingChip from './graph-canvas/NarrowingChip.vue'
+import { fullTitleOf } from './graph-canvas/node-label'
 import SidebarPanel from './sidebar/SidebarPanel.vue'
 import GranularityToggle from './graph-canvas/GranularityToggle.vue'
 import GraphCanvas from './graph-canvas/GraphCanvas.vue'
@@ -47,14 +48,11 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
  * 図から消えたノードは、消えたこと自体が画面から読めない。何を中心に絞って
  * いるのかを出す（US-12）。
  */
-const narrowingLabel = computed(() => {
-  if (!state.narrowedToSelection) return undefined
-  const node = state.selectedNode
-  if (node === undefined) return undefined
-  return node.kind === 'file'
-    ? node.name
-    : `${node.owner ?? ''}${node.owner ? '.' : ''}${node.name}`
-})
+const narrowingLabel = computed(() =>
+  state.narrowedToSelection && state.selectedNode !== undefined
+    ? fullTitleOf(state.selectedNode)
+    : undefined,
+)
 </script>
 
 <template>

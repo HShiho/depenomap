@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { mount } from '@vue/test-utils'
+import { enableAutoUnmount, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,6 +15,12 @@ if (!result.ok) throw new Error('フィクスチャが読めない')
 
 beforeEach(() => setActivePinia(createPinia()))
 afterEach(() => vi.unstubAllGlobals())
+
+/*
+ * 文書へ繋いだ `App` を畳まないと、`window` の `keydown` と DOM が後続テストへ
+ * 残る。`press()` は `document.body` へ発火するので、残ったハンドラも毎回走る。
+ */
+enableAutoUnmount(afterEach)
 
 /**
  * 画面を出す。
@@ -273,5 +279,18 @@ describe('どこから選んでも同じ経路（UT-14）', () => {
       narrowed: state.narrowedToSelection,
       shown: wrapper.findAll('svg g.node').length,
     }).toEqual(fromPanel)
+  })
+})
+
+describe('絞り込みの印の名前（UT-14）', () => {
+  it('メソッドは owner.name で出す。ノードの説明と同じ規則', async () => {
+    // 別々に組むと、同じノードが場所によって違う名前で出る
+    const { state, wrapper } = await setup()
+    const method = state.viewModel!.nodes.method.find((node) => node.owner !== null)!
+
+    state.moveTo(method.id)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.shell-overlay').text()).toContain(`${method.owner}.${method.name}`)
   })
 })

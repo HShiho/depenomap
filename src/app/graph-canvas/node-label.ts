@@ -70,9 +70,19 @@ export function tooltipOf(
   node: GraphNode,
   pathOfMethod: (id: string) => string | undefined,
 ): string {
-  const name = node.kind === 'file' ? node.name : fullNameOf(node)
+  const name = fullTitleOf(node)
   const path = node.kind === 'file' ? node.path : pathOfMethod(node.id)
   return path === undefined || path === '' ? name : `${name}\n${path}`
+}
+
+/**
+ * 切り詰める前の識別子。メソッドは `owner.name`、ファイルはその名前。
+ *
+ * ノードに重ねる説明（`tooltipOf`）と、絞り込みの印（UT-14）が同じ規則を使う。
+ * 別々に組むと、同じノードが場所によって違う名前で出る。
+ */
+export function fullTitleOf(node: GraphNode): string {
+  return node.kind === 'file' ? node.name : fullNameOf(node)
 }
 
 function fullNameOf(node: GraphNode & { kind: 'method' }): string {
