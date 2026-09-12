@@ -180,16 +180,6 @@ describe('全体表示のタイミング', () => {
 })
 
 describe('ノードに出す数', () => {
-  it('ノードに、切り詰める前の全文を重ねる', () => {
-    const { wrapper } = setup()
-    // 2 行目に収まらない長さのパス。図の上では先頭が落ちる
-    const path = 'src/presentation/TodoListController.ts'
-    const node = wrapper.find(`[data-node-id="file:${path}"]`)
-
-    expect(node.find('.path').text()).not.toContain('src/presentation')
-    expect(node.find('title').text()).toContain(path)
-  })
-
   it('同じ相手への依存が 2 本あっても 1 と数える（被依存と単位を揃える）', () => {
     const raw = structuredClone(fixture) as {
       edges: { id: string; from: string; to: string; kind: string; granularity: string }[]
@@ -412,6 +402,16 @@ describe('粒度を切り替えたときの視点', () => {
 })
 
 describe('見出しの切り詰め', () => {
+  it('ノードに、切り詰める前の全文を重ねる', () => {
+    const { wrapper } = setup()
+    // 2 行目に収まらない長さのパス。図の上では先頭が落ちる
+    const path = 'src/presentation/TodoListController.ts'
+    const node = wrapper.find(`[data-node-id="file:${path}"]`)
+
+    expect(node.find('.path').text()).not.toContain('src/presentation')
+    expect(node.find('title').text()).toContain(path)
+  })
+
   it('同じクラスの別メソッドが、同じラベルにならない', () => {
     const { wrapper } = setup({ granularity: 'method' })
 
