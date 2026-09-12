@@ -199,13 +199,6 @@ describe('検索で絞る（UT-11 / US-07）', () => {
   it('当たらなければ 0 件。欠陥として扱わない（N-1）', () => {
     expect(filter('どこにも無い文字列')).toHaveLength(0)
   })
-
-  it('粒度に関わらず、メソッドも対象になる（ADR-003）', () => {
-    // 一覧は粒度で中身を変えない。ファイル粒度で見ていてもメソッドに当たる
-    const method = viewModel.nodes.method.find((node) => node.name === 'execute')!
-
-    expect(filter(method.name).length).toBeGreaterThan(0)
-  })
 })
 
 describe('当たったメソッドの印（UT-11）', () => {

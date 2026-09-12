@@ -15,6 +15,15 @@ const result = loadGraphFromValue(fixture)
 if (!result.ok) throw new Error('フィクスチャが読めない')
 const viewModel = buildViewModel(result.graph)
 
+/** 検索に当たるが、所属ファイルの名前・パスには当たらないメソッド */
+const methodOnlyHit = viewModel.nodes.method.find((method) => {
+  const file = viewModel.nodeById.get(method.parent)!
+  return (
+    file.kind === 'file' &&
+    !`${file.name} ${file.path}`.toLowerCase().includes(method.name.toLowerCase())
+  )
+})!
+
 beforeEach(() => setActivePinia(createPinia()))
 
 function setup() {
@@ -300,14 +309,7 @@ describe('件数（UT-11）', () => {
 })
 
 describe('一致したメソッドの見せ方（UT-11）', () => {
-  /** 検索に当たるメソッドを持ち、ファイル名自体は当たらないもの */
-  const methodOnly = viewModel.nodes.method.find((method) => {
-    const file = viewModel.nodeById.get(method.parent)!
-    return (
-      file.kind === 'file' &&
-      !`${file.name} ${file.path}`.toLowerCase().includes(method.name.toLowerCase())
-    )
-  })!
+  const methodOnly = methodOnlyHit
 
   it('メソッドが当たったファイルは、開いた状態で出る', async () => {
     // 閉じたまま出しても、なぜその行が残っているのか読めない
@@ -460,5 +462,28 @@ describe('検索と並べ替えの計算（UT-11）', () => {
     } finally {
       spy.mockRestore()
     }
+  })
+})
+
+describe('粒度と検索（ADR-003）', () => {
+  it('粒度を切り替えても、同じ検索語で同じ行が出る', async () => {
+    /*
+     * 「現在の表示粒度に関わらず、検索対象は全ノード」。一覧が粒度で中身を
+     * 変えない（UT-12 の決定）ことと合わせて、ここが崩れるとメソッドへ
+     * 辿り着く道が粒度によって消える
+     */
+    const { state, wrapper } = setup()
+    const search = wrapper.find('input[type="search"]')
+
+    state.setGranularity('file')
+    await search.setValue(methodOnlyHit.name)
+    const inFile = wrapper.findAll('[data-node-id]').map((row) => row.attributes('data-node-id')!)
+
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+    const inMethod = wrapper.findAll('[data-node-id]').map((row) => row.attributes('data-node-id')!)
+
+    expect(inFile.some((id) => id.startsWith('method:'))).toBe(true)
+    expect(inMethod).toEqual(inFile)
   })
 })
