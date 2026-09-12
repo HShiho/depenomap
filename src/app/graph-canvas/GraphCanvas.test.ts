@@ -758,6 +758,7 @@ describe('移動したときの視点（UT-14）', () => {
   })
 
   it('図が組み替わらない移動では、拡大率を保ってそのノードへ寄せる', async () => {
+    // この経路は、選択だけを動かす側（UT-15 の戻る・進む）から通る
     const { state, wrapper } = setup()
     // 絞り込みを解いた状態にしてから、別のノードを選ぶ
     state.select(viewModel.nodes.file[3]!.id)
