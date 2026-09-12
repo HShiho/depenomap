@@ -26,6 +26,7 @@ import { computed, ref, watch } from 'vue'
 
 import { useViewState } from '../shell/view-state'
 import FileRow from './FileRow.vue'
+import MatchBadge from './MatchBadge.vue'
 import MethodRow from './MethodRow.vue'
 import { buildSidebarList, filterSidebarList, type SidebarSort } from './sidebar-list'
 
@@ -183,6 +184,7 @@ function toggle(id: string): void {
         @select="state.select(file.node.id)"
       >
         <template #badges>
+          <MatchBadge v-if="file.match === 'path'" />
           <slot name="file-badges" :node="file.node" />
         </template>
       </FileRow>
@@ -197,6 +199,7 @@ function toggle(id: string): void {
           @select="state.select(method.node.id)"
         >
           <template #badges>
+            <MatchBadge v-if="method.match === 'path'" />
             <slot name="method-badges" :node="method.node" />
           </template>
         </MethodRow>

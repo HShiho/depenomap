@@ -387,3 +387,43 @@ describe('当たらなかったとき（N-1）', () => {
     expect(wrapper.text()).not.toContain('該当なし')
   })
 })
+
+describe('残っている理由（UT-11）', () => {
+  const badgesIn = (wrapper: ReturnType<typeof setup>['wrapper'], nodeId: string) =>
+    wrapper.find(`[data-node-id="${nodeId}"]`).element.parentElement!.textContent ?? ''
+
+  it('パスにだけ当たった行には、パスの印が出る', async () => {
+    // 名前を見ても、なぜ残っているのか読めない
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue('src/infra/')
+
+    const byPath = shownFiles(wrapper).filter((id) => {
+      const node = viewModel.nodeById.get(id)!
+      return node.kind === 'file' && !node.name.toLowerCase().includes('src/infra/')
+    })
+
+    expect(byPath.length).toBeGreaterThan(0)
+    for (const id of byPath) expect(badgesIn(wrapper, id)).toContain('パス')
+  })
+
+  it('名前に当たった行には、印を付けない', async () => {
+    // 付けると「当たり方の良し悪し」に見える（N-1）
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue('Todo')
+
+    const byName = shownFiles(wrapper).filter((id) => {
+      const node = viewModel.nodeById.get(id)!
+      return node.kind === 'file' && node.name.toLowerCase().includes('todo')
+    })
+
+    expect(byName.length).toBeGreaterThan(0)
+    for (const id of byName) expect(badgesIn(wrapper, id)).not.toContain('パス')
+  })
+
+  it('絞っていないときは、印を出さない', () => {
+    // 並べ替えの選択肢にも「パス順」があるので、行の中だけを見る
+    const { wrapper } = setup()
+
+    for (const id of shownFiles(wrapper)) expect(badgesIn(wrapper, id)).not.toContain('パス')
+  })
+})
