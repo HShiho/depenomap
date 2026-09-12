@@ -12,6 +12,16 @@ const viewModel = buildViewModel(result.graph)
 
 const nodeOf = (id: string) => viewModel.nodeById.get(id)!
 
+/** 層を外した版。フィクスチャは全ノードに層が付いている */
+const withoutLayers = (() => {
+  const raw = structuredClone(fixture) as { nodes: { kind: string; layer?: string }[] }
+  for (const node of raw.nodes.filter((n) => n.kind === 'file').slice(0, 3)) delete node.layer
+
+  const loaded = loadGraphFromValue(raw)
+  if (!loaded.ok) throw new Error('層を外したフィクスチャが読めない')
+  return buildViewModel(loaded.graph)
+})()
+
 describe('層を列にする', () => {
   it('列の並びは正本 JSON の layers の並びに従う（ADR-002）', () => {
     const plan = layerColumns(viewModel)
@@ -34,14 +44,31 @@ describe('層を列にする', () => {
     }
   })
 
-  it('見出しは層の名前。層なしの列はそれと分かる', () => {
+  it('見出しは層の名前', () => {
     const plan = layerColumns(viewModel)
-    const noLayerColumn = viewModel.layerKeys.indexOf(NO_LAYER)
 
-    const first = plan.headOf(0)
-    expect(first.label).toBe(viewModel.layerOfKey(viewModel.layerKeys[0]!)?.name)
+    expect(plan.headOf(0).label).toBe(viewModel.layerOfKey(viewModel.layerKeys[0]!)?.name)
+  })
 
-    if (noLayerColumn >= 0) expect(plan.headOf(noLayerColumn).label).toBe('層なし')
+  it('層が未設定のノードは、専用の列に、まとまって並ぶ（ADR-002）', () => {
+    // フィクスチャは全ノードに層が付いているため、外した版を組んで見る
+    const plan = layerColumns(withoutLayers)
+    const stripped = withoutLayers.nodes.file.filter(
+      (node) => withoutLayers.layerOf(node.id).key === NO_LAYER,
+    )
+
+    expect(stripped.length).toBeGreaterThan(1)
+    const columns = new Set(stripped.map((node) => plan.columnOf(node)))
+    expect(columns.size).toBe(1)
+
+    // 層のあるノードと混ざらず、いちばん後ろへ回る
+    const column = [...columns][0]!
+    const others = withoutLayers.nodes.file
+      .filter((node) => withoutLayers.layerOf(node.id).key !== NO_LAYER)
+      .map((node) => plan.columnOf(node))
+    expect(Math.min(...others)).toBeLessThan(column)
+    expect(plan.headOf(column).label).toBe('層なし')
+    expect(plan.headOf(column).colour).toBe('var(--color-ink-3)')
   })
 
   it('層を引けないノードは最後尾へ寄せる', () => {
