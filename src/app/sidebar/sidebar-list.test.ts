@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { loadGraphFromValue } from '@/core/graph/loader'
 import { buildViewModel } from '@/core/ir/view-model'
-import { buildSidebarList } from './sidebar-list'
+import { buildSidebarList, filterSidebarList } from './sidebar-list'
 
 import fixture from '../../../test-data/dependency-graph.complex.json'
 
@@ -125,5 +125,85 @@ describe('一覧の組み立て（UT-12）', () => {
     const counts = buildSidebarList(viewModel, 'fan-in').map((file) => file.fanIn)
 
     expect(new Set(counts).size).toBeLessThan(counts.length)
+  })
+})
+
+describe('検索で絞る（UT-11 / US-07）', () => {
+  const all = buildSidebarList(viewModel, 'path')
+  const filter = (query: string) => filterSidebarList(all, viewModel, query)
+
+  it('空の検索語は絞り込まない', () => {
+    // 検索欄が空なのは、まだ探していないのであって 0 件ではない
+    expect(filter('')).toBe(all)
+    expect(filter('   ')).toBe(all)
+  })
+
+  it('部分一致で残る。残る理由は自身か、中のメソッド（ADR-003）', () => {
+    const kept = filter('Todo')
+
+    expect(kept.length).toBeGreaterThan(0)
+    expect(kept.length).toBeLessThan(all.length)
+    for (const file of kept) {
+      const self = `${file.node.name} ${file.node.path}`.toLowerCase()
+      const viaMethod = file.methods.some((method) =>
+        method.node.name.toLowerCase().includes('todo'),
+      )
+      expect(self.includes('todo') || viaMethod).toBe(true)
+    }
+  })
+
+  it('大文字小文字を区別しない（ADR-003）', () => {
+    expect(filter('todo').map((f) => f.node.id)).toEqual(filter('TODO').map((f) => f.node.id))
+  })
+
+  it('ディレクトリ名でも絞れる（同じ入力欄で）', () => {
+    const kept = filter('src/domain/')
+
+    expect(kept.length).toBeGreaterThan(0)
+    for (const file of kept) expect(file.node.path).toContain('src/domain/')
+  })
+
+  it('メソッド名で当たると、そのファイルが当たったメソッドだけ連れて残る', () => {
+    const method = viewModel.nodes.method.find((node) => node.name === 'execute')!
+    const kept = filter(method.name)
+
+    const owner = kept.find((file) => file.node.id === method.parent)!
+    expect(owner).toBeDefined()
+    expect(owner.match).toBeUndefined()
+    for (const shown of owner.methods) expect(shown.node.name.toLowerCase()).toContain('execute')
+  })
+
+  it('ファイル自身が当たったときは、中のメソッドを落とさない', () => {
+    // そのファイルを探し当てたのだから、開けば中身が見えてほしい
+    const target = all.find(
+      (file) =>
+        file.methods.length > 0 &&
+        !file.methods.some((m) => m.node.name.includes(file.node.name.replace('.ts', ''))),
+    )!
+    const kept = filter(target.node.name)
+    const found = kept.find((file) => file.node.id === target.node.id)!
+
+    expect(found.match).toBe('name')
+    expect(found.methods).toHaveLength(target.methods.length)
+  })
+
+  it('パスにだけ当たった行は、そうと分かる', () => {
+    // 名前を見ても、なぜ残っているのか読めない
+    const kept = filter('src/infra/')
+    const byPath = kept.filter((file) => file.match === 'path')
+
+    expect(byPath.length).toBeGreaterThan(0)
+    for (const file of byPath) expect(file.node.name.toLowerCase()).not.toContain('src/infra/')
+  })
+
+  it('当たらなければ 0 件。欠陥として扱わない（N-1）', () => {
+    expect(filter('どこにも無い文字列')).toHaveLength(0)
+  })
+
+  it('粒度に関わらず、メソッドも対象になる（ADR-003）', () => {
+    // 一覧は粒度で中身を変えない。ファイル粒度で見ていてもメソッドに当たる
+    const method = viewModel.nodes.method.find((node) => node.name === 'execute')!
+
+    expect(filter(method.name).length).toBeGreaterThan(0)
   })
 })

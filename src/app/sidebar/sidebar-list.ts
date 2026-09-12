@@ -15,17 +15,28 @@
  */
 
 import type { FileNode, MethodNode } from '@/core/graph/schema'
+import { matches, normalize } from '@/core/ir/search'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
 import { layerColours } from '../shell/layer-colour'
 
 /** 並べ替えの軸（US-10）。参照仕様の選択肢はこの 2 つだけ */
 export type SidebarSort = 'path' | 'fan-in'
 
+/**
+ * 検索語がどこに当たったか（UT-11）。
+ *
+ * 名前に当たっていない行は、名前を見ても**なぜ残っているのか分からない**。
+ * 優劣を付けるためではなく、残っている理由を示すために持つ（N-1）。
+ */
+export type SidebarMatch = 'name' | 'path'
+
 /** 一覧の 1 行ぶん。ファイルにもメソッドにも同じ形を使う */
 export interface SidebarEntry<T extends FileNode | MethodNode> {
   node: T
   /** 被依存数。**UT-02 の算出結果をそのまま持つ**（ここで数え直さない） */
   fanIn: number
+  /** 検索語に当たった場所。絞り込んでいないときは undefined */
+  match?: SidebarMatch
 }
 
 export interface SidebarFile extends SidebarEntry<FileNode> {
@@ -94,4 +105,46 @@ function sortMethods(
   return order.axis === 'path'
     ? methods.sort((a, b) => a.node.loc.line - b.node.loc.line)
     : methods.sort((a, b) => order.rank(a.node.id) - order.rank(b.node.id))
+}
+
+/**
+ * 検索語で一覧を絞る（UT-11 / US-07）。
+ *
+ * **絞り込みであって判定ではない**。一致しなかったノードを欠陥として扱わない
+ * （N-1）。空の検索語は「絞り込まない」— 検索欄が空の状態は、まだ探していない
+ * のであって 0 件ではない。
+ *
+ * ファイル行は**自身が一致したとき**と**中のメソッドが一致したとき**に残る。
+ * 自身が一致したときは中のメソッドをすべて残す（そのファイルを探し当てたの
+ * だから、開けば中身が見えてほしい）。メソッドだけが一致したときは、当たった
+ * ものだけを並べる。
+ *
+ * 照合は IR の検索キー（ADR-003）に委ねる。**ここで対象や一致方式を書き直さ
+ * ない** — 対象が散ると、同じ入力で違う結果が出る場所ができる。
+ */
+export function filterSidebarList(
+  list: readonly SidebarFile[],
+  viewModel: ViewModel,
+  query: string,
+): readonly SidebarFile[] {
+  if (normalize(query).trim() === '') return list
+
+  const kept: SidebarFile[] = []
+  for (const file of list) {
+    const fileMatch = matchOf(viewModel, file.node.id, query)
+    const methods = file.methods
+      .map((method) => ({ ...method, match: matchOf(viewModel, method.node.id, query) }))
+      .filter((method) => method.match !== undefined)
+
+    if (fileMatch !== undefined) kept.push({ ...file, match: fileMatch })
+    else if (methods.length > 0) kept.push({ ...file, methods })
+  }
+  return kept
+}
+
+/** 当たった場所。名前に無ければパス側（ADR-003 の対象は名前とパス） */
+function matchOf(viewModel: ViewModel, nodeId: string, query: string): SidebarMatch | undefined {
+  const key = viewModel.searchKeyOf(nodeId)
+  if (key === undefined || !matches(key, query)) return undefined
+  return normalize(key.name).includes(normalize(query).trim()) ? 'name' : 'path'
 }
