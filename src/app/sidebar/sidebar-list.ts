@@ -9,7 +9,7 @@
  */
 
 import type { FileNode, MethodNode } from '@/core/graph/schema'
-import type { ViewModel } from '@/core/ir/view-model'
+import type { Granularity, ViewModel } from '@/core/ir/view-model'
 
 /** 並べ替えの軸（US-10）。参照仕様の選択肢はこの 2 つだけ */
 export type SidebarSort = 'path' | 'fan-in'
@@ -31,10 +31,12 @@ export interface SidebarFile extends SidebarEntry<FileNode> {
  * **並べ替えは一覧全体に効く**。ファイル行を被依存数で並べたのに、開いた中の
  * メソッドがソース順のままだと、同じ一覧の中で 2 つの規則が混ざる。
  *
- * 同数のときの並びは固定する（パスと行番号）。揺れると、並べ替えを往復する
- * たびに行が入れ替わり、読み手が位置を見失う。
+ * 被依存数の降順は **IR の `nodesByFanInDesc` の並びをそのまま使う**。同数の
+ * ときの規則（正本 JSON の並びを保つ）は誰が書いても同じ答えになるもので、
+ * 消費側が各々書くと同数ノードの並びがばらつく、と UT-02 が決めている。
  */
 export function buildSidebarList(viewModel: ViewModel, sort: SidebarSort): readonly SidebarFile[] {
+  const methodRank = rankOf(viewModel, 'method')
   const files = viewModel.nodes.file.map((file) => ({
     node: file,
     fanIn: viewModel.fanInOf(file.id, 'file'),
@@ -44,19 +46,30 @@ export function buildSidebarList(viewModel: ViewModel, sort: SidebarSort): reado
         fanIn: viewModel.fanInOf(method.id, 'method'),
       })),
       sort,
+      methodRank,
     ),
   }))
 
-  return sort === 'path'
-    ? files.sort((a, b) => a.node.path.localeCompare(b.node.path))
-    : files.sort((a, b) => b.fanIn - a.fanIn || a.node.path.localeCompare(b.node.path))
+  if (sort === 'path') return files.sort((a, b) => a.node.path.localeCompare(b.node.path))
+
+  const rank = rankOf(viewModel, 'file')
+  return files.sort((a, b) => rank(a.node.id) - rank(b.node.id))
+}
+
+/** IR が決めた被依存数降順の並びを、ID から引ける形にする */
+function rankOf(viewModel: ViewModel, granularity: Granularity): (nodeId: string) => number {
+  const order = new Map(
+    viewModel.nodesByFanInDesc(granularity).map((node, index) => [node.id, index]),
+  )
+  return (nodeId) => order.get(nodeId) ?? Number.MAX_SAFE_INTEGER
 }
 
 function sortMethods(
   methods: SidebarEntry<MethodNode>[],
   sort: SidebarSort,
+  rank: (nodeId: string) => number,
 ): readonly SidebarEntry<MethodNode>[] {
   return sort === 'path'
     ? methods.sort((a, b) => a.node.loc.line - b.node.loc.line)
-    : methods.sort((a, b) => b.fanIn - a.fanIn || a.node.loc.line - b.node.loc.line)
+    : methods.sort((a, b) => rank(a.node.id) - rank(b.node.id))
 }

@@ -70,21 +70,31 @@ describe('一覧の組み立て（UT-12）', () => {
     expect(counts).toEqual([...counts].sort((a, b) => b - a))
   })
 
-  it('被依存数が同じときの並びを、パスで固定する', () => {
+  it('被依存数の降順は、IR が決めた並びをそのまま使う', () => {
+    // 同数のときの規則を消費側が各々書くと、同数ノードの並びがばらつく（UT-02）
     const list = buildSidebarList(viewModel, 'fan-in')
 
-    const byCount = new Map<number, string[]>()
-    for (const file of list) {
-      const bucket = byCount.get(file.fanIn) ?? []
-      bucket.push(file.node.path)
-      byCount.set(file.fanIn, bucket)
-    }
+    expect(list.map((file) => file.node.id)).toEqual(
+      viewModel.nodesByFanInDesc('file').map((node) => node.id),
+    )
+  })
 
-    // 同数のかたまりが実際にできていないと、この検査は何も見ていない
-    const tied = [...byCount.values()].filter((paths) => paths.length > 1)
-    expect(tied.length).toBeGreaterThan(0)
+  it('開いた中のメソッドも、IR が決めた並びに従う', () => {
+    const list = buildSidebarList(viewModel, 'fan-in')
+    const withMany = list.find((file) => file.methods.length > 2)!
+    const belongs = new Set(withMany.methods.map((method) => method.node.id))
 
-    // 正本 JSON の並びはパス順ではないので、固定していなければここで崩れる
-    for (const paths of tied) expect(paths).toEqual([...paths].sort((a, b) => a.localeCompare(b)))
+    expect(withMany.methods.map((method) => method.node.id)).toEqual(
+      viewModel
+        .nodesByFanInDesc('method')
+        .filter((node) => belongs.has(node.id))
+        .map((node) => node.id),
+    )
+  })
+
+  it('同数のかたまりが実際にできている（上の検査に歯を与える）', () => {
+    const counts = buildSidebarList(viewModel, 'fan-in').map((file) => file.fanIn)
+
+    expect(new Set(counts).size).toBeLessThan(counts.length)
   })
 })
