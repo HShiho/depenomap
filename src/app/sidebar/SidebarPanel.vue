@@ -7,6 +7,10 @@
  * とは別物で、連動させない。
  *
  * 検索欄（UT-11）はこの並べ替えの上に入る。
+ *
+ * 畳む口はここ（見出しの隣）とレール（画面の左端）の 2 つある。**同じ状態を
+ * 触る**ので、どちらから閉じても同じ。閉じると面ごと見えなくなるため、開き直す
+ * 口は面の外＝レールに要る。
  */
 import { computed, ref, useId } from 'vue'
 
@@ -32,6 +36,18 @@ const fileCount = computed(() => state.viewModel?.nodes.file.length ?? 0)
   <div class="flex h-full flex-col">
     <div class="flex shrink-0 items-center border-b border-line px-12 py-9">
       <h2 class="text-overline text-ink-3 uppercase">ファイル / メソッド</h2>
+
+      <div class="grow"></div>
+
+      <button
+        type="button"
+        class="rounded-control px-6 py-3 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink"
+        aria-label="一覧を閉じる"
+        title="一覧を閉じる"
+        @click="state.sidebarOpen = false"
+      >
+        ‹
+      </button>
     </div>
 
     <div class="flex shrink-0 items-center justify-between gap-8 border-b border-line px-12 py-9">
