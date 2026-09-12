@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { edgePath } from './edge-path'
+import { edgeMidpoint, edgePath } from './edge-path'
 import { COLUMN_WIDTH, NODE_HEIGHT, NODE_WIDTH, ROW_HEIGHT } from './layout'
 
 /** `M x,y C ...` から座標だけを取り出す */
@@ -104,5 +104,47 @@ describe('依存の良し悪しを形で表さない（N-1）', () => {
     const farControl = points(far)[1]![1]
     expect(nearControl).toBe(midY)
     expect(farControl).toBeLessThan(midY)
+  })
+})
+
+describe('経路の中点', () => {
+  /** `d` の 4 点から、3 次ベジェの t を計算する */
+  function pointAt(path: string, t: number): { x: number; y: number } {
+    const [start, control1, control2, end] = points(path)
+    const u = 1 - t
+    const weights = [u ** 3, 3 * u ** 2 * t, 3 * u * t ** 2, t ** 3]
+    const coordinates = [start!, control1!, control2!, end!]
+    return {
+      x: coordinates.reduce((sum, point, index) => sum + point[0]! * weights[index]!, 0),
+      y: coordinates.reduce((sum, point, index) => sum + point[1]! * weights[index]!, 0),
+    }
+  }
+
+  const cases: [string, Parameters<typeof edgePath>][] = [
+    ['前向き', [at(0, 0), at(COLUMN_WIDTH, ROW_HEIGHT)]],
+    ['後ろ向き', [at(COLUMN_WIDTH, 0), at(0, ROW_HEIGHT * 2)]],
+    ['同じ列', [at(0, 0), at(0, ROW_HEIGHT * 3)]],
+    ['自己依存', [at(0, 0), at(0, 0), { selfLoop: true }]],
+  ]
+
+  it.each(cases)('%s の中点が、描いた曲線の上にある', (_label, args) => {
+    const path = edgePath(...args)
+    const middle = edgeMidpoint(...args)
+    const onCurve = pointAt(path, 0.5)
+
+    expect(middle.x).toBeCloseTo(onCurve.x, 6)
+    expect(middle.y).toBeCloseTo(onCurve.y, 6)
+  })
+
+  it('端点の中間ではない。大きく膨らむ線では離れる', () => {
+    const from = at(0, 0)
+    const to = at(COLUMN_WIDTH * 4, 0)
+    const middle = edgeMidpoint(from, to)
+
+    const naive = {
+      x: (from.x + NODE_WIDTH + to.x) / 2,
+      y: (from.y + to.y) / 2 + NODE_HEIGHT / 2,
+    }
+    expect(Math.abs(middle.y - naive.y)).toBeGreaterThan(1)
   })
 })

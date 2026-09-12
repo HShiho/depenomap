@@ -11,10 +11,11 @@
  */
 import { computed, ref, watch } from 'vue'
 
-import type { GraphNode } from '@/core/graph/schema'
-import { NO_LAYER, type LayerKey, type ViewModel } from '@/core/ir/view-model'
+import type { GraphEdge, GraphNode } from '@/core/graph/schema'
+import { NO_LAYER, type Granularity, type LayerKey, type ViewModel } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
-import { edgePath } from './edge-path'
+import { edgeMidpoint, edgePath } from './edge-path'
+import { subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import { centreOn, fit, transformOf, type Viewport } from './viewport'
 
@@ -22,10 +23,6 @@ const state = useViewState()
 
 /** 層カラーは 6 色を循環させる。層 ID には結び付けない（UT-04 の決定） */
 const LAYER_COLOURS = 6
-
-/** ノード内の識別子とパスは、この長さで切り詰める（参照仕様） */
-const NAME_LIMIT = 22
-const PATH_LIMIT = 24
 
 const viewport = ref<Viewport>({ x: 0, y: 0, scale: 1 })
 
@@ -35,16 +32,33 @@ const columnOfLayer = computed(() => {
   return new Map<LayerKey, number>(keys.map((key, index) => [key, index]))
 })
 
+/**
+ * 列の中の**初期の**並び。
+ *
+ * メソッド粒度では所属ファイル → ソース上の行で並べる。同じファイルの処理が
+ * 近くから始まるほうが、読み始めの手がかりになる。ただし最終的な並びは
+ * 交差削減（`layout.ts`）が決めるため、**隣接は保証しない**。
+ *
+ * 所属そのものはノードの 2 行目（所属ファイルのパス）で示す（US-02）。囲み枠で
+ * 束ねると層の列と入れ子になり、線が読めなくなる。
+ */
+function sortKeyOf(node: GraphNode): string {
+  if (node.kind === 'file') return node.path
+  const line = String(node.loc.line).padStart(6, '0')
+  return `${node.parent}#${line}`
+}
+
 const layout = computed(() => {
   const viewModel = state.viewModel
   if (!viewModel) return buildLayout({ nodes: [], edges: [], columnOf: () => 0 })
 
   return buildLayout({
-    nodes: viewModel.nodes.file,
-    edges: viewModel.edges.file,
+    nodes: viewModel.nodes[state.granularity],
+    edges: viewModel.edges[state.granularity],
     // 層が未設定のノードは末尾の列へ。層が無いこと自体は欠陥ではない（ADR-002 / N-1）
     columnOf: (node) =>
       columnOfLayer.value.get(viewModel.layerOf(node.id).key) ?? LAYER_COLOURS * 99,
+    sortKeyOf,
   })
 })
 
@@ -52,14 +66,50 @@ const positions = computed(
   () => new Map(layout.value.nodes.map((placed) => [placed.node.id, placed])),
 )
 
+/**
+ * エッジの見た目の区別（UT-07）。
+ *
+ * **依存の良し悪しではなく、依存の形を表す**（N-1）。層をまたぐかどうかで
+ * 区別しない。
+ *
+ *   - `implements`: クラスとインターフェースの対応。破線
+ *   - `via`: インターフェースを経由する呼び出し。アクセント色と中点の印
+ *   - `plain`: それ以外
+ *
+ * `via-interface` の呼び出しは**型検査器の答え（インターフェース宛）に描く**。
+ * 実装との対応は `implements` のエッジが別に持つため、図の上で両方たどれる。
+ * この「`implements` が実装を覆っている」という前提は正本 JSON の保証ではない
+ * ため、テストで固定している（覆われない実装があると、実装が図から消える）
+ * （UT-07 決定事項。論理／実の切り替えは設けない — 切り替えると、見ているあいだ
+ * もう一方が消える）。
+ */
+type EdgeVariant = 'plain' | 'implements' | 'via'
+
+function variantOf(edge: GraphEdge): EdgeVariant {
+  if (edge.kind === 'implements') return 'implements'
+  if ('resolution' in edge && edge.resolution === 'via-interface') return 'via'
+  return 'plain'
+}
+
 const edges = computed(() =>
-  (state.viewModel?.edges.file ?? []).flatMap((edge) => {
+  (state.viewModel?.edges[state.granularity] ?? []).flatMap((edge) => {
     const from = positions.value.get(edge.from)
     const to = positions.value.get(edge.to)
     // 位置が引けないエッジは描かない。参照整合性は UT-01 が保証済みで、
     // ここに来るのは絞り込み（UT-14）で片側が消えている場合だけ
     if (!from || !to) return []
-    return [{ id: edge.id, d: edgePath(from, to, { selfLoop: edge.from === edge.to }) }]
+
+    const options = { selfLoop: edge.from === edge.to }
+    const variant = variantOf(edge)
+    return [
+      {
+        id: edge.id,
+        variant,
+        d: edgePath(from, to, options),
+        // 経由の印は曲線上に置く。端点の中間だと線から離れて浮く
+        midpoint: variant === 'via' ? edgeMidpoint(from, to, options) : undefined,
+      },
+    ]
   }),
 )
 
@@ -99,19 +149,6 @@ function layerColour(key: LayerKey | undefined): string {
   return `var(--color-layer-${(index % LAYER_COLOURS) + 1})`
 }
 
-function truncateName(value: string): string {
-  return value.length > NAME_LIMIT ? `${value.slice(0, NAME_LIMIT - 1)}…` : value
-}
-
-/** パスは先頭を落とす。末尾（ファイルに近いほう）のほうが見分けに効く */
-function truncatePath(value: string): string {
-  return value.length > PATH_LIMIT ? `…${value.slice(value.length - PATH_LIMIT + 1)}` : value
-}
-
-function pathOf(node: GraphNode): string {
-  return node.kind === 'file' ? node.path : node.name
-}
-
 /**
  * 被依存数と依存数。**どちらもノード単位で数える**。
  *
@@ -123,9 +160,9 @@ function pathOf(node: GraphNode): string {
 function statsOf(node: GraphNode): string {
   const viewModel = state.viewModel
   if (!viewModel) return ''
-  const fanIn = viewModel.fanInOf(node.id, 'file')
+  const fanIn = viewModel.fanInOf(node.id, state.granularity)
   const fanOut = new Set(
-    viewModel.dependenciesOf(node.id, 'file').map((dependency) => dependency.node.id),
+    viewModel.dependenciesOf(node.id, state.granularity).map((dependency) => dependency.node.id),
   ).size
   return `↙${fanIn} ↗${fanOut}`
 }
@@ -138,15 +175,19 @@ function statsOf(node: GraphNode): string {
  * JSON では、クリックのたびにその計算を払うことになる。
  */
 const nodeVisuals = computed(() => {
-  const visuals = new Map<string, { name: string; path: string; stat: string; colour: string }>()
+  const visuals = new Map<
+    string,
+    { name: string; path: string; stat: string; colour: string; tooltip: string }
+  >()
   const viewModel = state.viewModel
   if (!viewModel) return visuals
 
   for (const placed of layout.value.nodes) {
     const node = placed.node
     visuals.set(node.id, {
-      name: truncateName(node.name),
-      path: truncatePath(pathOf(node)),
+      name: titleOf(node),
+      path: subtitleOf(node, (id) => viewModel.fileOfMethod(id)?.path),
+      tooltip: tooltipOf(node, (id) => viewModel.fileOfMethod(id)?.path),
       stat: statsOf(node),
       colour: layerColour(viewModel.layerOf(node.id).key),
     })
@@ -185,7 +226,16 @@ function focusNode(nodeId: string): void {
 defineExpose({ viewport, fitToContent, focusNode })
 
 /**
- * 最後に全体表示を合わせたグラフ。**1 つのグラフにつき 1 回だけ**合わせる。
+ * 最後に全体表示を合わせた対象。**グラフと粒度の組につき 1 回だけ**合わせる。
+ *
+ * 粒度を切り替えると図の大きさが変わる（メソッド粒度はフィクスチャで縦に
+ * 約 2.7 倍）。視点を据え置くと、切り替えた瞬間に下半分が画面の外へ出る。
+ * パンの手段が載るのは UT-16 なので、いまは戻す方法が無い。
+ *
+ * **未決**: `select()` は、選んだノードが現在の粒度に無いと粒度を切り替える
+ * （UT-05）。その経路でも全体表示が走るため、「一覧や検索から選んで、その
+ * ノードへ寄せる」（UT-11 / UT-12 / UT-14）を実装すると、寄せた視点が
+ * 全体表示に上書きされる。どちらを優先するかは、その UT で決める。
  *
  * リサイズのたびに合わせ直すと、寄せた位置（`focusNode`）やこの先のパン・
  * ズーム（UT-16）が、ウィンドウの変形やサイドバーの開閉で毎回巻き戻る。
@@ -196,7 +246,7 @@ defineExpose({ viewport, fitToContent, focusNode })
  * **登録順**が正しさの条件になる。合わせた対象そのものを覚えておけば、
  * 判定が 1 つの式で閉じる。
  */
-let lastFitted: ViewModel | undefined
+let lastFitted: { viewModel: ViewModel | undefined; granularity: Granularity } | undefined
 
 /*
  * 図が入れ替わったら全体表示に戻す。読み込み直後は「どこを見ているか」の
@@ -211,15 +261,19 @@ watch(
   () =>
     [
       state.viewModel,
+      state.granularity,
       layout.value.width,
       layout.value.height,
       view.value.width,
       view.value.height,
     ] as const,
-  ([viewModel, contentWidth, contentHeight, viewWidth, viewHeight]) => {
+  ([viewModel, granularity, contentWidth, contentHeight, viewWidth, viewHeight]) => {
     const ready = contentWidth > 0 && contentHeight > 0 && viewWidth > 0 && viewHeight > 0
-    if (!ready || viewModel === lastFitted) return
-    lastFitted = viewModel
+    if (!ready) return
+    const fitted = lastFitted
+    if (fitted && fitted.viewModel === viewModel && fitted.granularity === granularity) return
+
+    lastFitted = { viewModel, granularity }
     fitToContent()
   },
   { immediate: true },
@@ -250,6 +304,19 @@ watch(
       >
         <path d="M0,1 L10,5 L0,9 z" fill="var(--color-ink-3)" />
       </marker>
+
+      <!-- 経由の呼び出し。線と同じ色にする -->
+      <marker
+        id="arrow-via"
+        viewBox="0 0 10 10"
+        refX="9"
+        refY="5"
+        markerWidth="7"
+        markerHeight="7"
+        orient="auto-start-reverse"
+      >
+        <path d="M0,1 L10,5 L0,9 z" fill="var(--color-accent)" />
+      </marker>
     </defs>
 
     <g :transform="transformOf(viewport)">
@@ -261,18 +328,33 @@ watch(
       </g>
 
       <g class="edges">
-        <path
-          v-for="edge in edges"
-          :key="edge.id"
-          :d="edge.d"
-          class="edge"
-          marker-end="url(#arrow)"
-        />
+        <template v-for="edge in edges" :key="edge.id">
+          <path
+            :data-edge-id="edge.id"
+            :d="edge.d"
+            class="edge"
+            :class="edge.variant"
+            :marker-end="edge.variant === 'via' ? 'url(#arrow-via)' : 'url(#arrow)'"
+          />
+          <!-- 経由であることの印。インターフェース宛であることを線の上で示す -->
+          <!--
+            半径は CSS のジオメトリプロパティでトークンから取る。属性側は、
+            それに対応していないブラウザで印が消えないための控え
+          -->
+          <circle
+            v-if="edge.midpoint"
+            class="via-dot"
+            :cx="edge.midpoint.x"
+            :cy="edge.midpoint.y"
+            r="3.4"
+          />
+        </template>
       </g>
 
       <g
         v-for="placed in layout.nodes"
         :key="placed.node.id"
+        :data-node-id="placed.node.id"
         class="node"
         :class="{ selected: placed.node.id === state.selectedNodeId }"
         :style="{ '--lc': nodeVisuals.get(placed.node.id)?.colour }"
@@ -280,6 +362,13 @@ watch(
         @click.stop="onNodeClick(placed.node)"
         @contextmenu="emit('nodeContextMenu', placed.node, $event)"
       >
+        <!--
+          参照仕様に無い追加。ノードのホバー表示を所有する UT は無く、mockup の
+          `.tip` は概要シート（UT-13）にしか結ばれていない。素のツールチップは
+          遅延して出るうえ抑止できないので、ノードにスタイル付きのホバーカードを
+          載せる UT は、これを外すかそちらへ統合すること。
+        -->
+        <title>{{ nodeVisuals.get(placed.node.id)?.tooltip }}</title>
         <rect class="box" :width="NODE_WIDTH" :height="NODE_HEIGHT" rx="9" />
         <!-- 層の色帯。上下に余白を残した短い帯（参照仕様） -->
         <rect class="bar" x="1" y="9" width="3.5" :height="NODE_HEIGHT - 18" rx="2" />
@@ -313,12 +402,33 @@ watch(
   fill: var(--color-ink-3);
 }
 
-/* エッジ。種類による描き分けは UT-09 / UT-10 が足す */
+/* エッジ。循環の描き分けは UT-10 が足す */
 .edge {
   fill: none;
   stroke: var(--color-ink-3);
   stroke-width: var(--edge-stroke);
   opacity: var(--edge-opacity);
+}
+
+/* クラスとインターフェースの対応。線の形で区別し、色では区別しない（N-1） */
+.edge.implements {
+  stroke-width: var(--edge-stroke-implements);
+  stroke-dasharray: var(--edge-dash-implements);
+  opacity: var(--edge-opacity-implements);
+}
+
+/* インターフェースを経由する呼び出し */
+.edge.via {
+  stroke: var(--color-accent);
+  stroke-width: var(--edge-stroke-via);
+  opacity: var(--edge-opacity-via);
+}
+
+.via-dot {
+  fill: var(--color-surface);
+  stroke: var(--color-accent);
+  stroke-width: var(--via-dot-stroke);
+  r: var(--via-dot-radius);
 }
 
 /* ノード。塗りは層の色を混ぜ、状態は枠線だけで表す（参照仕様） */

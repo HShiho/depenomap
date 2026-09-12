@@ -5,9 +5,9 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { loadGraphFromValue } from '@/core/graph/loader'
-import { buildViewModel } from '@/core/ir/view-model'
+import { buildViewModel, type Granularity } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
-import { buildLayout } from './layout'
+import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import GraphCanvas from './GraphCanvas.vue'
 
 import fixture from '../../../test-data/dependency-graph.complex.json'
@@ -21,12 +21,16 @@ const result = loadGraphFromValue(fixture)
 if (!result.ok) throw new Error('フィクスチャが読めない')
 const viewModel = buildViewModel(result.graph)
 
-function setup(options: { withGraph?: boolean } = {}) {
+/** 検査で使うキャンバスの実寸。画面に収まるかの判定でも同じ値を使う */
+const CANVAS = { width: 1200, height: 800 }
+
+function setup(options: { withGraph?: boolean; granularity?: Granularity } = {}) {
   const state = useViewState()
   if (options.withGraph !== false) {
     state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
   }
-  state.setCanvasSize(1200, 800)
+  state.setCanvasSize(CANVAS.width, CANVAS.height)
+  if (options.granularity) state.setGranularity(options.granularity)
   return { state, wrapper: mount(GraphCanvas) }
 }
 
@@ -130,8 +134,8 @@ describe('ビューポートの口', () => {
       edges: viewModel.edges.file,
       columnOf: (node) => viewModel.layerKeys.indexOf(viewModel.layerOf(node.id).key),
     })
-    expect(layout.width * canvas.viewport.scale).toBeLessThanOrEqual(1200)
-    expect(layout.height * canvas.viewport.scale).toBeLessThanOrEqual(800)
+    expect(layout.width * canvas.viewport.scale).toBeLessThanOrEqual(CANVAS.width)
+    expect(layout.height * canvas.viewport.scale).toBeLessThanOrEqual(CANVAS.height)
     expect(canvas.viewport.scale).toBeLessThan(1)
   })
 
@@ -255,5 +259,202 @@ describe('全体表示のあとの移動', () => {
     await wrapper.vm.$nextTick()
 
     expect(canvas.viewport.x).not.toBeCloseTo(moved)
+  })
+})
+
+describe('メソッド粒度', () => {
+  it('メソッドがノード、呼び出しが矢印として出る', () => {
+    const { wrapper } = setup({ granularity: 'method' })
+
+    expect(wrapper.findAll('g.node')).toHaveLength(viewModel.nodes.method.length)
+    expect(wrapper.findAll('path.edge').length).toBeGreaterThan(0)
+  })
+
+  it('見出しは owner.name。トップレベル関数は名前だけ', () => {
+    const { wrapper } = setup({ granularity: 'method' })
+    const titles = wrapper.findAll('text.name').map((text) => text.text())
+
+    expect(titles).toContain('TodoController.post')
+    // owner を持たないメソッド（トップレベル関数）も落とさない
+    expect(titles).toContain('requireUser')
+  })
+
+  it('どのファイルに属しているかがノードから分かる（US-02）', () => {
+    const { wrapper } = setup({ granularity: 'method' })
+    const node = wrapper
+      .findAll('g.node')
+      .find((candidate) => candidate.find('text.name').text() === 'TodoController.post')!
+
+    // 2 行目は所属ファイルのパス（切り詰められていても末尾が残る）
+    expect(node.find('text.path').text()).toContain('TodoController.ts')
+  })
+
+  it('すべてのメソッドが所属ファイルを示す', () => {
+    const { wrapper } = setup({ granularity: 'method' })
+    const paths = wrapper.findAll('g.node').map((node) => node.find('text.path').text())
+
+    // 並び順は交差削減が決めるので隣接は見ない。1 つも空にならないことを見る
+    expect(paths).toHaveLength(viewModel.nodes.method.length)
+    expect(paths.every((path) => path.length > 0)).toBe(true)
+  })
+
+  it('粒度を切り替えるとノードが入れ替わる（US-03）', async () => {
+    const { state, wrapper } = setup()
+    expect(wrapper.findAll('g.node')).toHaveLength(viewModel.nodes.file.length)
+
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('g.node')).toHaveLength(viewModel.nodes.method.length)
+  })
+
+  it('切り替えてもクリックで選択できる', async () => {
+    const { state, wrapper } = setup({ granularity: 'method' })
+
+    await wrapper.find('g.node').trigger('click')
+
+    expect(state.selectedNodeId).toMatch(/^method:/)
+  })
+})
+
+describe('呼び出しの形の描き分け', () => {
+  it('クラスとインターフェースの対応を、他と違う線で描く', () => {
+    const { wrapper } = setup({ granularity: 'method' })
+    const implementsEdges = viewModel.edges.method.filter((edge) => edge.kind === 'implements')
+
+    expect(implementsEdges.length).toBeGreaterThan(0)
+    expect(wrapper.findAll('path.edge.implements')).toHaveLength(implementsEdges.length)
+  })
+
+  it('経由の呼び出しは、線と印の両方で示す', () => {
+    const { wrapper } = setup({ granularity: 'method' })
+    const viaEdges = viewModel.edges.method.filter(
+      (edge) => 'resolution' in edge && edge.resolution === 'via-interface',
+    )
+
+    expect(viaEdges.length).toBeGreaterThan(0)
+    expect(wrapper.findAll('path.edge.via')).toHaveLength(viaEdges.length)
+    expect(wrapper.findAll('circle.via-dot')).toHaveLength(viaEdges.length)
+  })
+
+  it('経由の呼び出しは、型検査器の答え（インターフェース宛）に向かう', () => {
+    const { wrapper } = setup({ granularity: 'method' })
+    const via = viewModel.edges.method.find(
+      (edge) => 'resolution' in edge && edge.resolution === 'via-interface',
+    )!
+
+    const path = wrapper
+      .findAll('path.edge')
+      .find((candidate) => candidate.attributes('data-edge-id') === via.id)!
+    const interfaceNode = wrapper
+      .findAll('g.node')
+      .find((node) => node.attributes('data-node-id') === via.to)!
+
+    // 線の終点が、インターフェース側のノードの辺に着いている。
+    // 実装ノードへ向けてしまうと、型検査器の答えが図から消える。
+    // 同じ行には別の列のノードも並ぶため、Y だけでは足りない
+    const transform = /translate\(([\d.-]+),([\d.-]+)\)/.exec(
+      interfaceNode.attributes('transform') ?? '',
+    )!
+    const points = [...(path.attributes('d') ?? '').matchAll(/(-?[\d.]+),(-?[\d.]+)/g)]
+    const end = { x: Number(points.at(-1)![1]), y: Number(points.at(-1)![2]) }
+    const node = { x: Number(transform[1]), y: Number(transform[2]) }
+
+    expect(end.y).toBeCloseTo(node.y + NODE_HEIGHT / 2, 0)
+    expect([node.x, node.x + NODE_WIDTH]).toContainEqual(end.x)
+  })
+
+  it('ファイル粒度では import を特別扱いしない', () => {
+    const { wrapper } = setup()
+
+    expect(wrapper.findAll('path.edge.implements')).toHaveLength(0)
+    expect(wrapper.findAll('circle.via-dot')).toHaveLength(0)
+  })
+})
+
+describe('粒度を切り替えたときの視点', () => {
+  it('図の大きさが変わるので、全体表示に合わせ直す', async () => {
+    const { state, wrapper } = setup()
+    const canvas = wrapper.vm as unknown as { viewport: { scale: number } }
+    const before = canvas.viewport.scale
+
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    expect(canvas.viewport.scale).not.toBe(before)
+  })
+
+  it('切り替えたあとも、いちばん下のノードが画面に入る', async () => {
+    const { state, wrapper } = setup()
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    const canvas = wrapper.vm as unknown as { viewport: { scale: number; y: number } }
+    const bottoms = wrapper.findAll('g.node').map((node) => {
+      const y = /translate\([^,]+,([\d.]+)\)/.exec(node.attributes('transform') ?? '')?.[1]
+      return Number(y ?? 0)
+    })
+
+    // ノードの上辺ではなく下辺で見る。上辺だけだと、下が切れていても通る
+    const lowest = (Math.max(...bottoms) + NODE_HEIGHT) * canvas.viewport.scale + canvas.viewport.y
+    expect(lowest).toBeLessThanOrEqual(CANVAS.height)
+  })
+})
+
+describe('見出しの切り詰め', () => {
+  it('ノードに、切り詰める前の全文を重ねる', () => {
+    const { wrapper } = setup()
+    // 2 行目に収まらない長さのパス。図の上では先頭が落ちる
+    const path = 'src/presentation/TodoListController.ts'
+    const node = wrapper.find(`[data-node-id="file:${path}"]`)
+
+    expect(node.find('.path').text()).not.toContain('src/presentation')
+    expect(node.find('title').text()).toContain(path)
+  })
+
+  it('同じクラスの別メソッドが、同じラベルにならない', () => {
+    const { wrapper } = setup({ granularity: 'method' })
+
+    const names = wrapper.findAll('text.name').map((text) => text.text())
+    expect(new Set(names).size).toBe(names.length)
+  })
+
+  it('削るのは owner 側。メソッド名は残す', () => {
+    const { wrapper } = setup({ granularity: 'method' })
+    const names = wrapper.findAll('text.name').map((text) => text.text())
+
+    const truncated = names.filter((name) => name.includes('…'))
+    expect(truncated.length).toBeGreaterThan(0)
+    // 切り詰めても末尾のメソッド名は読める
+    expect(truncated.every((name) => !name.endsWith('…'))).toBe(true)
+  })
+})
+
+describe('経由の呼び出しが依っている前提', () => {
+  it('実装は implements のエッジで必ずたどれる', () => {
+    const via = viewModel.edges.method.filter(
+      (edge) => 'resolution' in edge && edge.resolution === 'via-interface',
+    )
+    const implementsByTarget = new Map<string, Set<string>>()
+    for (const edge of viewModel.edges.method) {
+      if (edge.kind !== 'implements') continue
+      const bucket = implementsByTarget.get(edge.to) ?? new Set<string>()
+      bucket.add(edge.from)
+      implementsByTarget.set(edge.to, bucket)
+    }
+
+    /*
+     * 経由の呼び出しはインターフェース宛に描き、実装は `implements` の
+     * エッジが持つ（UT-07 決定事項）。覆われない実装があると、
+     * 「実装が失われない形で表示される」が無警告で破れる。
+     */
+    const uncovered = via.flatMap((edge) =>
+      ('implementations' in edge ? (edge.implementations ?? []) : []).filter(
+        (implementation) => !implementsByTarget.get(edge.to)?.has(implementation),
+      ),
+    )
+
+    expect(via.length).toBeGreaterThan(0)
+    expect(uncovered).toEqual([])
   })
 })
