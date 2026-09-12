@@ -23,6 +23,18 @@ function setup() {
   return { state, wrapper: mount(SidebarPanel) }
 }
 
+/** メソッドを持つ最初のファイルを開く */
+async function openFirstFileWithMethods(wrapper: ReturnType<typeof setup>['wrapper']) {
+  const target = viewModel.nodes.file.find(
+    (file) => (viewModel.methodsOfFile.get(file.id) ?? []).length > 0,
+  )!
+  wrapper
+    .find(`[data-node-id="${target.id}"]`)
+    .element.parentElement!.querySelector('[aria-expanded]')!
+    .dispatchEvent(new Event('click'))
+  await wrapper.vm.$nextTick()
+}
+
 /** 一覧に出ているファイル行を、上から順に */
 const shownFiles = (wrapper: ReturnType<typeof setup>['wrapper']) =>
   wrapper
@@ -101,16 +113,22 @@ describe('持たないもの', () => {
     }
   })
 
-  it('被依存数を数え直さない', () => {
+  it('被依存数を数え直さない。メソッド行も同じ', async () => {
     // 面が独自に数えると、図と一覧で違う数が出る
     const { wrapper } = setup()
-    const rows = wrapper.findAll('[data-node-id]')
+    // 初期は全部閉じている。開かないと、メソッド行を一度も見ないまま通る
+    await openFirstFileWithMethods(wrapper)
 
-    expect(rows.length).toBeGreaterThan(0)
+    const rows = wrapper.findAll('[data-node-id]')
+    const kinds = new Set(rows.map((row) => row.attributes('data-node-id')!.split(':')[0]))
+    expect(kinds).toEqual(new Set(['file', 'method']))
+
     for (const row of rows) {
       const id = row.attributes('data-node-id')!
       const granularity = id.startsWith('file:') ? 'file' : 'method'
-      expect(row.text()).toContain(String(viewModel.fanInOf(id, granularity)))
+      // 行のテキストには名前もパスも混ざる。数の印だけを見て、完全に一致させる
+      const badge = row.element.parentElement!.querySelector('[title^="被依存数"]')!
+      expect(badge.textContent!.trim()).toBe(String(viewModel.fanInOf(id, granularity)))
     }
   })
 
