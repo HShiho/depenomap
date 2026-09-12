@@ -2,11 +2,12 @@
 
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { loadGraphFromValue } from '@/core/graph/loader'
 import { buildViewModel, type Granularity } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
+import * as columnAxis from './column-axis'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import GraphCanvas from './GraphCanvas.vue'
 
@@ -398,6 +399,191 @@ describe('粒度を切り替えたときの視点', () => {
     // ノードの上辺ではなく下辺で見る。上辺だけだと、下が切れていても通る
     const lowest = (Math.max(...bottoms) + NODE_HEIGHT) * canvas.viewport.scale + canvas.viewport.y
     expect(lowest).toBeLessThanOrEqual(CANVAS.height)
+  })
+})
+
+describe('並べ方（US-04 / UT-08）', () => {
+  it('層にすると、列の見出しが層の名前になる', () => {
+    const { wrapper } = setup()
+    const heads = wrapper.findAll('text.head').map((text) => text.text())
+
+    const names = viewModel.layerKeys.map((key) => viewModel.layerOfKey(key)?.name ?? '層なし')
+    for (const head of heads) expect(names).toContain(head)
+  })
+
+  it('深度にすると、列の見出しが深度になる', async () => {
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    const heads = wrapper.findAll('text.head').map((text) => text.text())
+
+    expect(heads[0]).toBe('深度 0（起点）')
+    for (const head of heads.slice(1)) expect(head).toMatch(/^深度 (\d+|未定)$/)
+  })
+
+  it('深度の列は、浅いほうから順に並ぶ', async () => {
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    /*
+     * ラベルそのものを左から順に固定する。x は列番号の並び順から機械的に
+     * 振られる（layout.ts）ので、「x で並べ替えたら DOM 順と同じ」は恒真で、
+     * 番号の付け方が壊れても気付けない
+     */
+    const labels = wrapper.findAll('g.head-group').map((group) => group.find('text.head').text())
+
+    expect(labels).toEqual(['深度 0（起点）', '深度 1', '深度 2', '深度 3'])
+  })
+
+  it('深度未定のノードは、いちばん右の列へまとまる', async () => {
+    const { state, wrapper } = setup()
+    // 起点を 1 件に絞ると、たどり着けないノードが出る
+    state.columnAxis = 'depth'
+    state.select(viewModel.nodes.file[0]!.id)
+    await wrapper.vm.$nextTick()
+
+    const heads = wrapper.findAll('g.head-group').map((group) => ({
+      x: Number(/translate\(([\d.-]+),/.exec(group.attributes('transform') ?? '')?.[1] ?? 0),
+      label: group.find('text.head').text(),
+    }))
+    const rightmost = heads.reduce((a, b) => (a.x >= b.x ? a : b))
+
+    expect(rightmost.label).toBe('深度未定')
+  })
+
+  it('軸を変えてもノードは 1 つも消えない（N-2）', async () => {
+    const { state, wrapper } = setup()
+    const before = wrapper.findAll('g.node').length
+
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    // 並べる軸であって、表示範囲を絞る手段ではない
+    expect(wrapper.findAll('g.node').length).toBe(before)
+  })
+
+  it('ノードの色帯は層のまま。軸では変わらない', async () => {
+    const { state, wrapper } = setup()
+    const target = viewModel.nodes.file[1]!.id
+    const colourOf = () => wrapper.find(`[data-node-id="${target}"]`).attributes('style') ?? ''
+    const before = colourOf()
+
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    expect(colourOf()).toBe(before)
+  })
+
+  it('粒度を切り替えても、軸の設定で破綻しない', async () => {
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    expect(state.columnAxis).toBe('depth')
+    expect(wrapper.findAll('g.node').length).toBe(viewModel.nodes.method.length)
+    expect(wrapper.findAll('text.head')[0]!.text()).toBe('深度 0（起点）')
+  })
+})
+
+describe('列の割り当てを作り直す条件（UT-08）', () => {
+  it('層軸では、選択が変わっても作り直さない', async () => {
+    // 起点が選択で変わるのは深度軸の規則（ADR-001）。層軸では答えが同じなので、
+    // ここで作り直すと配置と表示物の再計算が丸ごと無駄になる
+    const spy = vi.spyOn(columnAxis, 'buildColumnPlan')
+    try {
+      const { state, wrapper } = setup()
+      await wrapper.vm.$nextTick()
+      const before = spy.mock.calls.length
+
+      state.select(viewModel.nodes.file[2]!.id)
+      await wrapper.vm.$nextTick()
+
+      expect(spy.mock.calls.length).toBe(before)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('深度軸では、選択が変わったら作り直す', async () => {
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    const spy = vi.spyOn(columnAxis, 'buildColumnPlan')
+    try {
+      const before = spy.mock.calls.length
+
+      state.select(viewModel.nodes.file[2]!.id)
+      await wrapper.vm.$nextTick()
+
+      expect(spy.mock.calls.length).toBeGreaterThan(before)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+})
+
+describe('並べ方を切り替えたときの視点（UT-08）', () => {
+  it('列の形が変わるので、全体表示に合わせ直す', async () => {
+    const { state, wrapper } = setup()
+    const canvas = wrapper.vm as unknown as { viewport: { scale: number; x: number } }
+    const before = { ...canvas.viewport }
+
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    expect({ scale: canvas.viewport.scale, x: canvas.viewport.x }).not.toEqual({
+      scale: before.scale,
+      x: before.x,
+    })
+  })
+
+  it('切り替えたあとも、いちばん下のノードが画面に入る', async () => {
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    const canvas = wrapper.vm as unknown as { viewport: { scale: number; y: number } }
+    const bottoms = wrapper.findAll('g.node').map((node) => {
+      const y = /translate\([^,]+,([\d.]+)\)/.exec(node.attributes('transform') ?? '')?.[1]
+      return Number(y ?? 0)
+    })
+
+    const lowest = (Math.max(...bottoms) + NODE_HEIGHT) * canvas.viewport.scale + canvas.viewport.y
+    expect(lowest).toBeLessThanOrEqual(CANVAS.height)
+  })
+
+  it('深度軸で選択が変わっても、全体表示に戻さない', async () => {
+    // 起点が変わるので図の形は変わるが、ここで戻すと寄せる操作を毎回上書きする
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    const canvas = wrapper.vm as unknown as { viewport: { scale: number; x: number; y: number } }
+    const before = { ...canvas.viewport }
+
+    state.select(viewModel.nodes.file[3]!.id)
+    await wrapper.vm.$nextTick()
+
+    expect({ ...canvas.viewport }).toEqual(before)
+  })
+
+  it('軸を切り替えても選択を見失わない', async () => {
+    const { state, wrapper } = setup()
+    const target = viewModel.nodes.file[2]!.id
+    state.select(target)
+    await wrapper.vm.$nextTick()
+
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    expect(state.selectedNodeId).toBe(target)
+    expect(wrapper.find(`[data-node-id="${target}"]`).classes()).toContain('selected')
   })
 })
 

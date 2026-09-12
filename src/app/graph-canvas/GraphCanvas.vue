@@ -12,8 +12,9 @@
 import { computed, ref, watch } from 'vue'
 
 import type { GraphEdge, GraphNode } from '@/core/graph/schema'
-import { NO_LAYER, type Granularity, type LayerKey, type ViewModel } from '@/core/ir/view-model'
-import { useViewState } from '../shell/view-state'
+import type { Granularity, ViewModel } from '@/core/ir/view-model'
+import { useViewState, type ColumnAxis } from '../shell/view-state'
+import { buildColumnPlan, layerColours } from './column-axis'
 import { edgeMidpoint, edgePath } from './edge-path'
 import { subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
@@ -21,16 +22,35 @@ import { centreOn, fit, transformOf, type Viewport } from './viewport'
 
 const state = useViewState()
 
-/** 層カラーは 6 色を循環させる。層 ID には結び付けない（UT-04 の決定） */
-const LAYER_COLOURS = 6
-
 const viewport = ref<Viewport>({ x: 0, y: 0, scale: 1 })
 
-/** 層のキー → 列番号。正本 JSON の並び順がそのまま列の並びになる（ADR-002） */
-const columnOfLayer = computed(() => {
-  const keys = state.viewModel?.layerKeys ?? []
-  return new Map<LayerKey, number>(keys.map((key, index) => [key, index]))
+/** 列の割り当て。軸ごとの規則は `column-axis.ts` が持つ */
+const columnPlan = computed(() => {
+  const viewModel = state.viewModel
+  if (viewModel === undefined) return undefined
+
+  const axis = state.columnAxis
+  return buildColumnPlan({
+    viewModel,
+    granularity: state.granularity,
+    axis,
+    /*
+     * 選択を読むのは**深度軸のときだけ**にする。起点が選択で変わるのは深度軸の
+     * 規則（ADR-001）であって、層軸では結果が同じになる。
+     *
+     * ここで無条件に読むと、層軸でもノードを選ぶたびに `columnPlan` が作り
+     * 直され、配置（交差削減 4 スイープ）と表示物（全ノードの依存のたどり）が
+     * 連鎖して走る。同じ答えを出すためだけの計算で、`nodeVisuals` を
+     * computed に畳んだ意味が消える。
+     */
+    selectedNodeId: axis === 'depth' ? state.selectedNodeId : undefined,
+  })
 })
+
+/** 層の色。列の軸に依らず、ノードの層で決まる */
+const layerColour = computed(() =>
+  state.viewModel === undefined ? () => 'var(--color-ink-3)' : layerColours(state.viewModel),
+)
 
 /**
  * 列の中の**初期の**並び。
@@ -55,9 +75,7 @@ const layout = computed(() => {
   return buildLayout({
     nodes: viewModel.nodes[state.granularity],
     edges: viewModel.edges[state.granularity],
-    // 層が未設定のノードは末尾の列へ。層が無いこと自体は欠陥ではない（ADR-002 / N-1）
-    columnOf: (node) =>
-      columnOfLayer.value.get(viewModel.layerOf(node.id).key) ?? LAYER_COLOURS * 99,
+    columnOf: (node) => columnPlan.value?.columnOf(node) ?? 0,
     sortKeyOf,
   })
 })
@@ -114,40 +132,35 @@ const edges = computed(() =>
 )
 
 /**
- * 列見出し。層の名前は JSON の定義から取る（ビューアは推測しない / ADR-002）。
+ * 列見出し。**中身は軸で変わる**ので、文言と色は `columnPlan.headOf` に委ねる
+ * （層なら層の名前、深度なら深度）。ここが持つのは、置いた列の数だけ見出しを
+ * 並べるところまで。
  *
- * **ノードが 1 件も無い層は列に出ない**（UT-06 決定事項）。列は「ノードの置き場」
- * であって層の一覧ではなく、空の列を残すと絞り込み（UT-14）のたびに図が横へ
+ * **ノードが 1 件も無い列は出ない**（UT-06 決定事項）。列は「ノードの置き場」
+ * であって分類の一覧ではなく、空の列を残すと絞り込み（UT-14）のたびに図が横へ
  * 間延びする。
  *
- * 代償として、**定義だけあってノードが 0 件の層は画面から見えない**。これを
- * 引き受ける先は凡例（参照仕様の `.legend`）だが、まだ実装されていない。
- * 載せるときは `layerKeys`（空の層も残る）から作る。
+ * 層軸ではこれが、**定義だけあってノードが 0 件の層は画面から見えない**ことを
+ * 意味する（層の名前は JSON の定義から取る / ADR-002）。引き受ける先は凡例
+ * （参照仕様の `.legend`）だが、まだ実装されていない。載せるときは
+ * `layerKeys`（空の層も残る）から作る。
  */
 const columnHeads = computed(() => {
   const viewModel = state.viewModel
   if (!viewModel) return []
 
-  return layout.value.columns.map((column) => {
-    const key = viewModel.layerKeys[column.column]
-    const layer = key === undefined ? undefined : viewModel.layerOfKey(key)
-    return {
-      // 層の名前は一意とは限らない（正本 JSON が保証しているのは id だけ）。
-      // 差分更新のキーには、構造上一意な列番号を使う
-      column: column.column,
-      x: column.x,
-      count: column.count,
-      label: layer?.name ?? '層なし',
-      colour: layerColour(key),
-    }
-  })
-})
+  const plan = columnPlan.value
+  if (plan === undefined) return []
 
-function layerColour(key: LayerKey | undefined): string {
-  if (key === undefined || key === NO_LAYER) return 'var(--color-ink-3)'
-  const index = columnOfLayer.value.get(key) ?? 0
-  return `var(--color-layer-${(index % LAYER_COLOURS) + 1})`
-}
+  return layout.value.columns.map((column) => ({
+    // 層の名前は一意とは限らない（正本 JSON が保証しているのは id だけ）。
+    // 差分更新のキーには、構造上一意な列番号を使う
+    column: column.column,
+    x: column.x,
+    count: column.count,
+    ...plan.headOf(column.column),
+  }))
+})
 
 /**
  * 被依存数と依存数。**どちらもノード単位で数える**。
@@ -189,7 +202,7 @@ const nodeVisuals = computed(() => {
       path: subtitleOf(node, (id) => viewModel.fileOfMethod(id)?.path),
       tooltip: tooltipOf(node, (id) => viewModel.fileOfMethod(id)?.path),
       stat: statsOf(node),
-      colour: layerColour(viewModel.layerOf(node.id).key),
+      colour: layerColour.value(viewModel.layerOf(node.id).key),
     })
   }
   return visuals
@@ -226,11 +239,17 @@ function focusNode(nodeId: string): void {
 defineExpose({ viewport, fitToContent, focusNode })
 
 /**
- * 最後に全体表示を合わせた対象。**グラフと粒度の組につき 1 回だけ**合わせる。
+ * 最後に全体表示を合わせた対象。**グラフ・粒度・並べ方の組につき 1 回だけ**
+ * 合わせる。
  *
  * 粒度を切り替えると図の大きさが変わる（メソッド粒度はフィクスチャで縦に
  * 約 2.7 倍）。視点を据え置くと、切り替えた瞬間に下半分が画面の外へ出る。
+ * 並べ方（UT-08）を切り替えたときも、列の数と各列の高さが変わる。
  * パンの手段が載るのは UT-16 なので、いまは戻す方法が無い。
+ *
+ * **深度軸で選択が変わったときは合わせ直さない。** 起点が変わるので図の形は
+ * 変わるが、ここで全体表示に戻すと、選んだノードへ寄せる操作（`focusNode`）を
+ * 常に上書きすることになる。下の未決と同じ話で、優先順位はその UT で決める。
  *
  * **未決**: `select()` は、選んだノードが現在の粒度に無いと粒度を切り替える
  * （UT-05）。その経路でも全体表示が走るため、「一覧や検索から選んで、その
@@ -246,7 +265,8 @@ defineExpose({ viewport, fitToContent, focusNode })
  * **登録順**が正しさの条件になる。合わせた対象そのものを覚えておけば、
  * 判定が 1 つの式で閉じる。
  */
-let lastFitted: { viewModel: ViewModel | undefined; granularity: Granularity } | undefined
+let lastFitted:
+  { viewModel: ViewModel | undefined; granularity: Granularity; axis: ColumnAxis } | undefined
 
 /*
  * 図が入れ替わったら全体表示に戻す。読み込み直後は「どこを見ているか」の
@@ -262,18 +282,25 @@ watch(
     [
       state.viewModel,
       state.granularity,
+      state.columnAxis,
       layout.value.width,
       layout.value.height,
       view.value.width,
       view.value.height,
     ] as const,
-  ([viewModel, granularity, contentWidth, contentHeight, viewWidth, viewHeight]) => {
+  ([viewModel, granularity, axis, contentWidth, contentHeight, viewWidth, viewHeight]) => {
     const ready = contentWidth > 0 && contentHeight > 0 && viewWidth > 0 && viewHeight > 0
     if (!ready) return
     const fitted = lastFitted
-    if (fitted && fitted.viewModel === viewModel && fitted.granularity === granularity) return
+    if (
+      fitted &&
+      fitted.viewModel === viewModel &&
+      fitted.granularity === granularity &&
+      fitted.axis === axis
+    )
+      return
 
-    lastFitted = { viewModel, granularity }
+    lastFitted = { viewModel, granularity, axis }
     fitToContent()
   },
   { immediate: true },
@@ -320,8 +347,12 @@ watch(
     </defs>
 
     <g :transform="transformOf(viewport)">
-      <!-- 列見出し。層の名前は JSON の定義（ADR-002） -->
-      <g v-for="head in columnHeads" :key="head.column" :transform="`translate(${head.x},0)`">
+      <g
+        v-for="head in columnHeads"
+        :key="head.column"
+        class="head-group"
+        :transform="`translate(${head.x},0)`"
+      >
         <rect y="30" width="3" height="14" rx="2" :fill="head.colour" />
         <text x="10" y="42" class="head">{{ head.label }}</text>
         <text x="10" y="56" class="head-count">{{ head.count }}</text>

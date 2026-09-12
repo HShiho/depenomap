@@ -7,6 +7,7 @@
  */
 import { onMounted } from 'vue'
 
+import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
 import GranularityToggle from './graph-canvas/GranularityToggle.vue'
 import GraphCanvas from './graph-canvas/GraphCanvas.vue'
 import AppShell from './shell/AppShell.vue'
@@ -34,6 +35,7 @@ onMounted(() => void loadGraphInto(state))
         class="flex items-center gap-9 rounded-panel border border-line bg-surface px-11 py-7 shadow-float"
       >
         <GranularityToggle />
+        <ColumnAxisToggle />
       </div>
     </template>
 
