@@ -134,6 +134,14 @@ export const useViewState = defineStore('view-state', () => {
   const narrowedToSelection = ref(false)
 
   /**
+   * 直前の押下で絞り込みを解いたノード。押下の 2 段目かどうかの判断に使う。
+   *
+   * 状態ではなく**操作の連なり**を見るためのものなので、選択が動いたときと、
+   * 別の経路で絞り込みが変わったときに落とす。
+   */
+  let releasedByClick: string | undefined
+
+  /**
    * 移動の履歴（US-13）。**選択したノードの列**であり、粒度の切り替えや
    * 絞り込みの ON/OFF は積まない。それらは「移動」ではない。
    */
@@ -150,6 +158,7 @@ export const useViewState = defineStore('view-state', () => {
 
   /** 履歴を進めずに選択だけを差し替える。履歴側から戻す・進むときに使う */
   function applySelection(nodeId: string | undefined): void {
+    releasedByClick = undefined
     selectedNodeId.value = nodeId
     // 選択が無ければ絞り込みは成立しない
     if (nodeId === undefined) narrowedToSelection.value = false
@@ -186,9 +195,9 @@ export const useViewState = defineStore('view-state', () => {
    * 概要（UT-13）・履歴（UT-15）が、すべてここを通る。経路が分かれると、
    * どこから来たかで選択や絞り込みの結果が違う状態ができる。
    *
-   * **同じノードをもう一度「押した」ら、絞り込みを解く**（`toggle`）。図を広げて
-   * 全体の中の位置を見る操作が、選び直しと同じ手つきでできる（参照仕様）。
-   * 選択は残す。
+   * **同じノードを押すたびに 1 段ずつ戻る**（`toggle`）。1 回目で絞り込みを解き、
+   * 続けて押すと選択も外す。図を広げて全体の中の位置を見る操作が、選び直しと
+   * 同じ手つきでできる（参照仕様）。
    *
    * **動かすのは図の視点だけ**。一覧のスクロールは追従させない（UT-12 が「行が
    * 見える位置まで一覧を動かすのは移動で、UT-14 の経路とぶつかる」として預けてきた
@@ -201,15 +210,29 @@ export const useViewState = defineStore('view-state', () => {
   function moveTo(nodeId: string, options: { toggle?: boolean } = {}): void {
     if (options.toggle === true && selectedNodeId.value === nodeId) {
       /*
-       * 押すたびに 1 段ずつ戻る。1 回目で絞り込みを解き、**2 回目で選択も外す**。
-       *
-       * 選択を外す口が無いと、深度軸では起点が選んだノードに固定されたまま
-       * 戻れなくなる（ADR-001 の既定の起点＝被依存 0 のノード群へ帰れない）。
+       * 押すたびに 1 段ずつ戻る。1 回目で絞り込みを解き、**続けて押すと選択も
+       * 外す**。選択を外す口が無いと、深度軸では起点が選んだノードに固定された
+       * まま戻れなくなる（ADR-001 の既定の起点＝被依存 0 のノード群へ帰れない）。
        * 参照仕様は解除で選択ごと落としているが、ここは「解く」と「忘れる」を
        * 分けて、同じ手つきの 2 段にしてある。
+       *
+       * **2 段目に進むのは、直前の 1 段目がこの押下だったときだけ**。現在値だけで
+       * 分けると、Esc やチップの ✕ で解いたあとに同じノードを押した人が、絞り
+       * 直すつもりで選択ごと失う。解除の出どころを区別する。
        */
-      if (narrowedToSelection.value) narrowedToSelection.value = false
-      else clearSelection()
+      if (narrowedToSelection.value) {
+        narrowedToSelection.value = false
+        releasedByClick = nodeId
+        return
+      }
+
+      if (releasedByClick === nodeId) {
+        clearSelection()
+        return
+      }
+
+      // 別の経路で解かれていた。押した意図は「絞り直す」
+      setNarrowedToSelection(true)
       return
     }
 
@@ -228,6 +251,8 @@ export const useViewState = defineStore('view-state', () => {
    * 立てる側が開いていれば同じ状態に行き着く。
    */
   function setNarrowedToSelection(next: boolean): void {
+    // 解除の出どころが「押下」以外に変わる
+    releasedByClick = undefined
     narrowedToSelection.value = next && selectedNodeId.value !== undefined
   }
 

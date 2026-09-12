@@ -437,3 +437,49 @@ describe('移動の経路（UT-14）', () => {
     expect(state.narrowedToSelection).toBe(true)
   })
 })
+
+describe('解除の出どころ（UT-14）', () => {
+  const ready = () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    return state
+  }
+
+  it('Esc や ✕ で解いたあと同じノードを押すと、絞り直す', () => {
+    // 絞り直すつもりの押下で、選択ごと失わない
+    const state = ready()
+    const target = viewModel.nodes.file[2]!
+
+    state.moveTo(target.id, { toggle: true })
+    state.setNarrowedToSelection(false)
+    state.moveTo(target.id, { toggle: true })
+
+    expect(state.selectedNodeId).toBe(target.id)
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('押して解いたあと続けて押したときだけ、選択も外す', () => {
+    const state = ready()
+    const target = viewModel.nodes.file[2]!
+
+    state.moveTo(target.id, { toggle: true })
+    state.moveTo(target.id, { toggle: true })
+    state.moveTo(target.id, { toggle: true })
+
+    expect(state.selectedNodeId).toBeUndefined()
+  })
+
+  it('間に別のノードを挟むと、2 段目にはならない', () => {
+    const state = ready()
+    const first = viewModel.nodes.file[2]!
+    const other = viewModel.nodes.file[3]!
+
+    state.moveTo(first.id, { toggle: true })
+    state.moveTo(first.id, { toggle: true })
+    state.moveTo(other.id, { toggle: true })
+    state.moveTo(first.id, { toggle: true })
+
+    expect(state.selectedNodeId).toBe(first.id)
+    expect(state.narrowedToSelection).toBe(true)
+  })
+})
