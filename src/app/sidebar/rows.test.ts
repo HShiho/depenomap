@@ -46,6 +46,14 @@ describe('ファイル行', () => {
     expect(wrapper.text()).toContain('src/usecase')
   })
 
+  it('ルート直下のファイルは、名前を 2 回並べない', () => {
+    // スキーマはパスに区切りを要求していない。フィクスチャは全部 src/ 配下で踏まない
+    const root = { ...file, name: 'vite.config.ts', path: 'vite.config.ts' }
+    const wrapper = mountFile({ node: root })
+
+    expect(wrapper.text().match(/vite\.config\.ts/g)).toHaveLength(1)
+  })
+
   it('被依存数を出す。数え直さず受け取った値のまま（US-10）', () => {
     expect(mountFile({ fanIn: 7 }).text()).toContain('7')
   })

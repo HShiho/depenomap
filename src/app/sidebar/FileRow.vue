@@ -21,9 +21,15 @@ defineProps<{
 
 defineEmits<{ toggle: []; select: [] }>()
 
-/** ファイル名の後ろに出す、置き場所（末尾のファイル名を除いたパス） */
+/**
+ * ファイル名の後ろに出す、置き場所（末尾のファイル名を除いたパス）。
+ *
+ * **区切りが無いときは空にする**。`rootDir` 直下のファイル（`index.ts` など）は
+ * パスとファイル名が同じで、そのまま出すと名前を 2 回並べることになる。
+ */
 function directoryOf(path: string): string {
-  return path.replace(/\/[^/]+$/, '')
+  const cut = path.lastIndexOf('/')
+  return cut < 0 ? '' : path.slice(0, cut)
 }
 </script>
 
