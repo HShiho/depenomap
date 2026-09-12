@@ -14,7 +14,7 @@
  * 粒度のほうが合う、という規則もそこが持つ。移動や絞り込みを伴う経路は
  * UT-14 が載せるので、ここでは**選ぶところまで**にする。
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import { layerColours } from '../shell/layer-colour'
 import { useViewState } from '../shell/view-state'
@@ -64,6 +64,20 @@ const list = computed(() =>
 
 const colourOf = computed(() =>
   state.viewModel === undefined ? () => 'var(--color-ink-3)' : layerColours(state.viewModel),
+)
+
+/*
+ * 図が入れ替わったら、開閉を捨てる。
+ *
+ * ファイルの ID はパス由来なので、読み直した先に同じパスがあると開いたまま
+ * 引き継がれ、「初期表示はすべて閉じている」（US-09）が破れる。器のほうも
+ * 選択・履歴・絞り込みを同時に落としている（`applyLoadOutcome`）。
+ */
+watch(
+  () => state.viewModel,
+  () => {
+    openedByHand.value = new Set()
+  },
 )
 
 function toggle(id: string): void {

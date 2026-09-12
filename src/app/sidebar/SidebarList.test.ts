@@ -190,3 +190,20 @@ describe('選択への追従', () => {
     expect(caret.getAttribute('aria-expanded')).toBe('true')
   })
 })
+
+describe('図の入れ替え', () => {
+  it('読み直したら、開閉を引き継がない（US-09）', async () => {
+    // ファイルの ID はパス由来。同じパスがあると開いたまま引き継がれる
+    const { state, wrapper } = setup()
+    const target = viewModel.nodes.file[0]!
+
+    await openFile(wrapper, target.id)
+    state.applyLoadOutcome({ kind: 'ready', viewModel: buildViewModel(result.graph), warnings: [] })
+    await wrapper.vm.$nextTick()
+
+    const caret = wrapper
+      .find(`[data-node-id="${target.id}"]`)
+      .element.parentElement!.querySelector('[aria-expanded]')!
+    expect(caret.getAttribute('aria-expanded')).toBe('false')
+  })
+})
