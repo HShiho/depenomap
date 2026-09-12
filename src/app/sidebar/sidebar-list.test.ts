@@ -207,3 +207,48 @@ describe('検索で絞る（UT-11 / US-07）', () => {
     expect(filter(method.name).length).toBeGreaterThan(0)
   })
 })
+
+describe('当たったメソッドの印（UT-11）', () => {
+  const all = buildSidebarList(viewModel, 'path')
+
+  it('ファイル名が当たっても、中の当たったメソッドに印が残る', () => {
+    // 残さないと、メソッドの見え方が所属ファイルの名前に左右される
+    const kept = filterSidebarList(all, viewModel, 'todo')
+    const byName = kept.filter((file) => file.match === 'name')
+    const withHits = byName.filter((file) =>
+      file.methods.some((method) => method.node.name.toLowerCase().includes('todo')),
+    )
+
+    expect(withHits.length).toBeGreaterThan(0)
+    for (const file of withHits) {
+      const marked = file.methods.filter((method) => method.match !== undefined)
+      expect(marked.map((method) => method.node.name)).toEqual(
+        file.methods
+          .filter((method) => method.node.name.toLowerCase().includes('todo'))
+          .map((method) => method.node.name),
+      )
+    }
+  })
+
+  it('ファイル名が当たったときは、当たらなかったメソッドも落とさない', () => {
+    const kept = filterSidebarList(all, viewModel, 'todo')
+    const target = kept.find((file) => file.match === 'name' && file.methods.length > 1)!
+    const original = all.find((file) => file.node.id === target.node.id)!
+
+    expect(target.methods).toHaveLength(original.methods.length)
+  })
+
+  it('メソッドの印はパスでは付かない', () => {
+    /*
+     * メソッドの検索キーのパスは所属ファイルのパスそのもの。パスに当たれば
+     * ファイル行も必ず当たるので、中の行すべてで同じことを繰り返さない
+     */
+    const kept = filterSidebarList(all, viewModel, 'src/infra/')
+
+    expect(kept.length).toBeGreaterThan(0)
+    for (const file of kept) {
+      expect(file.match).toBe('path')
+      for (const method of file.methods) expect(method.match).toBeUndefined()
+    }
+  })
+})

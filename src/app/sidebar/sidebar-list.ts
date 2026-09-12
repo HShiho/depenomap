@@ -132,12 +132,14 @@ export function filterSidebarList(
   const kept: SidebarFile[] = []
   for (const file of list) {
     const fileMatch = matchOf(viewModel, file.node.id, query)
-    const methods = file.methods
-      .map((method) => ({ ...method, match: matchOf(viewModel, method.node.id, query) }))
-      .filter((method) => method.match !== undefined)
+    const marked = file.methods.map((method) => ({
+      ...method,
+      match: nameMatchOf(viewModel, method.node.id, query),
+    }))
+    const hits = marked.filter((method) => method.match !== undefined)
 
-    if (fileMatch !== undefined) kept.push({ ...file, match: fileMatch })
-    else if (methods.length > 0) kept.push({ ...file, methods })
+    if (fileMatch !== undefined) kept.push({ ...file, match: fileMatch, methods: marked })
+    else if (hits.length > 0) kept.push({ ...file, methods: hits })
   }
   return kept
 }
@@ -147,4 +149,15 @@ function matchOf(viewModel: ViewModel, nodeId: string, query: string): SidebarMa
   const key = viewModel.searchKeyOf(nodeId)
   if (key === undefined || !matches(key, query)) return undefined
   return normalize(key.name).includes(normalize(query).trim()) ? 'name' : 'path'
+}
+
+/**
+ * メソッドは**名前に当たったときだけ**印を持つ。
+ *
+ * メソッドの検索キーのパスは所属ファイルのパスそのもの（ADR-003）なので、
+ * パスに当たればファイル行も必ず当たる。メソッド側にもパスの印を出すと、
+ * ファイル行が既に示していることを中の行すべてで繰り返すことになる。
+ */
+function nameMatchOf(viewModel: ViewModel, nodeId: string, query: string): 'name' | undefined {
+  return matchOf(viewModel, nodeId, query) === 'name' ? 'name' : undefined
 }
