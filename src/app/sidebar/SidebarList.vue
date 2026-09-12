@@ -14,7 +14,7 @@
  * 粒度のほうが合う、という規則もそこが持つ。移動や絞り込みを伴う経路は
  * UT-14 が載せるので、ここでは**選ぶところまで**にする。
  */
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 
 import { layerColours } from '../shell/layer-colour'
 import { useViewState } from '../shell/view-state'
@@ -26,8 +26,37 @@ const props = defineProps<{ sort: SidebarSort }>()
 
 const state = useViewState()
 
-/** 開いているファイルの ID。**初期は空**（US-09） */
-const opened = ref<ReadonlySet<string>>(new Set())
+/** 手で開いたファイルの ID。**初期は空**（US-09） */
+const openedByHand = ref<ReadonlySet<string>>(new Set())
+
+/**
+ * 実際に開いているファイル。**手で開いたもの + 選択中のメソッドの所属**。
+ *
+ * 選択への追従を「選択が変わったら開く」という出来事で書くと、同じノードを
+ * 選び直したときに取りこぼす（`selectedNodeId` が動かないため）。手で閉じた
+ * あと同じメソッドをもう一度選ぶと、閉じたまま選択だけ進む。
+ * **状態として導く**と、その経路が無くなる。
+ */
+const opened = computed(() => {
+  const parent = selectedMethodParent.value
+  return parent === undefined ? openedByHand.value : new Set([...openedByHand.value, parent])
+})
+
+/**
+ * 選択中のノードがメソッドなら、その所属ファイル。
+ *
+ * キャンバスで選んだメソッドが閉じたファイルの中にあると、一覧には何も現れず、
+ * どこが選ばれているのかが面から読めない。
+ *
+ * **開くところまで**にする。その行が見える位置まで一覧をスクロールさせるのは
+ * 「移動」であり、UT-14 が持つ単一の移動経路とぶつかる。
+ */
+const selectedMethodParent = computed(() => {
+  const nodeId = state.selectedNodeId
+  if (nodeId === undefined) return undefined
+  const node = state.viewModel?.nodeById.get(nodeId)
+  return node?.kind === 'method' ? node.parent : undefined
+})
 
 const list = computed(() =>
   state.viewModel === undefined ? [] : buildSidebarList(state.viewModel, props.sort),
@@ -38,33 +67,11 @@ const colourOf = computed(() =>
 )
 
 function toggle(id: string): void {
-  const next = new Set(opened.value)
-  if (!next.delete(id)) next.add(id)
-  opened.value = next
+  const next = new Set(openedByHand.value)
+  // 選択で開いているファイルを閉じるときも、手の側の記録から外すだけでよい
+  if (!next.delete(id) && !opened.value.has(id)) next.add(id)
+  openedByHand.value = next
 }
-
-/*
- * 選ばれたメソッドの所属ファイルを開く。
- *
- * キャンバスで選んだメソッドが閉じたファイルの中にあると、一覧には何も現れず、
- * 「どこが選ばれているのか」が面から読めない。閉じたまま選択だけ進む状態を
- * 作らない。
- *
- * **開くところまで**にする。その行が見える位置まで一覧をスクロールさせるのは
- * 「移動」であり、UT-14 が持つ単一の移動経路とぶつかる。
- */
-watch(
-  () => state.selectedNodeId,
-  (nodeId) => {
-    if (nodeId === undefined) return
-    const node = state.viewModel?.nodeById.get(nodeId)
-    if (node?.kind !== 'method') return
-
-    const next = new Set(opened.value)
-    next.add(node.parent)
-    opened.value = next
-  },
-)
 </script>
 
 <template>
@@ -74,6 +81,7 @@ watch(
         :node="file.node"
         :fan-in="file.fanIn"
         :open="opened.has(file.node.id)"
+        :pinned="selectedMethodParent === file.node.id"
         :selected="state.selectedNodeId === file.node.id"
         :colour="colourOf(state.viewModel?.layerOf(file.node.id).key)"
         @toggle="toggle(file.node.id)"

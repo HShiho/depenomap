@@ -160,6 +160,21 @@ describe('選択への追従', () => {
     expect(caret.getAttribute('aria-expanded')).toBe('false')
   })
 
+  it('選択中のメソッドを含むファイルは、閉じる操作を受け付けないと示す', async () => {
+    // 閉じられると、選択だけ進んで一覧からは見えない状態ができる
+    const { state, wrapper } = setup()
+    const method = viewModel.nodes.method[5]!
+
+    state.select(method.id)
+    await wrapper.vm.$nextTick()
+
+    const caret = wrapper
+      .find(`[data-node-id="${method.parent}"]`)
+      .element.parentElement!.querySelector('[aria-expanded]') as HTMLButtonElement
+    expect(caret.disabled).toBe(true)
+    expect(caret.getAttribute('aria-label')).toContain('閉じられない')
+  })
+
   it('自分で開いたファイルは、選択が動いても閉じない', async () => {
     const { state, wrapper } = setup()
     const first = viewModel.nodes.file[0]!

@@ -18,6 +18,8 @@ defineProps<{
   node: FileNode
   fanIn: number
   open: boolean
+  /** 選択中のメソッドを含むため、閉じられない（`SidebarList` の不変条件） */
+  pinned?: boolean
   selected: boolean
   colour: string
 }>()
@@ -44,9 +46,17 @@ function directoryOf(path: string): string {
     -->
     <button
       type="button"
-      class="shrink-0 rounded-control px-4 py-4 text-ink-3 hover:text-ink"
+      class="shrink-0 rounded-control px-4 py-4 text-ink-3 enabled:hover:text-ink disabled:opacity-50"
       :aria-expanded="open"
-      :aria-label="open ? `${node.name} のメソッドを閉じる` : `${node.name} のメソッドを開く`"
+      :disabled="pinned"
+      :aria-label="
+        pinned
+          ? `${node.name} は選択中のメソッドを含むため閉じられない`
+          : open
+            ? `${node.name} のメソッドを閉じる`
+            : `${node.name} のメソッドを開く`
+      "
+      :title="pinned ? '選択中のメソッドを含むため閉じられません' : undefined"
       @click="$emit('toggle')"
     >
       <span class="inline-block transition-transform" :class="{ 'rotate-90': open }">›</span>
