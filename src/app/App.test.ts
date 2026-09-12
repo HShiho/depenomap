@@ -294,3 +294,19 @@ describe('絞り込みの印の名前（UT-14）', () => {
     expect(wrapper.find('.shell-overlay').text()).toContain(`${method.owner}.${method.name}`)
   })
 })
+
+describe('絞り込みの印の作り（UT-14）', () => {
+  it('切るのは名前のほう。説明文は残す', async () => {
+    // 説明文を先に落とすと、伝えたい「いま絞り込み中である」が消える
+    const { state, wrapper } = await setup()
+    const method = state.viewModel!.nodes.method.find((node) => node.owner !== null)!
+
+    state.moveTo(method.id)
+    await wrapper.vm.$nextTick()
+
+    const chip = wrapper.find('.shell-overlay')
+    const name = chip.find('b')
+    expect(name.classes()).toContain('truncate')
+    expect(chip.text()).toContain('の周辺だけを表示中')
+  })
+})
