@@ -8,6 +8,7 @@ import { loadGraphFromValue } from '@/core/graph/loader'
 import { buildViewModel, type Granularity } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
 import * as columnAxis from './column-axis'
+import * as layoutModule from './layout'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import GraphCanvas from './GraphCanvas.vue'
 
@@ -898,5 +899,37 @@ describe('深度軸から既定の起点へ戻れる（UT-14 / ADR-001）', () =
 
     expect(state.selectedNodeId).toBeUndefined()
     expect(wrapper.findAll('text.head')[0]!.text()).toBe(before)
+  })
+})
+
+describe('絞り込み中の配置（UT-14）', () => {
+  it('配置に渡す線と、描く線が同じ', async () => {
+    /*
+     * 描かない線で交差削減を回すと、列の中の並びが画面の線と対応しない。
+     * 行の並びそのものは外から見えないので、配置へ渡す集合を直接見る
+     */
+    const spy = vi.spyOn(layoutModule, 'buildLayout')
+    try {
+      const { state, wrapper } = setup()
+      const target = viewModel.nodes.file.find(
+        (node) => viewModel.dependenciesOf(node.id, 'file').length > 1,
+      )!
+
+      state.moveTo(target.id)
+      await wrapper.vm.$nextTick()
+
+      const passed = spy.mock.calls.at(-1)![0].edges
+      expect(passed.length).toBeGreaterThan(0)
+      for (const edge of passed) {
+        expect(edge.from === target.id || edge.to === target.id, edge.id).toBe(true)
+      }
+
+      const drawn = wrapper
+        .findAll('path[data-edge-id]')
+        .map((path) => path.attributes('data-edge-id')!)
+      expect(new Set(drawn)).toEqual(new Set(passed.map((edge) => edge.id)))
+    } finally {
+      spy.mockRestore()
+    }
   })
 })

@@ -93,13 +93,30 @@ const shownNodes = computed(() => {
   return kept === undefined ? nodes : nodes.filter((node) => kept.has(node.id))
 })
 
+/**
+ * 描く線。絞り込み中は**選んだノードに繋がる線だけ**。
+ *
+ * 残った 2 つが互いに依存していても、選んだノードを介さない線は「このノードの
+ * 周り」の話ではない。
+ *
+ * 配置（交差削減）にも同じ集合を渡す。描かない線で行の順を決めると、列の中の
+ * 並びが画面に出ている線と対応しなくなる。
+ */
+const shownEdges = computed(() => {
+  const edges = state.viewModel?.edges[state.granularity] ?? []
+  if (narrowed.value === undefined) return edges
+
+  const selected = state.selectedNodeId
+  return edges.filter((edge) => edge.from === selected || edge.to === selected)
+})
+
 const layout = computed(() => {
   const viewModel = state.viewModel
   if (!viewModel) return buildLayout({ nodes: [], edges: [], columnOf: () => 0 })
 
   return buildLayout({
     nodes: shownNodes.value,
-    edges: viewModel.edges[state.granularity],
+    edges: shownEdges.value,
     columnOf: (node) => columnPlan.value?.columnOf(node) ?? 0,
     sortKeyOf,
   })
@@ -135,22 +152,12 @@ function variantOf(edge: GraphEdge): EdgeVariant {
 }
 
 const edges = computed(() =>
-  (state.viewModel?.edges[state.granularity] ?? []).flatMap((edge) => {
+  shownEdges.value.flatMap((edge) => {
     const from = positions.value.get(edge.from)
     const to = positions.value.get(edge.to)
     // 位置が引けないエッジは描かない。参照整合性は UT-01 が保証済みで、
     // ここに来るのは絞り込み（UT-14）で片側が消えている場合だけ
     if (!from || !to) return []
-
-    /*
-     * 絞り込み中は、**選んだノードに繋がる線だけ**を描く。残った 2 つが
-     * 互いに依存していても、選んだノードを介さない線は「このノードの周り」
-     * の話ではない
-     */
-    const selected = state.selectedNodeId
-    if (narrowed.value !== undefined && edge.from !== selected && edge.to !== selected) {
-      return []
-    }
 
     const options = { selfLoop: edge.from === edge.to }
     const variant = variantOf(edge)
