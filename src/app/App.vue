@@ -27,8 +27,8 @@ onMounted(() => void loadGraphInto(state))
  * **選択は解かない** — Esc は「絞り込みをやめる」であって「選んでいたことを
  * 忘れる」ではない。
  *
- * 画面全体で拾う。絞り込み中はどこを触っていても解けてほしい。入力欄で押した
- * ときは検索欄の取り消しが先に効くため、そちらを妨げない。
+ * 画面全体で拾う。絞り込み中はどこを触っていても解けてほしい。**入力欄は除く** —
+ * 検索欄の Esc は検索語を消す（`SidebarPanel`）ので、そちらを妨げない。
  */
 function onKeydown(event: KeyboardEvent): void {
   if (event.key !== 'Escape' || !state.narrowedToSelection) return

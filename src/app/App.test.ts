@@ -198,12 +198,15 @@ describe('絞り込みの解き方（UT-14 の決定）', () => {
   it('入力欄で押したときは、検索欄の取り消しを妨げない', async () => {
     // window で拾うので、文書へ繋がないとイベントが届かない
     const { state, wrapper } = await setup({ attach: true })
+    await wrapper.find('input[type="search"]').setValue('Todo')
     state.moveTo(state.viewModel!.nodes.file[2]!.id)
     await wrapper.vm.$nextTick()
 
     await press(wrapper, wrapper.find('input[type="search"]').element)
 
     expect(state.narrowedToSelection).toBe(true)
+    // 検索欄側の取り消しは効く
+    expect(state.query).toBe('')
   })
 
   it('同じノードをもう一度押しても解ける', async () => {
