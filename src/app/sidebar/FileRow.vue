@@ -65,12 +65,12 @@ function directoryOf(path: string): string {
       :aria-disabled="pinned ? 'true' : undefined"
       :aria-label="
         pinned
-          ? `${node.name} は${pinnedReason} 閉じられない`
+          ? `${node.name} は${pinnedReason}閉じられない`
           : open
             ? `${node.name} のメソッドを閉じる`
             : `${node.name} のメソッドを開く`
       "
-      :title="pinned ? `${pinnedReason} 閉じられません` : undefined"
+      :title="pinned ? `${pinnedReason}閉じられません` : undefined"
       @click="pinned || $emit('toggle')"
     >
       <span class="inline-block transition-transform" :class="{ 'rotate-90': open }">›</span>

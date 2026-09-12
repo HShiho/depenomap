@@ -178,7 +178,9 @@ describe('選択への追従', () => {
     // disabled にするとフォーカスできず、理由がキーボードの利用者に届かない
     expect(caret.disabled).toBe(false)
     expect(caret.getAttribute('aria-disabled')).toBe('true')
-    expect(caret.getAttribute('aria-label')).toContain('閉じられない')
+    expect(caret.getAttribute('aria-label')).toBe(
+      `${viewModel.nodeById.get(method.parent)!.name} は選択中のメソッドを含むため閉じられない`,
+    )
 
     /*
      * 押しても何も起きない。開いたままかどうかだけ見ても、導出のほうが

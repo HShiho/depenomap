@@ -341,7 +341,9 @@ describe('一致したメソッドの見せ方（UT-11）', () => {
       .find(`[data-node-id="${methodOnly.parent}"]`)
       .element.parentElement!.querySelector('[aria-expanded]')!
     expect(caret.getAttribute('aria-disabled')).toBe('true')
-    expect(caret.getAttribute('aria-label')).toContain('検索に一致したメソッドを含むため')
+    expect(caret.getAttribute('aria-label')).toBe(
+      `${viewModel.nodeById.get(methodOnly.parent)!.name} は検索に一致したメソッドを含むため閉じられない`,
+    )
   })
 
   it('検索語を消すと、また閉じる', async () => {
