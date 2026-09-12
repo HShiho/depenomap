@@ -12,8 +12,9 @@
 import { computed, ref, watch } from 'vue'
 
 import type { GraphEdge, GraphNode } from '@/core/graph/schema'
-import { NO_LAYER, type Granularity, type LayerKey, type ViewModel } from '@/core/ir/view-model'
+import type { Granularity, ViewModel } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
+import { layerColours, layerColumns } from './column-axis'
 import { edgeMidpoint, edgePath } from './edge-path'
 import { subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
@@ -21,16 +22,17 @@ import { centreOn, fit, transformOf, type Viewport } from './viewport'
 
 const state = useViewState()
 
-/** 層カラーは 6 色を循環させる。層 ID には結び付けない（UT-04 の決定） */
-const LAYER_COLOURS = 6
-
 const viewport = ref<Viewport>({ x: 0, y: 0, scale: 1 })
 
-/** 層のキー → 列番号。正本 JSON の並び順がそのまま列の並びになる（ADR-002） */
-const columnOfLayer = computed(() => {
-  const keys = state.viewModel?.layerKeys ?? []
-  return new Map<LayerKey, number>(keys.map((key, index) => [key, index]))
-})
+/** 列の割り当て。軸ごとの規則は `column-axis.ts` が持つ */
+const columnPlan = computed(() =>
+  state.viewModel === undefined ? undefined : layerColumns(state.viewModel),
+)
+
+/** 層の色。列の軸に依らず、ノードの層で決まる */
+const layerColour = computed(() =>
+  state.viewModel === undefined ? () => 'var(--color-ink-3)' : layerColours(state.viewModel),
+)
 
 /**
  * 列の中の**初期の**並び。
@@ -55,9 +57,7 @@ const layout = computed(() => {
   return buildLayout({
     nodes: viewModel.nodes[state.granularity],
     edges: viewModel.edges[state.granularity],
-    // 層が未設定のノードは末尾の列へ。層が無いこと自体は欠陥ではない（ADR-002 / N-1）
-    columnOf: (node) =>
-      columnOfLayer.value.get(viewModel.layerOf(node.id).key) ?? LAYER_COLOURS * 99,
+    columnOf: (node) => columnPlan.value?.columnOf(node) ?? 0,
     sortKeyOf,
   })
 })
@@ -128,26 +128,18 @@ const columnHeads = computed(() => {
   const viewModel = state.viewModel
   if (!viewModel) return []
 
-  return layout.value.columns.map((column) => {
-    const key = viewModel.layerKeys[column.column]
-    const layer = key === undefined ? undefined : viewModel.layerOfKey(key)
-    return {
-      // 層の名前は一意とは限らない（正本 JSON が保証しているのは id だけ）。
-      // 差分更新のキーには、構造上一意な列番号を使う
-      column: column.column,
-      x: column.x,
-      count: column.count,
-      label: layer?.name ?? '層なし',
-      colour: layerColour(key),
-    }
-  })
-})
+  const plan = columnPlan.value
+  if (plan === undefined) return []
 
-function layerColour(key: LayerKey | undefined): string {
-  if (key === undefined || key === NO_LAYER) return 'var(--color-ink-3)'
-  const index = columnOfLayer.value.get(key) ?? 0
-  return `var(--color-layer-${(index % LAYER_COLOURS) + 1})`
-}
+  return layout.value.columns.map((column) => ({
+    // 層の名前は一意とは限らない（正本 JSON が保証しているのは id だけ）。
+    // 差分更新のキーには、構造上一意な列番号を使う
+    column: column.column,
+    x: column.x,
+    count: column.count,
+    ...plan.headOf(column.column),
+  }))
+})
 
 /**
  * 被依存数と依存数。**どちらもノード単位で数える**。
@@ -189,7 +181,7 @@ const nodeVisuals = computed(() => {
       path: subtitleOf(node, (id) => viewModel.fileOfMethod(id)?.path),
       tooltip: tooltipOf(node, (id) => viewModel.fileOfMethod(id)?.path),
       stat: statsOf(node),
-      colour: layerColour(viewModel.layerOf(node.id).key),
+      colour: layerColour.value(viewModel.layerOf(node.id).key),
     })
   }
   return visuals
