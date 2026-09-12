@@ -178,7 +178,9 @@ describe('選択への追従', () => {
     // disabled にするとフォーカスできず、理由がキーボードの利用者に届かない
     expect(caret.disabled).toBe(false)
     expect(caret.getAttribute('aria-disabled')).toBe('true')
-    expect(caret.getAttribute('aria-label')).toContain('閉じられない')
+    expect(caret.getAttribute('aria-label')).toBe(
+      `${viewModel.nodeById.get(method.parent)!.name} は選択中のメソッドを含むため閉じられない`,
+    )
 
     /*
      * 押しても何も起きない。開いたままかどうかだけ見ても、導出のほうが
@@ -303,5 +305,21 @@ describe('閉じない不変条件の置き場所', () => {
     await wrapper.vm.$nextTick()
 
     expect(caretOf(wrapper, method.parent).getAttribute('aria-expanded')).toBe('true')
+  })
+})
+
+describe('読み込めていないとき', () => {
+  it('検索語が残っていても、該当なしとは言わない', async () => {
+    // 読み込みの失敗を「そういう名前が無いだけ」と誤って伝えない
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    state.query = 'Todo'
+    const wrapper = mount(SidebarList, { props: { sort: 'path' } })
+    await wrapper.vm.$nextTick()
+
+    state.applyLoadOutcome({ kind: 'unreachable', message: '届かない' })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).not.toContain('該当なし')
   })
 })

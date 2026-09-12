@@ -11,26 +11,34 @@
  * 飛ぶ）を差し込んだ時点でボタンが入れ子になり、HTML として不正になるうえ、
  * 印を押しただけで選択も動く。
  */
+import { computed } from 'vue'
+
 import type { FileNode } from '@/core/graph/schema'
 import FanInBadge from './FanInBadge.vue'
 
-defineProps<{
+const props = defineProps<{
   node: FileNode
   fanIn: number
   open: boolean
   /**
-   * 選択中のメソッドを含むため、閉じられない（`SidebarList` の不変条件）。
+   * 閉じられない理由（`SidebarList` の不変条件）。中のメソッドが見えている
+   * ことに意味がある行は閉じない。
    *
    * `disabled` にはしない。フォーカスできなくなり、キーボードで辿る人には
    * キャレットが消えたようにしか見えず、理由に到達できない。押せないことは
    * `aria-disabled` で伝え、押しても何も起きない形にする。
    */
-  pinned?: boolean
+  pinned?: 'selected' | 'matched'
   selected: boolean
   colour: string
 }>()
 
 defineEmits<{ toggle: []; select: [] }>()
+
+/** 閉じられない理由の文言 */
+const pinnedReason = computed(() =>
+  props.pinned === 'selected' ? '選択中のメソッドを含むため' : '検索に一致したメソッドを含むため',
+)
 
 /**
  * ファイル名の後ろに出す、置き場所（末尾のファイル名を除いたパス）。
@@ -57,12 +65,12 @@ function directoryOf(path: string): string {
       :aria-disabled="pinned ? 'true' : undefined"
       :aria-label="
         pinned
-          ? `${node.name} は選択中のメソッドを含むため閉じられない`
+          ? `${node.name} は${pinnedReason}閉じられない`
           : open
             ? `${node.name} のメソッドを閉じる`
             : `${node.name} のメソッドを開く`
       "
-      :title="pinned ? '選択中のメソッドを含むため閉じられません' : undefined"
+      :title="pinned ? `${pinnedReason}閉じられません` : undefined"
       @click="pinned || $emit('toggle')"
     >
       <span class="inline-block transition-transform" :class="{ 'rotate-90': open }">›</span>

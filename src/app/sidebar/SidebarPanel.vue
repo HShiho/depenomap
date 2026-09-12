@@ -9,7 +9,7 @@
  * 行に出す印は一覧へ素通しする。UT-10 / UT-11 はこの面を使うだけで、行にも
  * 一覧にも手を入れずに印を足せる。
  *
- * 検索欄（UT-11）はこの並べ替えの上に入る。
+ * 検索欄（UT-11）は並べ替えの上。同じ入力欄でディレクトリ名も絞れる（ADR-003）。
  *
  * 畳む口はここ（見出しの隣）とレール（画面の左端）の 2 つある。**同じ状態を
  * 触る**ので、どちらから閉じても同じ。閉じると面ごと見えなくなるため、開き直す
@@ -17,6 +17,7 @@
  */
 import { computed, ref, useId } from 'vue'
 
+import { isActiveQuery } from '@/core/ir/search'
 import { useViewState } from '../shell/view-state'
 import SidebarList from './SidebarList.vue'
 import type { SidebarSort } from './sidebar-list'
@@ -32,7 +33,28 @@ const options: { value: SidebarSort; label: string }[] = [
   { value: 'fan-in', label: '被依存数（降順）' },
 ]
 
+const searchId = useId()
+
 const fileCount = computed(() => state.viewModel?.nodes.file.length ?? 0)
+
+/** 一覧に出ているファイル数。絞っていなければ全体と同じ */
+const shownCount = ref(0)
+
+/**
+ * 件数は「出ている数 / 全体」。**上限は設けない**（ADR-003 の残課題）。
+ *
+ * 入力に応じて変わる唯一の文字なので、ここが結果の変化を知らせる場所になる。
+ * 一覧そのものは入力欄から遠く、フォーカスは入力欄に留まったままなので、
+ * 読み上げでは件数を通してしか変化が分からない。
+ * 多い／少ないの良し悪しは示さない（N-1）。件数が多いときは一覧をそのまま
+ * 縦に伸ばし、面の中でスクロールさせる — 途中で打ち切ると、探しているものが
+ * 出ていないのか、隠されているのかが読み手に分からない。
+ */
+const countLabel = computed(() =>
+  !isActiveQuery(state.query)
+    ? `${fileCount.value} ファイル`
+    : `${shownCount.value} / ${fileCount.value} ファイル`,
+)
 </script>
 
 <template>
@@ -53,6 +75,18 @@ const fileCount = computed(() => state.viewModel?.nodes.file.length ?? 0)
       </button>
     </div>
 
+    <div class="shrink-0 border-b border-line px-12 py-9">
+      <label class="sr-only" :for="searchId">検索</label>
+      <input
+        :id="searchId"
+        v-model="state.query"
+        type="search"
+        class="w-full rounded-control border border-line bg-surface-2 px-9 py-6 text-ui text-ink placeholder:text-ink-3"
+        placeholder="ファイル名・メソッド名・パス"
+        autocomplete="off"
+      />
+    </div>
+
     <div class="flex shrink-0 items-center justify-between gap-8 border-b border-line px-12 py-9">
       <label class="sr-only" :for="sortId">並べ替え</label>
       <select
@@ -65,11 +99,11 @@ const fileCount = computed(() => state.viewModel?.nodes.file.length ?? 0)
         </option>
       </select>
 
-      <span class="text-caption text-ink-3">{{ fileCount }} ファイル</span>
+      <span role="status" class="text-caption text-ink-3">{{ countLabel }}</span>
     </div>
 
     <div class="min-h-0 grow overflow-y-auto">
-      <SidebarList :sort="sort">
+      <SidebarList :sort="sort" @shown="shownCount = $event">
         <template #file-badges="{ node }">
           <slot name="file-badges" :node="node" />
         </template>

@@ -15,24 +15,46 @@
  */
 
 import type { FileNode, MethodNode } from '@/core/graph/schema'
+import { isActiveQuery, matchField } from '@/core/ir/search'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
 import { layerColours } from '../shell/layer-colour'
 
 /** 並べ替えの軸（US-10）。参照仕様の選択肢はこの 2 つだけ */
 export type SidebarSort = 'path' | 'fan-in'
 
+/**
+ * 検索語がどこに当たったか（UT-11）。
+ *
+ * 名前に当たっていない行は、名前を見ても**なぜ残っているのか分からない**。
+ * 優劣を付けるためではなく、残っている理由を示すために持つ（N-1）。
+ */
+export type SidebarMatch = 'name' | 'path'
+
 /** 一覧の 1 行ぶん。ファイルにもメソッドにも同じ形を使う */
 export interface SidebarEntry<T extends FileNode | MethodNode> {
   node: T
   /** 被依存数。**UT-02 の算出結果をそのまま持つ**（ここで数え直さない） */
   fanIn: number
+  /** 検索語に当たった場所。絞り込んでいないときは undefined */
+  match?: SidebarMatch
+}
+
+/**
+ * メソッド行の印。**名前に当たったときだけ**持つ。
+ *
+ * メソッドの検索キーのパスは所属ファイルのパスそのもの（ADR-003）なので、
+ * パスに当たればファイル行も必ず当たる。型でも `path` を持てないようにして、
+ * 出す側が「出ない分岐」を書かないようにする。
+ */
+export interface SidebarMethod extends SidebarEntry<MethodNode> {
+  match?: 'name'
 }
 
 export interface SidebarFile extends SidebarEntry<FileNode> {
   /** 層の色。**ここで 1 回引く** — 行ごとにテンプレートで引くと、選択が動く
    * たびに全行ぶんの引き当てとオブジェクト生成が走る */
   colour: string
-  methods: readonly SidebarEntry<MethodNode>[]
+  methods: readonly SidebarMethod[]
 }
 
 /**
@@ -87,11 +109,66 @@ function rankOf(viewModel: ViewModel, granularity: Granularity): (nodeId: string
 /** 開いた中のメソッドの並べ方。軸と、その軸に要る土台を対で持つ */
 type MethodOrder = { axis: 'path' } | { axis: 'fan-in'; rank: (nodeId: string) => number }
 
-function sortMethods(
-  methods: SidebarEntry<MethodNode>[],
-  order: MethodOrder,
-): readonly SidebarEntry<MethodNode>[] {
+function sortMethods(methods: SidebarMethod[], order: MethodOrder): readonly SidebarMethod[] {
   return order.axis === 'path'
     ? methods.sort((a, b) => a.node.loc.line - b.node.loc.line)
     : methods.sort((a, b) => order.rank(a.node.id) - order.rank(b.node.id))
+}
+
+/**
+ * 検索語で一覧を絞る（UT-11 / US-07）。
+ *
+ * **絞り込みであって判定ではない**。一致しなかったノードを欠陥として扱わない
+ * （N-1）。空の検索語は「絞り込まない」— 検索欄が空の状態は、まだ探していない
+ * のであって 0 件ではない。
+ *
+ * ファイル行は**自身が一致したとき**と**中のメソッドが一致したとき**に残る。
+ * **どちらの場合も、並ぶメソッドは当たったものだけ**（参照仕様）。
+ *
+ * 自身が当たったファイルの中身を丸ごと残すと、自動で開いたときに、当たった行と
+ * 当たっていない行が同じ場所に並ぶ。メソッド行には当たった印が無いので見分け
+ * られず、「なぜこの行がここにあるのか」が読めない。メソッドだけが当たった
+ * ファイルは当たった行しか並べないため、同じ一覧の中で中身の意味も食い違う。
+ *
+ * 絞り込みをやめれば中身は戻る。探している最中に見えるのは、探しているものだけ。
+ *
+ * 照合は IR の検索キー（ADR-003）に委ねる。**ここで対象や一致方式を書き直さ
+ * ない** — 対象が散ると、同じ入力で違う結果が出る場所ができる。
+ */
+export function filterSidebarList(
+  list: readonly SidebarFile[],
+  viewModel: ViewModel,
+  query: string,
+): readonly SidebarFile[] {
+  if (!isActiveQuery(query)) return list
+
+  const kept: SidebarFile[] = []
+  for (const file of list) {
+    const fileMatch = matchOf(viewModel, file.node.id, query)
+    const hits = file.methods
+      .map((method) => ({ ...method, match: nameMatchOf(viewModel, method.node.id, query) }))
+      .filter((method) => method.match !== undefined)
+
+    if (fileMatch !== undefined || hits.length > 0) {
+      kept.push({ ...file, match: fileMatch, methods: hits })
+    }
+  }
+  return kept
+}
+
+/** 当たった場所。判定は IR に置く（対象と一致方式を書き直さない） */
+function matchOf(viewModel: ViewModel, nodeId: string, query: string): SidebarMatch | undefined {
+  const key = viewModel.searchKeyOf(nodeId)
+  return key === undefined ? undefined : matchField(key, query)
+}
+
+/**
+ * メソッドは**名前に当たったときだけ**印を持つ。
+ *
+ * メソッドの検索キーのパスは所属ファイルのパスそのもの（ADR-003）なので、
+ * パスに当たればファイル行も必ず当たる。メソッド側にもパスの印を出すと、
+ * ファイル行が既に示していることを中の行すべてで繰り返すことになる。
+ */
+function nameMatchOf(viewModel: ViewModel, nodeId: string, query: string): 'name' | undefined {
+  return matchOf(viewModel, nodeId, query) === 'name' ? 'name' : undefined
 }

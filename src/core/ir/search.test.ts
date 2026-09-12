@@ -5,7 +5,7 @@ import * as v from 'valibot'
 import { describe, expect, it } from 'vitest'
 
 import { DependencyGraphSchema, type DependencyGraph } from '../graph/schema'
-import { matches, normalize } from './search'
+import { buildSearchKey, isActiveQuery, matchField, matches, normalize } from './search'
 import { buildViewModel } from './view-model'
 
 const fixtureUrl = new URL('../../../test-data/dependency-graph.complex.json', import.meta.url)
@@ -173,5 +173,33 @@ describe('findByQuery', () => {
     const found = vm.findByQuery('.ts', 'file')
 
     expect(found.map((n) => n.id)).toEqual(vm.nodes.file.map((n) => n.id))
+  })
+})
+
+describe('絞り込みの成立と、当たった場所', () => {
+  const key = buildSearchKey(
+    { id: 'file:src/domain/Todo.ts', kind: 'file', name: 'Todo.ts', path: 'src/domain/Todo.ts' },
+    'src/domain/Todo.ts',
+  )
+
+  it('空・空白だけの検索語では絞り込みが成立しない', () => {
+    expect(isActiveQuery('')).toBe(false)
+    expect(isActiveQuery('   ')).toBe(false)
+    expect(isActiveQuery('a')).toBe(true)
+  })
+
+  it('成立しない検索語は、どのキーにも当たらない', () => {
+    // 片方だけ規則が変わると「絞っていないのに絞られている」が静かに起きる
+    for (const query of ['', '   ', '\t', '\n']) {
+      expect(isActiveQuery(query)).toBe(false)
+      expect(matches(key, query)).toBe(false)
+      expect(matchField(key, query)).toBeUndefined()
+    }
+  })
+
+  it('名前に当たれば name、パスにだけ当たれば path', () => {
+    expect(matchField(key, 'Todo')).toBe('name')
+    expect(matchField(key, 'domain')).toBe('path')
+    expect(matchField(key, 'どこにも無い')).toBeUndefined()
   })
 })

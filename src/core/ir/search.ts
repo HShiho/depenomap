@@ -52,6 +52,23 @@ export function buildSearchKey(node: GraphNode, pathOfFile: string): SearchKey {
   }
 }
 
+/**
+ * 検索語が絞り込みとして成立するか。
+ *
+ * **`matches` と同じ正規化を使う。** 消費側が「空かどうか」を各々書くと、
+ * 正規化の規則を変えたときに「絞っていないのに絞られている」「その逆」が
+ * 静かに起きる。
+ */
+export function isActiveQuery(query: string): boolean {
+  return normalize(query).trim() !== ''
+}
+
+/** 検索語が当たった場所。名前に無ければパス側（ADR-003 の対象は名前とパス） */
+export function matchField(key: SearchKey, query: string): 'name' | 'path' | undefined {
+  if (!matches(key, query)) return undefined
+  return normalize(key.name).includes(normalize(query).trim()) ? 'name' : 'path'
+}
+
 /** 検索キーが検索語に一致するか。部分一致・大文字小文字を区別しない */
 export function matches(key: SearchKey, query: string): boolean {
   const needle = normalize(query).trim()

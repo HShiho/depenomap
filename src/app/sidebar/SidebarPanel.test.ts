@@ -15,6 +15,15 @@ const result = loadGraphFromValue(fixture)
 if (!result.ok) throw new Error('フィクスチャが読めない')
 const viewModel = buildViewModel(result.graph)
 
+/** 検索に当たるが、所属ファイルの名前・パスには当たらないメソッド */
+const methodOnlyHit = viewModel.nodes.method.find((method) => {
+  const file = viewModel.nodeById.get(method.parent)!
+  return (
+    file.kind === 'file' &&
+    !`${file.name} ${file.path}`.toLowerCase().includes(method.name.toLowerCase())
+  )
+})!
+
 beforeEach(() => setActivePinia(createPinia()))
 
 function setup() {
@@ -199,5 +208,364 @@ describe('印の差し込み（UT-10 / UT-11 の受け皿）', () => {
     const rows = wrapper.findAll('[data-node-id]').map((el) => el.attributes('data-node-id')!)
 
     expect(marked.sort()).toEqual(rows.sort())
+  })
+})
+
+describe('検索（US-07 / UT-11）', () => {
+  const typeQuery = async (wrapper: ReturnType<typeof setup>['wrapper'], query: string) => {
+    await wrapper.find('input[type="search"]').setValue(query)
+  }
+
+  it('検索欄に名前を入れると、一覧が絞られる', async () => {
+    const { wrapper } = setup()
+    const before = shownFiles(wrapper).length
+
+    await typeQuery(wrapper, 'Todo')
+
+    const after = shownFiles(wrapper)
+    expect(after.length).toBeGreaterThan(0)
+    expect(after.length).toBeLessThan(before)
+  })
+
+  it('検索語は器が持つ（UT-05）', async () => {
+    const { state, wrapper } = setup()
+    await typeQuery(wrapper, 'Todo')
+
+    expect(state.query).toBe('Todo')
+  })
+
+  it('検索語を消すと、絞り込み前に戻る', async () => {
+    const { wrapper } = setup()
+    const before = shownFiles(wrapper)
+
+    await typeQuery(wrapper, 'Todo')
+    await typeQuery(wrapper, '')
+
+    expect(shownFiles(wrapper)).toEqual(before)
+  })
+
+  it('ディレクトリ名でも絞れる（同じ入力欄）', async () => {
+    const { wrapper } = setup()
+    await typeQuery(wrapper, 'src/domain/')
+
+    const kept = shownFiles(wrapper).map((id) => viewModel.nodeById.get(id)!)
+    expect(kept.length).toBeGreaterThan(0)
+    for (const node of kept) expect(node.kind === 'file' && node.path).toContain('src/domain/')
+  })
+
+  it('大文字小文字を区別しない', async () => {
+    const { wrapper } = setup()
+    await typeQuery(wrapper, 'todo')
+    const lower = shownFiles(wrapper)
+
+    await typeQuery(wrapper, 'TODO')
+    expect(shownFiles(wrapper)).toEqual(lower)
+  })
+
+  it('絞ったあとの行からも、そのノードを選べる', async () => {
+    // 検索結果から目的のノードへ到達できる（US-07）
+    const { state, wrapper } = setup()
+    await typeQuery(wrapper, 'Todo')
+
+    const first = shownFiles(wrapper)[0]!
+    await wrapper.find(`[data-node-id="${first}"]`).trigger('click')
+
+    expect(state.selectedNodeId).toBe(first)
+  })
+
+  it('検索に名前を与える', () => {
+    const { wrapper } = setup()
+    const id = wrapper.find('input[type="search"]').attributes('id')
+
+    expect(wrapper.find(`label[for="${id}"]`).text()).toBe('検索')
+  })
+})
+
+describe('件数（UT-11）', () => {
+  it('絞っていないときは全体の数', () => {
+    const { wrapper } = setup()
+
+    expect(wrapper.text()).toContain(`${viewModel.nodes.file.length} ファイル`)
+  })
+
+  it('絞ると「出ている数 / 全体」になる', async () => {
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue('Todo')
+
+    const shown = shownFiles(wrapper).length
+    expect(shown).toBeLessThan(viewModel.nodes.file.length)
+    expect(wrapper.text()).toContain(`${shown} / ${viewModel.nodes.file.length} ファイル`)
+  })
+
+  it('件数に上限を設けない。出ている数と一覧の行数が一致する', async () => {
+    // 途中で打ち切ると、出ていないのか隠されているのかが読み手に分からない
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue('o')
+
+    const shown = shownFiles(wrapper).length
+    expect(shown).toBeGreaterThan(10)
+    expect(wrapper.text()).toContain(`${shown} / ${viewModel.nodes.file.length} ファイル`)
+  })
+})
+
+describe('一致したメソッドの見せ方（UT-11）', () => {
+  const methodOnly = methodOnlyHit
+
+  it('メソッドが当たったファイルは、開いた状態で出る', async () => {
+    // 閉じたまま出しても、なぜその行が残っているのか読めない
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue(methodOnly.name)
+
+    expect(wrapper.find(`[data-node-id="${methodOnly.id}"]`).exists()).toBe(true)
+  })
+
+  it('当たったメソッドだけが並ぶ', async () => {
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue(methodOnly.name)
+
+    const shown = wrapper
+      .findAll('[data-node-id]')
+      .map((row) => row.attributes('data-node-id')!)
+      .filter((id) => id.startsWith('method:'))
+
+    expect(shown.length).toBeGreaterThan(0)
+    for (const id of shown) {
+      const node = viewModel.nodeById.get(id)!
+      expect(node.name.toLowerCase()).toContain(methodOnly.name.toLowerCase())
+    }
+  })
+
+  it('検索で開いた行は閉じられない。理由も出す', async () => {
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue(methodOnly.name)
+
+    const caret = wrapper
+      .find(`[data-node-id="${methodOnly.parent}"]`)
+      .element.parentElement!.querySelector('[aria-expanded]')!
+    expect(caret.getAttribute('aria-disabled')).toBe('true')
+    expect(caret.getAttribute('aria-label')).toBe(
+      `${viewModel.nodeById.get(methodOnly.parent)!.name} は検索に一致したメソッドを含むため閉じられない`,
+    )
+  })
+
+  it('検索語を消すと、また閉じる', async () => {
+    // 検索で開いたのだから、検索語を消せば閉じてほしい
+    const { wrapper } = setup()
+    const search = wrapper.find('input[type="search"]')
+
+    await search.setValue(methodOnly.name)
+    await search.setValue('')
+
+    const caret = wrapper
+      .find(`[data-node-id="${methodOnly.parent}"]`)
+      .element.parentElement!.querySelector('[aria-expanded]')!
+    expect(caret.getAttribute('aria-expanded')).toBe('false')
+  })
+})
+
+describe('当たらなかったとき（N-1）', () => {
+  it('該当なしと、何を探したかを出す', async () => {
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue('どこにも無い文字列')
+
+    expect(shownFiles(wrapper)).toHaveLength(0)
+    expect(wrapper.text()).toContain('該当なし')
+    expect(wrapper.text()).toContain('どこにも無い文字列')
+    expect(wrapper.text()).toContain(`0 / ${viewModel.nodes.file.length} ファイル`)
+  })
+
+  it('欠陥として扱わない。警告の見た目にしない', async () => {
+    // 当たらなかったのは、そういう名前が無いだけ
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue('どこにも無い文字列')
+
+    for (const word of ['エラー', '警告', '失敗', '不正']) {
+      expect(wrapper.text()).not.toContain(word)
+    }
+    expect(wrapper.html()).not.toContain('warn')
+  })
+
+  it('絞っていないときは、該当なしを出さない', () => {
+    const { wrapper } = setup()
+
+    expect(wrapper.text()).not.toContain('該当なし')
+  })
+})
+
+describe('残っている理由（UT-11）', () => {
+  const badgesIn = (wrapper: ReturnType<typeof setup>['wrapper'], nodeId: string) =>
+    wrapper.find(`[data-node-id="${nodeId}"]`).element.parentElement!.textContent ?? ''
+
+  it('パスにだけ当たった行には、パスの印が出る', async () => {
+    // 名前を見ても、なぜ残っているのか読めない
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue('src/infra/')
+
+    const byPath = shownFiles(wrapper).filter((id) => {
+      const node = viewModel.nodeById.get(id)!
+      return node.kind === 'file' && !node.name.toLowerCase().includes('src/infra/')
+    })
+
+    expect(byPath.length).toBeGreaterThan(0)
+    for (const id of byPath) expect(badgesIn(wrapper, id)).toContain('パス')
+  })
+
+  it('名前に当たった行には、印を付けない', async () => {
+    // 付けると「当たり方の良し悪し」に見える（N-1）
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue('Todo')
+
+    const byName = shownFiles(wrapper).filter((id) => {
+      const node = viewModel.nodeById.get(id)!
+      return node.kind === 'file' && node.name.toLowerCase().includes('todo')
+    })
+
+    expect(byName.length).toBeGreaterThan(0)
+    for (const id of byName) expect(badgesIn(wrapper, id)).not.toContain('パス')
+  })
+
+  it('絞っていないときは、印を出さない', () => {
+    // 並べ替えの選択肢にも「パス順」があるので、行の中だけを見る
+    const { wrapper } = setup()
+
+    for (const id of shownFiles(wrapper)) expect(badgesIn(wrapper, id)).not.toContain('パス')
+  })
+})
+
+describe('検索と並べ替えの計算（UT-11）', () => {
+  it('打鍵のたびに、一覧を並べ直さない', async () => {
+    // 行ごとの引き当てを組み立てのときに済ませてある意味が、検索のたびに消える
+    const spy = vi.spyOn(viewModel, 'fanInOf')
+    try {
+      const { wrapper } = setup()
+      const search = wrapper.find('input[type="search"]')
+      await search.setValue('T')
+      const after = spy.mock.calls.length
+
+      await search.setValue('To')
+      await search.setValue('Tod')
+      await search.setValue('Todo')
+
+      expect(spy.mock.calls.length).toBe(after)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('並べ替えを変えたときは、並べ直す', async () => {
+    const { wrapper } = setup()
+    const spy = vi.spyOn(viewModel, 'fanInOf')
+    try {
+      await wrapper.find('select').setValue('fan-in')
+
+      expect(spy.mock.calls.length).toBeGreaterThan(0)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+})
+
+describe('粒度と検索（ADR-003）', () => {
+  it('粒度を切り替えても、同じ検索語で同じ行が出る', async () => {
+    /*
+     * 「現在の表示粒度に関わらず、検索対象は全ノード」。一覧が粒度で中身を
+     * 変えない（UT-12 の決定）ことと合わせて、ここが崩れるとメソッドへ
+     * 辿り着く道が粒度によって消える
+     */
+    const { state, wrapper } = setup()
+    const search = wrapper.find('input[type="search"]')
+
+    state.setGranularity('file')
+    await search.setValue(methodOnlyHit.name)
+    const inFile = wrapper.findAll('[data-node-id]').map((row) => row.attributes('data-node-id')!)
+
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+    const inMethod = wrapper.findAll('[data-node-id]').map((row) => row.attributes('data-node-id')!)
+
+    expect(inFile.some((id) => id.startsWith('method:'))).toBe(true)
+    expect(inMethod).toEqual(inFile)
+  })
+})
+
+describe('結果の変化の知らせ方（UT-11）', () => {
+  it('件数は読み上げに流れる場所に置く', async () => {
+    /*
+     * 入力してもフォーカスは入力欄に留まる。一覧の変化そのものは読まれないので、
+     * 入力に応じて変わる件数が唯一の知らせになる
+     */
+    const { wrapper } = setup()
+    const status = wrapper.find('[role="status"]')
+
+    expect(status.exists()).toBe(true)
+    expect(status.text()).toContain('ファイル')
+
+    await wrapper.find('input[type="search"]').setValue('Todo')
+    expect(wrapper.find('[role="status"]').text()).toContain('/')
+  })
+
+  it('該当なしのときも、件数から 0 件だと分かる', async () => {
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue('どこにも無い文字列')
+
+    expect(wrapper.find('[role="status"]').text()).toBe(
+      `0 / ${viewModel.nodes.file.length} ファイル`,
+    )
+  })
+})
+
+describe('ファイル名も当たったときのメソッド（UT-11）', () => {
+  /** 自身の名前が当たり、かつ中にも当たったメソッドがあるファイル */
+  const both = (() => {
+    const query = 'todo'
+    const file = viewModel.nodes.file.find(
+      (node) =>
+        node.name.toLowerCase().includes(query) &&
+        (viewModel.methodsOfFile.get(node.id) ?? []).some((method) =>
+          method.name.toLowerCase().includes(query),
+        ),
+    )!
+    const method = viewModel.methodsOfFile
+      .get(file.id)!
+      .find((node) => node.name.toLowerCase().includes(query))!
+    return { query, file, method }
+  })()
+
+  it('ファイル名が当たっても、中の当たったメソッドが画面に出る', async () => {
+    // 印が付いていても開かなければ、利用者からは何も変わっていない
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue(both.query)
+
+    expect(wrapper.find(`[data-node-id="${both.file.id}"]`).exists()).toBe(true)
+    expect(wrapper.find(`[data-node-id="${both.method.id}"]`).exists()).toBe(true)
+  })
+
+  it('当たったメソッドが無いファイルは、閉じたまま出る', async () => {
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue(both.query)
+
+    const closed = viewModel.nodes.file.find(
+      (node) =>
+        node.name.toLowerCase().includes(both.query) &&
+        (viewModel.methodsOfFile.get(node.id) ?? []).length > 0 &&
+        !(viewModel.methodsOfFile.get(node.id) ?? []).some((method) =>
+          method.name.toLowerCase().includes(both.query),
+        ),
+    )!
+    const caret = wrapper
+      .find(`[data-node-id="${closed.id}"]`)
+      .element.parentElement!.querySelector('[aria-expanded]')!
+
+    expect(caret.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('パスだけで当たったファイルは、中を開かない', async () => {
+    // ファイル行のパスの印が理由を示している。中の行で繰り返さない
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue('src/infra/')
+
+    const shown = wrapper.findAll('[data-node-id]').map((row) => row.attributes('data-node-id')!)
+    expect(shown.length).toBeGreaterThan(0)
+    expect(shown.some((id) => id.startsWith('method:'))).toBe(false)
   })
 })
