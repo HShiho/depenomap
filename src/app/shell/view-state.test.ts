@@ -343,27 +343,39 @@ describe('移動の経路（UT-14）', () => {
     expect(state.narrowedToSelection).toBe(true)
   })
 
-  it('同じノードへもう一度移動すると、絞り込みだけ解く', () => {
+  it('図の上で同じノードをもう一度押すと、絞り込みだけ解く', () => {
     // 図を広げて全体の中の位置を見る操作が、選び直しと同じ手つきでできる
     const state = useViewState()
     state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
     const target = viewModel.nodes.file[2]!
 
-    state.moveTo(target.id)
-    state.moveTo(target.id)
+    state.moveTo(target.id, { toggle: true })
+    state.moveTo(target.id, { toggle: true })
 
     expect(state.narrowedToSelection).toBe(false)
     expect(state.selectedNodeId).toBe(target.id)
   })
 
-  it('解いたあと同じノードへ移動すると、また絞る', () => {
+  it('一覧や検索の行は、同じノードでも絞り込みを解かない', () => {
+    // 行を押す意図は「この行を選ぶ」。押しただけで図の絞り込みが解けない
     const state = useViewState()
     state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
     const target = viewModel.nodes.file[2]!
 
     state.moveTo(target.id)
     state.moveTo(target.id)
-    state.moveTo(target.id)
+
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('解いたあと同じノードを押すと、また絞る', () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const target = viewModel.nodes.file[2]!
+
+    state.moveTo(target.id, { toggle: true })
+    state.moveTo(target.id, { toggle: true })
+    state.moveTo(target.id, { toggle: true })
 
     expect(state.narrowedToSelection).toBe(true)
   })
@@ -389,7 +401,7 @@ describe('移動の経路（UT-14）', () => {
 
     state.moveTo(first.id)
     state.moveTo(second.id)
-    state.moveTo(second.id)
+    state.moveTo(second.id, { toggle: true })
 
     // 絞り込みの解除は「移動」ではないので積まない
     expect(state.history.map((entry) => entry.nodeId)).toEqual([first.id, second.id])

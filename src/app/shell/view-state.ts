@@ -186,11 +186,16 @@ export const useViewState = defineStore('view-state', () => {
    * 概要（UT-13）・履歴（UT-15）が、すべてここを通る。経路が分かれると、
    * どこから来たかで選択や絞り込みの結果が違う状態ができる。
    *
-   * **同じノードをもう一度指したら、絞り込みを解く**。図を広げて全体の中の
-   * 位置を見る操作が、選び直しと同じ手つきでできる（参照仕様）。選択は残す。
+   * **同じノードをもう一度「押した」ら、絞り込みを解く**（`toggle`）。図を広げて
+   * 全体の中の位置を見る操作が、選び直しと同じ手つきでできる（参照仕様）。
+   * 選択は残す。
+   *
+   * これは**図の上で同じノードをもう一度押したとき**の話で、一覧や検索の行には
+   * 効かせない。行を押す意図は「この行を選ぶ」であって、選択中の行をもう一度
+   * 押しただけで図の絞り込みが黙って解けると、意図と結果が対応しない。
    */
-  function moveTo(nodeId: string): void {
-    if (selectedNodeId.value === nodeId && narrowedToSelection.value) {
+  function moveTo(nodeId: string, options: { toggle?: boolean } = {}): void {
+    if (options.toggle === true && selectedNodeId.value === nodeId && narrowedToSelection.value) {
       narrowedToSelection.value = false
       return
     }

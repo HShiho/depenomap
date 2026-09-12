@@ -257,7 +257,8 @@ const emit = defineEmits<{
  * 立たない、という食い違いができる。
  */
 function onNodeClick(node: GraphNode): void {
-  state.moveTo(node.id)
+  // 図の上で同じノードをもう一度押したときだけ、絞り込みを解く
+  state.moveTo(node.id, { toggle: true })
 }
 
 /**
