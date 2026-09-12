@@ -568,8 +568,11 @@ describe('並べ方を切り替えたときの視点（UT-08）', () => {
     expect(lowest).toBeLessThanOrEqual(CANVAS.height)
   })
 
-  it('深度軸で選択が変わっても、全体表示に戻さない', async () => {
-    // 起点が変わるので図の形は変わるが、ここで戻すと寄せる操作を毎回上書きする
+  it('深度軸で選択が変わっても、全体表示に戻さない（寄せはする）', async () => {
+    /*
+     * 起点が変わるので図の形は変わるが、ここで全体表示に戻すと寄せる操作を毎回
+     * 上書きする。拡大率は据え置いたまま、そのノードへ寄る（UT-14 の決定）
+     */
     const { state, wrapper } = setup()
     state.columnAxis = 'depth'
     await wrapper.vm.$nextTick()
@@ -580,7 +583,7 @@ describe('並べ方を切り替えたときの視点（UT-08）', () => {
     state.select(viewModel.nodes.file[3]!.id)
     await wrapper.vm.$nextTick()
 
-    expect({ ...canvas.viewport }).toEqual(before)
+    expect(canvas.viewport.scale).toBe(before.scale)
   })
 
   it('軸を切り替えても選択を見失わない', async () => {
@@ -735,5 +738,55 @@ describe('選択による絞り込み（US-12 / UT-14）', () => {
     await wrapper.vm.$nextTick()
 
     expect(shown(wrapper)).toHaveLength(viewModel.nodes.file.length)
+  })
+})
+
+describe('移動したときの視点（UT-14）', () => {
+  const viewportOf = (wrapper: ReturnType<typeof setup>['wrapper']) =>
+    (wrapper.vm as unknown as { viewport: { scale: number; x: number; y: number } }).viewport
+
+  it('絞り込みが立つと図が組み替わるので、全体表示に合わせ直す', async () => {
+    // 残ったぶんを画面へ収め直すほうが先に要る（US-12）
+    const { state, wrapper } = setup()
+    const before = { ...viewportOf(wrapper) }
+
+    state.moveTo(viewModel.nodes.file[3]!.id)
+    await wrapper.vm.$nextTick()
+
+    expect(viewportOf(wrapper).scale).not.toBe(before.scale)
+  })
+
+  it('図が組み替わらない移動では、拡大率を保ってそのノードへ寄せる', async () => {
+    const { state, wrapper } = setup()
+    // 絞り込みを解いた状態にしてから、別のノードを選ぶ
+    state.select(viewModel.nodes.file[3]!.id)
+    await wrapper.vm.$nextTick()
+    const before = { ...viewportOf(wrapper) }
+
+    state.select(viewModel.nodes.file[7]!.id)
+    await wrapper.vm.$nextTick()
+
+    const after = viewportOf(wrapper)
+    expect(after.scale).toBe(before.scale)
+    expect({ x: after.x, y: after.y }).not.toEqual({ x: before.x, y: before.y })
+  })
+
+  it('寄せた先が画面の中に入る', async () => {
+    const { state, wrapper } = setup()
+    const target = viewModel.nodes.file[7]!
+
+    state.select(target.id)
+    await wrapper.vm.$nextTick()
+
+    const node = wrapper.find(`svg [data-node-id="${target.id}"]`)
+    const transform = /translate\(([\d.-]+),([\d.-]+)\)/.exec(node.attributes('transform') ?? '')!
+    const view = viewportOf(wrapper)
+    const screenX = Number(transform[1]) * view.scale + view.x
+    const screenY = Number(transform[2]) * view.scale + view.y
+
+    expect(screenX).toBeGreaterThanOrEqual(0)
+    expect(screenX).toBeLessThanOrEqual(CANVAS.width)
+    expect(screenY).toBeGreaterThanOrEqual(0)
+    expect(screenY).toBeLessThanOrEqual(CANVAS.height)
   })
 })

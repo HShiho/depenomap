@@ -296,13 +296,13 @@ defineExpose({ viewport, fitToContent, focusNode })
  * パンの手段が載るのは UT-16 なので、いまは戻す方法が無い。
  *
  * **深度軸で選択が変わったときは合わせ直さない。** 起点が変わるので図の形は
- * 変わるが、ここで全体表示に戻すと、選んだノードへ寄せる操作（`focusNode`）を
- * 常に上書きすることになる。下の未決と同じ話で、優先順位はその UT で決める。
+ * 変わるが、ここで全体表示に戻すと、選んだノードへ寄せる操作を常に上書きする。
  *
- * **未決**: `select()` は、選んだノードが現在の粒度に無いと粒度を切り替える
- * （UT-05）。その経路でも全体表示が走るため、「一覧や検索から選んで、その
- * ノードへ寄せる」（UT-11 / UT-12 / UT-14）を実装すると、寄せた視点が
- * 全体表示に上書きされる。どちらを優先するかは、その UT で決める。
+ * **寄せると全体表示の優先順位**（UT-07 から先送りしていた点）は、参照仕様に
+ * 従って次のように決めた — **図が組み替わったら全体表示、組み替わっていなければ
+ * そのノードへ寄せる**。絞り込みが立つと列が組み替わるので、残ったぶんを画面へ
+ * 収め直すほうが先に要る。組み替わらない移動（絞り込みを解いたあとの選び直しなど）
+ * では、位置を保ったまま目的のノードへ寄せる。
  *
  * リサイズのたびに合わせ直すと、寄せた位置（`focusNode`）やこの先のパン・
  * ズーム（UT-16）が、ウィンドウの変形やサイドバーの開閉で毎回巻き戻る。
@@ -313,8 +313,18 @@ defineExpose({ viewport, fitToContent, focusNode })
  * **登録順**が正しさの条件になる。合わせた対象そのものを覚えておけば、
  * 判定が 1 つの式で閉じる。
  */
-let lastFitted:
-  { viewModel: ViewModel | undefined; granularity: Granularity; axis: ColumnAxis } | undefined
+/** 図の形を決めるもの。ここが変われば、図そのものが組み替わっている */
+type FitKey = {
+  viewModel: ViewModel | undefined
+  granularity: Granularity
+  axis: ColumnAxis
+  /** 絞り込みの中心。絞っていなければ `undefined` */
+  narrowedTo: string | undefined
+}
+
+let lastFitted: FitKey | undefined
+/** 最後に寄せたノード。図が組み替わらない移動で使う */
+let lastFocused: string | undefined
 
 /*
  * 図が入れ替わったら全体表示に戻す。読み込み直後は「どこを見ているか」の
@@ -331,25 +341,47 @@ watch(
       state.viewModel,
       state.granularity,
       state.columnAxis,
+      state.narrowedToSelection ? state.selectedNodeId : undefined,
+      state.selectedNodeId,
       layout.value.width,
       layout.value.height,
       view.value.width,
       view.value.height,
     ] as const,
-  ([viewModel, granularity, axis, contentWidth, contentHeight, viewWidth, viewHeight]) => {
+  ([
+    viewModel,
+    granularity,
+    axis,
+    narrowedTo,
+    selectedNodeId,
+    contentWidth,
+    contentHeight,
+    viewWidth,
+    viewHeight,
+  ]) => {
     const ready = contentWidth > 0 && contentHeight > 0 && viewWidth > 0 && viewHeight > 0
     if (!ready) return
+
     const fitted = lastFitted
-    if (
-      fitted &&
+    const sameFigure =
+      fitted !== undefined &&
       fitted.viewModel === viewModel &&
       fitted.granularity === granularity &&
-      fitted.axis === axis
-    )
-      return
+      fitted.axis === axis &&
+      fitted.narrowedTo === narrowedTo
 
-    lastFitted = { viewModel, granularity, axis }
-    fitToContent()
+    if (!sameFigure) {
+      lastFitted = { viewModel, granularity, axis, narrowedTo }
+      lastFocused = selectedNodeId
+      fitToContent()
+      return
+    }
+
+    // 図が組み替わっていない移動は、位置を保ったまま目的のノードへ寄せる
+    if (selectedNodeId !== undefined && selectedNodeId !== lastFocused) {
+      lastFocused = selectedNodeId
+      focusNode(selectedNodeId)
+    }
   },
   { immediate: true },
 )
