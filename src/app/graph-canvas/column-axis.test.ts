@@ -12,6 +12,31 @@ const viewModel = buildViewModel(result.graph)
 
 const nodeOf = (id: string) => viewModel.nodeById.get(id)!
 
+/** 全ノードが被依存 1 以上になる（＝起点が空になる）構成 */
+const cyclic = (() => {
+  const raw = structuredClone(fixture) as {
+    nodes: { id: string; kind: string }[]
+    edges: unknown[]
+    cycles: unknown[]
+  }
+  // 元のエッジを捨てるので、それを指している循環の申告も落とす
+  raw.cycles = []
+  const files = raw.nodes.filter((node) => node.kind === 'file').map((node) => node.id)
+  raw.edges = files.map((id, index) => ({
+    id: `e_cycle_${index}`,
+    granularity: 'file',
+    kind: 'import',
+    from: id,
+    to: files[(index + 1) % files.length]!,
+    importKind: 'value',
+    specifier: '@/cycle',
+  }))
+
+  const loaded = loadGraphFromValue(raw)
+  if (!loaded.ok) throw new Error('環状のフィクスチャが読めない')
+  return buildViewModel(loaded.graph)
+})()
+
 /** 層を外した版。フィクスチャは全ノードに層が付いている */
 const withoutLayers = (() => {
   const raw = structuredClone(fixture) as { nodes: { kind: string; layer?: string }[] }
@@ -150,6 +175,17 @@ describe('依存深度を列にする', () => {
 
     const columns = new Set(viewModel.nodes.file.map((node) => plan.columnOf(node)))
     expect(columns.size).toBeGreaterThan(1)
+  })
+
+  it('被依存 0 のノードが無いときも、ノードを隠さない（N-2）', () => {
+    // 全ノードが互いを使い合う構成では、起点の集合が空になる
+    const plan = depthColumns(cyclic, 'file', undefined)
+    const columns = cyclic.nodes.file.map((node) => plan.columnOf(node))
+
+    expect(columns).toHaveLength(cyclic.nodes.file.length)
+    for (const column of columns) expect(column).toBe(TRAILING_COLUMN)
+    // 軸が効いていないのではなく、起点が無いのだと分かるようにする
+    expect(plan.headOf(TRAILING_COLUMN).label).toBe('深度未定（起点なし）')
   })
 
   it('見出しは深度。0 の列は起点だと分かる', () => {

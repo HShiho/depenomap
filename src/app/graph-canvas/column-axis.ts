@@ -84,6 +84,7 @@ export function layerColumns(viewModel: ViewModel): ColumnPlan {
  *
  * 起点は**未選択なら被依存数 0 のノード群、選択中ならそのノード 1 件**。
  * 被依存 0 のノードが複数あれば、そのすべてが同時に深度 0 の列へ並ぶ。
+ * 被依存 0 のノードが 1 件も無ければ起点が空になり、全ノードが深度未定になる。
  *
  * 深度そのものの算出は IR（`core/ir/depth.ts`）に委ねる。**ここで BFS や
  * 被依存数を書き直さない。** 同じ絞り込みが散ると、たどりを IR に置いた意味が
@@ -115,6 +116,13 @@ export function depthColumns(
   const origins = origin === undefined ? findRootOrigins(viewModel, granularity) : [origin]
   const depths = computeDepths(viewModel, granularity, origins)
   const selected = origin !== undefined
+  /*
+   * 起点が 1 件も無いこともある。全ノードが被依存 1 以上になる構成
+   * （相互参照で閉じている、など）では、被依存 0 の集合が空になる。
+   * このとき全ノードが深度未定になり、図は 1 列に潰れる。**隠さない**（N-2）が、
+   * 列がそう見えている理由は見出しに出す
+   */
+  const hasOrigins = depths.origins.length > 0
 
   return {
     columnOf: (node) => {
@@ -124,7 +132,10 @@ export function depthColumns(
     headOf: (column) => {
       if (column === TRAILING_COLUMN) {
         // 起点からたどり着けないだけで、欠陥ではない（ADR-001 / N-1）
-        return { label: '深度未定', colour: 'var(--color-ink-3)' }
+        return {
+          label: hasOrigins ? '深度未定' : '深度未定（起点なし）',
+          colour: 'var(--color-ink-3)',
+        }
       }
       if (column === 0) {
         return {
