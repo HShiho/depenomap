@@ -182,7 +182,6 @@ describe('依存深度を列にする', () => {
     const plan = depthColumns(cyclic, 'file', undefined)
     const columns = cyclic.nodes.file.map((node) => plan.columnOf(node))
 
-    expect(columns).toHaveLength(cyclic.nodes.file.length)
     for (const column of columns) expect(column).toBe(TRAILING_COLUMN)
     // 軸が効いていないのではなく、起点が無いのだと分かるようにする
     expect(plan.headOf(TRAILING_COLUMN).label).toBe('深度未定（起点なし）')
