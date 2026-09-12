@@ -174,11 +174,23 @@ describe('選択への追従', () => {
     state.select(method.id)
     await wrapper.vm.$nextTick()
 
-    const caret = wrapper
-      .find(`[data-node-id="${method.parent}"]`)
-      .element.parentElement!.querySelector('[aria-expanded]') as HTMLButtonElement
-    expect(caret.disabled).toBe(true)
+    const caret = caretOf(wrapper, method.parent) as HTMLButtonElement
+    // disabled にするとフォーカスできず、理由がキーボードの利用者に届かない
+    expect(caret.disabled).toBe(false)
+    expect(caret.getAttribute('aria-disabled')).toBe('true')
     expect(caret.getAttribute('aria-label')).toContain('閉じられない')
+
+    /*
+     * 押しても何も起きない。開いたままかどうかだけ見ても、導出のほうが
+     * 開き続けるので区別できない。**選択を外したあと**まで見る — 押した時点で
+     * 手の側の記録から外れていると、選択が外れた瞬間に畳まれる
+     */
+    caret.dispatchEvent(new Event('click'))
+    await wrapper.vm.$nextTick()
+    state.clearSelection()
+    await wrapper.vm.$nextTick()
+
+    expect(caretOf(wrapper, method.parent).getAttribute('aria-expanded')).toBe('true')
   })
 
   it('自分で開いたファイルは、選択が動いても閉じない', async () => {
