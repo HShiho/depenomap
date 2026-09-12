@@ -335,7 +335,12 @@ watch(
 
     <g :transform="transformOf(viewport)">
       <!-- 列見出し。層の名前は JSON の定義（ADR-002） -->
-      <g v-for="head in columnHeads" :key="head.column" :transform="`translate(${head.x},0)`">
+      <g
+        v-for="head in columnHeads"
+        :key="head.column"
+        class="head-group"
+        :transform="`translate(${head.x},0)`"
+      >
         <rect y="30" width="3" height="14" rx="2" :fill="head.colour" />
         <text x="10" y="42" class="head">{{ head.label }}</text>
         <text x="10" y="56" class="head-count">{{ head.count }}</text>

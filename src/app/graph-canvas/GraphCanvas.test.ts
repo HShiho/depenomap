@@ -401,6 +401,93 @@ describe('粒度を切り替えたときの視点', () => {
   })
 })
 
+describe('並べ方（US-04 / UT-08）', () => {
+  it('層にすると、列の見出しが層の名前になる', () => {
+    const { wrapper } = setup()
+    const heads = wrapper.findAll('text.head').map((text) => text.text())
+
+    const names = viewModel.layerKeys.map((key) => viewModel.layerOfKey(key)?.name ?? '層なし')
+    for (const head of heads) expect(names).toContain(head)
+  })
+
+  it('深度にすると、列の見出しが深度になる', async () => {
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    const heads = wrapper.findAll('text.head').map((text) => text.text())
+
+    expect(heads[0]).toBe('深度 0（起点）')
+    for (const head of heads.slice(1)) expect(head).toMatch(/^深度 (\d+|未定)$/)
+  })
+
+  it('深度の列は、浅いほうから順に並ぶ', async () => {
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    const heads = wrapper.findAll('g.head-group').map((group) => {
+      const x = /translate\(([\d.-]+),/.exec(group.attributes('transform') ?? '')?.[1]
+      return { x: Number(x ?? 0), label: group.find('text.head').text() }
+    })
+
+    const ordered = [...heads].sort((a, b) => a.x - b.x).map((head) => head.label)
+    expect(ordered).toEqual(heads.map((head) => head.label))
+  })
+
+  it('深度未定のノードは、いちばん右の列へまとまる', async () => {
+    const { state, wrapper } = setup()
+    // 起点を 1 件に絞ると、たどり着けないノードが出る
+    state.columnAxis = 'depth'
+    state.select(viewModel.nodes.file[0]!.id)
+    await wrapper.vm.$nextTick()
+
+    const heads = wrapper.findAll('g.head-group').map((group) => ({
+      x: Number(/translate\(([\d.-]+),/.exec(group.attributes('transform') ?? '')?.[1] ?? 0),
+      label: group.find('text.head').text(),
+    }))
+    const rightmost = heads.reduce((a, b) => (a.x >= b.x ? a : b))
+
+    expect(rightmost.label).toBe('深度未定')
+  })
+
+  it('軸を変えてもノードは 1 つも消えない（N-2）', async () => {
+    const { state, wrapper } = setup()
+    const before = wrapper.findAll('g.node').length
+
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    // 並べる軸であって、表示範囲を絞る手段ではない
+    expect(wrapper.findAll('g.node').length).toBe(before)
+  })
+
+  it('ノードの色帯は層のまま。軸では変わらない', async () => {
+    const { state, wrapper } = setup()
+    const target = viewModel.nodes.file[1]!.id
+    const colourOf = () => wrapper.find(`[data-node-id="${target}"]`).attributes('style') ?? ''
+    const before = colourOf()
+
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    expect(colourOf()).toBe(before)
+  })
+
+  it('粒度を切り替えても、軸の設定で破綻しない', async () => {
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    expect(state.columnAxis).toBe('depth')
+    expect(wrapper.findAll('g.node').length).toBe(viewModel.nodes.method.length)
+    expect(wrapper.findAll('text.head')[0]!.text()).toBe('深度 0（起点）')
+  })
+})
+
 describe('並べ方を切り替えたときの視点（UT-08）', () => {
   it('列の形が変わるので、全体表示に合わせ直す', async () => {
     const { state, wrapper } = setup()
