@@ -2,7 +2,7 @@
 
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { loadGraphFromValue } from '@/core/graph/loader'
 import { buildViewModel } from '@/core/ir/view-model'
@@ -103,13 +103,27 @@ describe('並べ替え（US-10）', () => {
 })
 
 describe('持たないもの', () => {
-  it('依存元／依存先の一覧を作らない（N-4）', () => {
-    // ノードマップを見れば分かるものを、面の側に二重に持たない
-    const { wrapper } = setup()
-    const text = wrapper.text()
+  it('依存元／依存先の一覧を作らない（N-4）', async () => {
+    /*
+     * ノードマップを見れば分かるものを、面の側に二重に持たない。
+     *
+     * 出ている文字で見ると、見出し語を変えた実装（「参照元」など）が素通りする。
+     * **たどっていないこと**を見る — 依存元／依存先の一覧は、この 2 つの口を
+     * 通らずには作れない
+     */
+    const dependenciesOf = vi.spyOn(viewModel, 'dependenciesOf')
+    const dependentsOf = vi.spyOn(viewModel, 'dependentsOf')
+    try {
+      const { state, wrapper } = setup()
+      await openFirstFileWithMethods(wrapper)
+      state.select(viewModel.nodes.file[2]!.id)
+      await wrapper.vm.$nextTick()
 
-    for (const word of ['依存元', '依存先', '使っている', '使われている']) {
-      expect(text).not.toContain(word)
+      expect(dependenciesOf).not.toHaveBeenCalled()
+      expect(dependentsOf).not.toHaveBeenCalled()
+    } finally {
+      dependenciesOf.mockRestore()
+      dependentsOf.mockRestore()
     }
   })
 
