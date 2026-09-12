@@ -129,8 +129,30 @@ export function depthColumns(
    */
   const hasOrigins = depths.origins.length > 0
 
+  /*
+   * 絞り込み中は、**残っているノードと描く線だけで数える**。
+   *
+   * 深度をグラフ全体で数えると、直接の依存元でも順方向に回り込めるものは有限の
+   * 深度を持ち、描かれていない経路を根拠に「依存先の側」へ並ぶ。残るのは選択と
+   * 直接の相手だけ（UT-14）なので、ここでの答えは 3 通りしかない —
+   * 選択が 0、依存先が 1、依存元は到達しない。
+   */
+  const narrowedDependencies =
+    narrowed && origin !== undefined
+      ? new Set(
+          viewModel.edges[granularity]
+            .filter((edge) => edge.from === origin)
+            .map((edge) => edge.to),
+        )
+      : undefined
+
   return {
     columnOf: (node) => {
+      if (narrowedDependencies !== undefined) {
+        if (node.id === origin) return 0
+        return narrowedDependencies.has(node.id) ? 1 : TRAILING_COLUMN
+      }
+
       const depth = depths.depthOf(node.id)
       return depth === DEPTH_UNDEFINED ? TRAILING_COLUMN : depth
     },

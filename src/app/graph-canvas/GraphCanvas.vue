@@ -46,8 +46,9 @@ const columnPlan = computed(() => {
      * computed に畳んだ意味が消える。
      */
     selectedNodeId: axis === 'depth' ? state.selectedNodeId : undefined,
-    // 絞り込み中は、深度軸の最後尾が「たどり着けない」ではなく依存元になる
-    narrowed: axis === 'depth' && state.narrowedToSelection,
+    // 絞り込み中は、深度軸の最後尾が「たどり着けない」ではなく依存元になる。
+    // 判定は絞り込みそのもの（粒度のずれも見る）へ寄せる
+    narrowed: axis === 'depth' && narrowed.value !== undefined,
   })
 })
 
