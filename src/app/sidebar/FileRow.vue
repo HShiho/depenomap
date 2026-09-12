@@ -45,6 +45,7 @@ function directoryOf(path: string): string {
 
     <button
       type="button"
+      :data-node-id="node.id"
       class="flex min-w-0 grow items-center gap-7 rounded-item px-8 py-6 text-left"
       :class="selected ? 'bg-accent-soft' : 'hover:bg-surface-2'"
       :aria-current="selected ? 'true' : undefined"

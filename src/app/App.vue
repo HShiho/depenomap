@@ -8,6 +8,7 @@
 import { onMounted } from 'vue'
 
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
+import SidebarList from './sidebar/SidebarList.vue'
 import GranularityToggle from './graph-canvas/GranularityToggle.vue'
 import GraphCanvas from './graph-canvas/GraphCanvas.vue'
 import AppShell from './shell/AppShell.vue'
@@ -68,9 +69,14 @@ onMounted(() => void loadGraphInto(state))
     </template>
 
     <template #sidebar>
-      <div class="p-12">
-        <h2 class="text-overline text-ink-3 uppercase">ファイル / メソッド</h2>
-        <p class="mt-6 text-caption text-ink-3">一覧は UT-12 が置く</p>
+      <div class="flex h-full flex-col">
+        <div class="flex shrink-0 items-center border-b border-line px-12 py-9">
+          <h2 class="text-overline text-ink-3 uppercase">ファイル / メソッド</h2>
+        </div>
+
+        <div class="min-h-0 grow overflow-y-auto">
+          <SidebarList />
+        </div>
       </div>
     </template>
 

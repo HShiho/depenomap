@@ -16,6 +16,7 @@ defineEmits<{ select: [] }>()
 <template>
   <button
     type="button"
+    :data-node-id="node.id"
     class="flex w-full min-w-0 items-center gap-7 rounded-control px-8 py-4 text-left"
     :class="selected ? 'bg-accent-soft' : 'hover:bg-surface-2'"
     :aria-current="selected ? 'true' : undefined"
