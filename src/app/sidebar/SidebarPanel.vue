@@ -9,7 +9,7 @@
  * 行に出す印は一覧へ素通しする。UT-10 / UT-11 はこの面を使うだけで、行にも
  * 一覧にも手を入れずに印を足せる。
  *
- * 検索欄（UT-11）はこの並べ替えの上に入る。
+ * 検索欄（UT-11）は並べ替えの上。同じ入力欄でディレクトリ名も絞れる（ADR-003）。
  *
  * 畳む口はここ（見出しの隣）とレール（画面の左端）の 2 つある。**同じ状態を
  * 触る**ので、どちらから閉じても同じ。閉じると面ごと見えなくなるため、開き直す
@@ -32,6 +32,8 @@ const options: { value: SidebarSort; label: string }[] = [
   { value: 'fan-in', label: '被依存数（降順）' },
 ]
 
+const searchId = useId()
+
 const fileCount = computed(() => state.viewModel?.nodes.file.length ?? 0)
 </script>
 
@@ -51,6 +53,18 @@ const fileCount = computed(() => state.viewModel?.nodes.file.length ?? 0)
       >
         ‹
       </button>
+    </div>
+
+    <div class="shrink-0 border-b border-line px-12 py-9">
+      <label class="sr-only" :for="searchId">検索</label>
+      <input
+        :id="searchId"
+        v-model="state.query"
+        type="search"
+        class="w-full rounded-control border border-line bg-surface-2 px-9 py-6 text-ui text-ink placeholder:text-ink-3"
+        placeholder="ファイル名・メソッド名・パス"
+        autocomplete="off"
+      />
     </div>
 
     <div class="flex shrink-0 items-center justify-between gap-8 border-b border-line px-12 py-9">

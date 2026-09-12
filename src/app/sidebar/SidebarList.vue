@@ -10,6 +10,10 @@
  * 行に出す印は `file-badges` / `method-badges` で外から渡す。循環（UT-10）と
  * 検索の一致（UT-11）が、**行の作りにも一覧の作りにも触らずに**差し込める。
  *
+ * 検索語（UT-11）でも絞る。**絞り込みであって判定ではない** — 一致しなかった
+ * ノードを欠陥として扱わない（N-1）。ノードマップ側は絞らない（UT-11 の決定）。
+ * 図の絞り込みは選択が持つ（UT-14 / US-12）ので、根拠を 2 つに分けない。
+ *
  * **表示粒度（US-03）とは連動させない**（UT-12 の決定）。粒度はノードマップの
  * 見え方で、一覧は常にファイルとその中のメソッドを見せる。連動させると、
  * ファイル粒度のときにメソッドへ辿り着く道が画面から消える。
@@ -23,7 +27,7 @@ import { computed, ref, watch } from 'vue'
 import { useViewState } from '../shell/view-state'
 import FileRow from './FileRow.vue'
 import MethodRow from './MethodRow.vue'
-import { buildSidebarList, type SidebarSort } from './sidebar-list'
+import { buildSidebarList, filterSidebarList, type SidebarSort } from './sidebar-list'
 
 const props = defineProps<{ sort: SidebarSort }>()
 
@@ -61,9 +65,13 @@ const selectedMethodParent = computed(() => {
   return node?.kind === 'method' ? node.parent : undefined
 })
 
-const list = computed(() =>
-  state.viewModel === undefined ? [] : buildSidebarList(state.viewModel, props.sort),
-)
+const list = computed(() => {
+  const viewModel = state.viewModel
+  if (viewModel === undefined) return []
+
+  // 絞るのは並べたあと。並べ替えの規則は検索語で変わらない
+  return filterSidebarList(buildSidebarList(viewModel, props.sort), viewModel, state.query)
+})
 
 /*
  * 選択で開いたファイルは、**開いたことを手の側の記録に畳み込む**。

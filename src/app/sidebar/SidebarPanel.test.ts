@@ -201,3 +201,73 @@ describe('印の差し込み（UT-10 / UT-11 の受け皿）', () => {
     expect(marked.sort()).toEqual(rows.sort())
   })
 })
+
+describe('検索（US-07 / UT-11）', () => {
+  const typeQuery = async (wrapper: ReturnType<typeof setup>['wrapper'], query: string) => {
+    await wrapper.find('input[type="search"]').setValue(query)
+  }
+
+  it('検索欄に名前を入れると、一覧が絞られる', async () => {
+    const { wrapper } = setup()
+    const before = shownFiles(wrapper).length
+
+    await typeQuery(wrapper, 'Todo')
+
+    const after = shownFiles(wrapper)
+    expect(after.length).toBeGreaterThan(0)
+    expect(after.length).toBeLessThan(before)
+  })
+
+  it('検索語は器が持つ（UT-05）', async () => {
+    const { state, wrapper } = setup()
+    await typeQuery(wrapper, 'Todo')
+
+    expect(state.query).toBe('Todo')
+  })
+
+  it('検索語を消すと、絞り込み前に戻る', async () => {
+    const { wrapper } = setup()
+    const before = shownFiles(wrapper)
+
+    await typeQuery(wrapper, 'Todo')
+    await typeQuery(wrapper, '')
+
+    expect(shownFiles(wrapper)).toEqual(before)
+  })
+
+  it('ディレクトリ名でも絞れる（同じ入力欄）', async () => {
+    const { wrapper } = setup()
+    await typeQuery(wrapper, 'src/domain/')
+
+    const kept = shownFiles(wrapper).map((id) => viewModel.nodeById.get(id)!)
+    expect(kept.length).toBeGreaterThan(0)
+    for (const node of kept) expect(node.kind === 'file' && node.path).toContain('src/domain/')
+  })
+
+  it('大文字小文字を区別しない', async () => {
+    const { wrapper } = setup()
+    await typeQuery(wrapper, 'todo')
+    const lower = shownFiles(wrapper)
+
+    await typeQuery(wrapper, 'TODO')
+    expect(shownFiles(wrapper)).toEqual(lower)
+  })
+
+  it('絞ったあとの行からも、そのノードを選べる', async () => {
+    // 検索結果から目的のノードへ到達できる（US-07）
+    const { state, wrapper } = setup()
+    await typeQuery(wrapper, 'Todo')
+
+    const first = shownFiles(wrapper)[0]!
+    await wrapper.find(`[data-node-id="${first}"]`).trigger('click')
+
+    expect(state.selectedNodeId).toBe(first)
+  })
+
+  it('検索に名前を与える', () => {
+    const { wrapper } = setup()
+    const id = wrapper.find('input[type="search"]').attributes('id')
+
+    expect(wrapper.find(`label[for="${id}"]`).text()).toBe('検索')
+  })
+})
