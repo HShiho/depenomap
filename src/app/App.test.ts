@@ -85,3 +85,32 @@ describe('一覧の折りたたみ（US-08）', () => {
     expect(wrapper.find('.shell-panel').attributes('inert')).toBeDefined()
   })
 })
+
+describe('検索の効き方（UT-11）', () => {
+  it('検索してもノードマップは絞られない', async () => {
+    /*
+     * 図の絞り込みは選択が持つ（UT-14 / US-12）。検索でも絞ると、絞り込みの
+     * 根拠が 2 つに分かれ、両方が効いているときの規則を決めることになる
+     */
+    const { wrapper } = await setup()
+    const before = wrapper.findAll('svg g.node').length
+    expect(before).toBeGreaterThan(0)
+
+    await wrapper.find('input[type="search"]').setValue('Todo')
+
+    expect(wrapper.findAll('svg g.node').length).toBe(before)
+  })
+
+  it('検索結果の行からノードへ行く経路は、一覧の行と同じ', async () => {
+    // 検索専用の移動経路を作らない（ADR-003 の実装方針）
+    const { state, wrapper } = await setup()
+    await wrapper.find('input[type="search"]').setValue('Todo')
+
+    const row = wrapper.find('.shell-panel [data-node-id]')
+    const id = row.attributes('data-node-id')!
+    await row.trigger('click')
+
+    expect(state.selectedNodeId).toBe(id)
+    expect(state.history.at(-1)?.nodeId).toBe(id)
+  })
+})
