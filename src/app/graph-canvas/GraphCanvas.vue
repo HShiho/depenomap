@@ -25,17 +25,27 @@ const state = useViewState()
 const viewport = ref<Viewport>({ x: 0, y: 0, scale: 1 })
 
 /** 列の割り当て。軸ごとの規則は `column-axis.ts` が持つ */
-const columnPlan = computed(() =>
-  state.viewModel === undefined
-    ? undefined
-    : buildColumnPlan({
-        viewModel: state.viewModel,
-        granularity: state.granularity,
-        axis: state.columnAxis,
-        // 深度軸の起点は選択で変わる（ADR-001）。層軸では読まれない
-        selectedNodeId: state.selectedNodeId,
-      }),
-)
+const columnPlan = computed(() => {
+  const viewModel = state.viewModel
+  if (viewModel === undefined) return undefined
+
+  const axis = state.columnAxis
+  return buildColumnPlan({
+    viewModel,
+    granularity: state.granularity,
+    axis,
+    /*
+     * 選択を読むのは**深度軸のときだけ**にする。起点が選択で変わるのは深度軸の
+     * 規則（ADR-001）であって、層軸では結果が同じになる。
+     *
+     * ここで無条件に読むと、層軸でもノードを選ぶたびに `columnPlan` が作り
+     * 直され、配置（交差削減 4 スイープ）と表示物（全ノードの依存のたどり）が
+     * 連鎖して走る。同じ答えを出すためだけの計算で、`nodeVisuals` を
+     * computed に畳んだ意味が消える。
+     */
+    selectedNodeId: axis === 'depth' ? state.selectedNodeId : undefined,
+  })
+})
 
 /** 層の色。列の軸に依らず、ノードの層で決まる */
 const layerColour = computed(() =>

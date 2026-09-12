@@ -2,11 +2,12 @@
 
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { loadGraphFromValue } from '@/core/graph/loader'
 import { buildViewModel, type Granularity } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
+import * as columnAxis from './column-axis'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import GraphCanvas from './GraphCanvas.vue'
 
@@ -485,6 +486,38 @@ describe('並べ方（US-04 / UT-08）', () => {
     expect(state.columnAxis).toBe('depth')
     expect(wrapper.findAll('g.node').length).toBe(viewModel.nodes.method.length)
     expect(wrapper.findAll('text.head')[0]!.text()).toBe('深度 0（起点）')
+  })
+})
+
+describe('列の割り当てを作り直す条件（UT-08）', () => {
+  it('層軸では、選択が変わっても作り直さない', async () => {
+    // 起点が選択で変わるのは深度軸の規則（ADR-001）。層軸では答えが同じなので、
+    // ここで作り直すと配置と表示物の再計算が丸ごと無駄になる
+    const spy = vi.spyOn(columnAxis, 'buildColumnPlan')
+    const { state, wrapper } = setup()
+    await wrapper.vm.$nextTick()
+    const before = spy.mock.calls.length
+
+    state.select(viewModel.nodes.file[2]!.id)
+    await wrapper.vm.$nextTick()
+
+    expect(spy.mock.calls.length).toBe(before)
+    spy.mockRestore()
+  })
+
+  it('深度軸では、選択が変わったら作り直す', async () => {
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    const spy = vi.spyOn(columnAxis, 'buildColumnPlan')
+    const before = spy.mock.calls.length
+
+    state.select(viewModel.nodes.file[2]!.id)
+    await wrapper.vm.$nextTick()
+
+    expect(spy.mock.calls.length).toBeGreaterThan(before)
+    spy.mockRestore()
   })
 })
 
