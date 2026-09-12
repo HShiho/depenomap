@@ -46,7 +46,12 @@ export interface SidebarFile extends SidebarEntry<FileNode> {
  * 消費側が各々書くと同数ノードの並びがばらつく、と UT-02 が決めている。
  */
 export function buildSidebarList(viewModel: ViewModel, sort: SidebarSort): readonly SidebarFile[] {
-  const methodRank = rankOf(viewModel, 'method')
+  /*
+   * 並びの土台は、使う軸のぶんだけ作る。IR の被依存数降順は呼ぶたびに
+   * 並べ替えており（キャッシュを持たない）、既定のパス順では一度も使わない
+   * 並びを作ることになる
+   */
+  const methodRank = sort === 'fan-in' ? rankOf(viewModel, 'method') : undefined
   const colourOf = layerColours(viewModel)
   const files = viewModel.nodes.file.map((file) => ({
     node: file,
@@ -79,9 +84,9 @@ function rankOf(viewModel: ViewModel, granularity: Granularity): (nodeId: string
 function sortMethods(
   methods: SidebarEntry<MethodNode>[],
   sort: SidebarSort,
-  rank: (nodeId: string) => number,
+  rank: ((nodeId: string) => number) | undefined,
 ): readonly SidebarEntry<MethodNode>[] {
-  return sort === 'path'
+  return sort === 'path' || rank === undefined
     ? methods.sort((a, b) => a.node.loc.line - b.node.loc.line)
     : methods.sort((a, b) => rank(a.node.id) - rank(b.node.id))
 }

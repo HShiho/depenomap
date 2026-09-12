@@ -11,6 +11,20 @@ if (!result.ok) throw new Error('フィクスチャが読めない')
 const viewModel = buildViewModel(result.graph)
 
 describe('一覧の組み立て（UT-12）', () => {
+  it('パス順では、被依存数の並びを作らない', () => {
+    // IR はキャッシュを持たず、呼ぶたびに並べ替える。使わない並びは作らない
+    const spy = vi.spyOn(viewModel, 'nodesByFanInDesc')
+    try {
+      buildSidebarList(viewModel, 'path')
+      expect(spy).not.toHaveBeenCalled()
+
+      buildSidebarList(viewModel, 'fan-in')
+      expect(spy.mock.calls.map((call) => call[0]).sort()).toEqual(['file', 'method'])
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it('層の色を 1 回だけ引く', () => {
     // 行ごとにテンプレートで引くと、選択が動くたびに全行ぶんの引き当てが走る
     const spy = vi.spyOn(viewModel, 'layerOf')
