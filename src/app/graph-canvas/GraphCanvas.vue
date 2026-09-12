@@ -16,6 +16,7 @@ import type { Granularity, ViewModel } from '@/core/ir/view-model'
 import { useViewState, type ColumnAxis } from '../shell/view-state'
 import { layerColours } from '../shell/layer-colour'
 import { buildColumnPlan } from './column-axis'
+import { narrowedNodeIds } from './narrowing'
 import { edgeMidpoint, edgePath } from './edge-path'
 import { subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
@@ -69,12 +70,35 @@ function sortKeyOf(node: GraphNode): string {
   return `${node.parent}#${line}`
 }
 
+/**
+ * 絞り込みで残るノード（UT-14 / US-12）。`undefined` は「絞っていない」。
+ *
+ * **絞り込みが立っているときだけ効く**。選択そのものは絞り込みを伴わない
+ * （器が別々に持つ / UT-05）ので、全体の中で選んだノードの位置を見る経路が残る。
+ */
+const narrowed = computed(() =>
+  !state.narrowedToSelection || state.viewModel === undefined
+    ? undefined
+    : narrowedNodeIds({
+        nodes: state.viewModel.nodes[state.granularity],
+        edges: state.viewModel.edges[state.granularity],
+        selectedNodeId: state.selectedNodeId,
+      }),
+)
+
+/** 描くノード。絞っていなければ全部 */
+const shownNodes = computed(() => {
+  const nodes = state.viewModel?.nodes[state.granularity] ?? []
+  const kept = narrowed.value
+  return kept === undefined ? nodes : nodes.filter((node) => kept.has(node.id))
+})
+
 const layout = computed(() => {
   const viewModel = state.viewModel
   if (!viewModel) return buildLayout({ nodes: [], edges: [], columnOf: () => 0 })
 
   return buildLayout({
-    nodes: viewModel.nodes[state.granularity],
+    nodes: shownNodes.value,
     edges: viewModel.edges[state.granularity],
     columnOf: (node) => columnPlan.value?.columnOf(node) ?? 0,
     sortKeyOf,
@@ -117,6 +141,16 @@ const edges = computed(() =>
     // 位置が引けないエッジは描かない。参照整合性は UT-01 が保証済みで、
     // ここに来るのは絞り込み（UT-14）で片側が消えている場合だけ
     if (!from || !to) return []
+
+    /*
+     * 絞り込み中は、**選んだノードに繋がる線だけ**を描く。残った 2 つが
+     * 互いに依存していても、選んだノードを介さない線は「このノードの周り」
+     * の話ではない
+     */
+    const selected = state.selectedNodeId
+    if (narrowed.value !== undefined && edge.from !== selected && edge.to !== selected) {
+      return []
+    }
 
     const options = { selfLoop: edge.from === edge.to }
     const variant = variantOf(edge)

@@ -644,3 +644,86 @@ describe('経由の呼び出しが依っている前提', () => {
     expect(uncovered).toEqual([])
   })
 })
+
+describe('選択による絞り込み（US-12 / UT-14）', () => {
+  /** 依存先も依存元も持つファイル */
+  const hub = viewModel.nodes.file.find(
+    (node) =>
+      viewModel.dependenciesOf(node.id, 'file').length > 0 &&
+      viewModel.fanInOf(node.id, 'file') > 0,
+  )!
+
+  const shown = (wrapper: ReturnType<typeof setup>['wrapper']) =>
+    wrapper.findAll('g.node').map((node) => node.attributes('data-node-id')!)
+
+  it('絞り込みを立てるまでは、全部出る', async () => {
+    const { state, wrapper } = setup()
+    state.select(hub.id)
+    await wrapper.vm.$nextTick()
+
+    expect(shown(wrapper)).toHaveLength(viewModel.nodes.file.length)
+  })
+
+  it('立てると、選んだノードと直接の相手だけが残る', async () => {
+    const { state, wrapper } = setup()
+    state.select(hub.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    const ids = shown(wrapper)
+    expect(ids).toContain(hub.id)
+    expect(ids.length).toBeLessThan(viewModel.nodes.file.length)
+    for (const id of ids) {
+      if (id === hub.id) continue
+      const touching = viewModel.edges.file.some(
+        (edge) =>
+          (edge.from === hub.id && edge.to === id) || (edge.to === hub.id && edge.from === id),
+      )
+      expect(touching, id).toBe(true)
+    }
+  })
+
+  it('関係しないノードは薄くするのではなく消す', async () => {
+    const { state, wrapper } = setup()
+    state.select(hub.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    const gone = viewModel.nodes.file.find((node) => !shown(wrapper).includes(node.id))!
+    expect(wrapper.find(`[data-node-id="${gone.id}"]`).exists()).toBe(false)
+  })
+
+  it('選んだノードを介さない線は描かない', async () => {
+    const { state, wrapper } = setup()
+    state.select(hub.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    for (const path of wrapper.findAll('path[data-edge-id]')) {
+      const edge = viewModel.edgeById.get(path.attributes('data-edge-id')!)!
+      expect(edge.from === hub.id || edge.to === hub.id).toBe(true)
+    }
+  })
+
+  it('空になった列は詰める', async () => {
+    const { state, wrapper } = setup()
+    const before = wrapper.findAll('g.head-group').length
+
+    state.select(hub.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('g.head-group').length).toBeLessThan(before)
+  })
+
+  it('解くと戻る', async () => {
+    const { state, wrapper } = setup()
+    state.select(hub.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+    state.setNarrowedToSelection(false)
+    await wrapper.vm.$nextTick()
+
+    expect(shown(wrapper)).toHaveLength(viewModel.nodes.file.length)
+  })
+})
