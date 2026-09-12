@@ -266,3 +266,20 @@ describe('選択で開いたあと', () => {
     expect(caretOf(wrapper, other.parent).getAttribute('aria-expanded')).toBe('true')
   })
 })
+
+describe('選択が済んだあとに一覧が現れる', () => {
+  it('そのときの所属も、選択が外れたあと開いたまま', async () => {
+    // 変化だけを見ると、マウント前に決まっていた選択を取りこぼす
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const method = viewModel.nodes.method[5]!
+    state.select(method.id)
+
+    const wrapper = mount(SidebarList, { props: { sort: 'path' } })
+    await wrapper.vm.$nextTick()
+    state.clearSelection()
+    await wrapper.vm.$nextTick()
+
+    expect(caretOf(wrapper, method.parent).getAttribute('aria-expanded')).toBe('true')
+  })
+})

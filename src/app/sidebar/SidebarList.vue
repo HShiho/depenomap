@@ -75,10 +75,19 @@ const list = computed(() =>
  * 畳み込む先が**導出値の変化**なので、同じノードの選び直しを取りこぼす経路は
  * 戻らない（選び直しでは所属も変わらず、既に開いている）。
  */
-watch(selectedMethodParent, (parent) => {
-  if (parent === undefined) return
-  openedByHand.value = new Set([...openedByHand.value, parent])
-})
+/*
+ * `immediate` にするのは、**選択が済んだあとに一覧が現れる**経路のため。
+ * 変化だけを見ると、そのときの所属が記録に入らず、選択が外れた瞬間に畳まれる。
+ * 選択が無ければ何もしないので、初期マウントで余計なことは起きない。
+ */
+watch(
+  selectedMethodParent,
+  (parent) => {
+    if (parent === undefined) return
+    openedByHand.value = new Set([...openedByHand.value, parent])
+  },
+  { immediate: true },
+)
 
 /*
  * 図が入れ替わったら、開閉を捨てる。
