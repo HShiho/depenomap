@@ -327,8 +327,8 @@ export const useViewState = defineStore('view-state', () => {
     warnings.value = 'warnings' in outcome ? outcome.warnings : []
     errors.value = outcome.kind === 'invalid' ? outcome.errors : []
 
-    selectedNodeId.value = undefined
-    narrowedToSelection.value = false
+    // 選択に付いてくるものは `applySelection` がまとめて落とす（押下の連なりも）
+    applySelection(undefined)
     history.value = []
     historyIndex.value = -1
   }

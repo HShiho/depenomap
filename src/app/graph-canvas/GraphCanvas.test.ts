@@ -966,3 +966,26 @@ describe('深度軸で絞り込んだとき（UT-14 / UT-08）', () => {
     expect(heads.some((head) => head.includes('依存元'))).toBe(false)
   })
 })
+
+describe('層軸と絞り込みの計算（UT-14 / UT-08）', () => {
+  it('層軸では、絞り込みが立っても列の割り当てを作り直さない', async () => {
+    /*
+     * 絞り込みの判定を見出しへ渡すようになったので、軸で囲わないと層軸でも
+     * 選ぶたびに割り当てが作り直される。既存の検査は `select` を使っていて
+     * 絞り込みを立てないため、この経路を通らない
+     */
+    const spy = vi.spyOn(columnAxis, 'buildColumnPlan')
+    try {
+      const { state, wrapper } = setup()
+      await wrapper.vm.$nextTick()
+      const before = spy.mock.calls.length
+
+      state.moveTo(viewModel.nodes.file[2]!.id)
+      await wrapper.vm.$nextTick()
+
+      expect(spy.mock.calls.length).toBe(before)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+})
