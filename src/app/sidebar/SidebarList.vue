@@ -10,13 +10,16 @@
  * 行に出す印は `file-badges` / `method-badges` で外から渡す。循環（UT-10）と
  * 検索の一致（UT-11）が、**行の作りにも一覧の作りにも触らずに**差し込める。
  *
+ * **表示粒度（US-03）とは連動させない**（UT-12 の決定）。粒度はノードマップの
+ * 見え方で、一覧は常にファイルとその中のメソッドを見せる。連動させると、
+ * ファイル粒度のときにメソッドへ辿り着く道が画面から消える。
+ *
  * 行の選択は器（UT-05）の `select` へ渡す。選んだノードが今の粒度に無ければ
  * 粒度のほうが合う、という規則もそこが持つ。移動や絞り込みを伴う経路は
  * UT-14 が載せるので、ここでは**選ぶところまで**にする。
  */
 import { computed, ref, watch } from 'vue'
 
-import { layerColours } from '../shell/layer-colour'
 import { useViewState } from '../shell/view-state'
 import FileRow from './FileRow.vue'
 import MethodRow from './MethodRow.vue'
@@ -62,10 +65,6 @@ const list = computed(() =>
   state.viewModel === undefined ? [] : buildSidebarList(state.viewModel, props.sort),
 )
 
-const colourOf = computed(() =>
-  state.viewModel === undefined ? () => 'var(--color-ink-3)' : layerColours(state.viewModel),
-)
-
 /*
  * 図が入れ替わったら、開閉を捨てる。
  *
@@ -97,7 +96,7 @@ function toggle(id: string): void {
         :open="opened.has(file.node.id)"
         :pinned="selectedMethodParent === file.node.id"
         :selected="state.selectedNodeId === file.node.id"
-        :colour="colourOf(state.viewModel?.layerOf(file.node.id).key)"
+        :colour="file.colour"
         @toggle="toggle(file.node.id)"
         @select="state.select(file.node.id)"
       >

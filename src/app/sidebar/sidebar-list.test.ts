@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { loadGraphFromValue } from '@/core/graph/loader'
 import { buildViewModel } from '@/core/ir/view-model'
@@ -11,6 +11,21 @@ if (!result.ok) throw new Error('フィクスチャが読めない')
 const viewModel = buildViewModel(result.graph)
 
 describe('一覧の組み立て（UT-12）', () => {
+  it('層の色を 1 回だけ引く', () => {
+    // 行ごとにテンプレートで引くと、選択が動くたびに全行ぶんの引き当てが走る
+    const spy = vi.spyOn(viewModel, 'layerOf')
+    try {
+      const list = buildSidebarList(viewModel, 'path')
+
+      expect(spy.mock.calls.length).toBe(viewModel.nodes.file.length)
+      for (const file of list) {
+        expect(file.colour).toMatch(/^var\(--color-(layer-\d|ink-3)\)$/)
+      }
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it('すべてのファイルが 1 行ずつ出る', () => {
     const list = buildSidebarList(viewModel, 'path')
 

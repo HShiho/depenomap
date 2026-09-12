@@ -6,10 +6,17 @@
  * 同数のときの並びが揺れないことを、描画抜きで検査できるようにするため。
  *
  * **依存元／依存先の一覧はここに作らない**（N-4）。ノードマップを見れば分かる。
+ *
+ * **仮想スクロールは入れない**（UT-12 の決定）。全ファイル行を DOM に置く。
+ * 1 行あたりの要素数は少なく、開いていないファイルのメソッドは描かないため、
+ * 実際に並ぶのは「ファイル数 + 開いたファイルのメソッド数」で収まる。行ごとの
+ * 引き当てをここで済ませてあるので、選択が動いても一覧は作り直されない。
+ * ノードマップ側で仮想化が要るようになったら（UT-06 の決定）、同じ判断で揃える。
  */
 
 import type { FileNode, MethodNode } from '@/core/graph/schema'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
+import { layerColours } from '../shell/layer-colour'
 
 /** 並べ替えの軸（US-10）。参照仕様の選択肢はこの 2 つだけ */
 export type SidebarSort = 'path' | 'fan-in'
@@ -22,6 +29,9 @@ export interface SidebarEntry<T extends FileNode | MethodNode> {
 }
 
 export interface SidebarFile extends SidebarEntry<FileNode> {
+  /** 層の色。**ここで 1 回引く** — 行ごとにテンプレートで引くと、選択が動く
+   * たびに全行ぶんの引き当てとオブジェクト生成が走る */
+  colour: string
   methods: readonly SidebarEntry<MethodNode>[]
 }
 
@@ -37,9 +47,11 @@ export interface SidebarFile extends SidebarEntry<FileNode> {
  */
 export function buildSidebarList(viewModel: ViewModel, sort: SidebarSort): readonly SidebarFile[] {
   const methodRank = rankOf(viewModel, 'method')
+  const colourOf = layerColours(viewModel)
   const files = viewModel.nodes.file.map((file) => ({
     node: file,
     fanIn: viewModel.fanInOf(file.id, 'file'),
+    colour: colourOf(viewModel.layerOf(file.id).key),
     methods: sortMethods(
       (viewModel.methodsOfFile.get(file.id) ?? []).map((method) => ({
         node: method,
