@@ -92,13 +92,17 @@ describe('層が未設定のノード', () => {
 })
 
 describe('操作の口', () => {
-  it('ノードのクリックで選択する', async () => {
+  it('ノードのクリックで選択が移り、絞り込みも立つ（US-12）', async () => {
     const { state, wrapper } = setup()
+    const node = wrapper.find('g.node')
+    const id = node.attributes('data-node-id')!
 
-    await wrapper.find('g.node').trigger('click')
+    await node.trigger('click')
 
-    expect(state.selectedNodeId).toBeDefined()
-    expect(wrapper.find('g.node').classes()).toContain('selected')
+    // 絞り込みで並びが変わるので、押した行は ID で掴む
+    expect(state.selectedNodeId).toBe(id)
+    expect(state.narrowedToSelection).toBe(true)
+    expect(wrapper.find(`[data-node-id="${id}"]`).classes()).toContain('selected')
   })
 
   it('背景のクリックで選択を外す', async () => {

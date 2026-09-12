@@ -250,8 +250,14 @@ const emit = defineEmits<{
   nodeContextMenu: [node: GraphNode, event: MouseEvent]
 }>()
 
+/**
+ * ノードのクリック（US-12）。**移動の経路（UT-14）を通す**。
+ *
+ * 選択だけを動かす経路をここに残すと、キャンバスから選んだときだけ絞り込みが
+ * 立たない、という食い違いができる。
+ */
 function onNodeClick(node: GraphNode): void {
-  state.select(node.id)
+  state.moveTo(node.id)
 }
 
 function onBackgroundClick(): void {

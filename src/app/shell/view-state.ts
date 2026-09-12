@@ -180,6 +180,28 @@ export const useViewState = defineStore('view-state', () => {
   }
 
   /**
+   * ノードへ移動する（UT-14 / US-12）。**単一の入口**。
+   *
+   * キャンバスのクリック・サイドバーの行（UT-12）・検索の結果（UT-11）・
+   * 概要（UT-13）・履歴（UT-15）が、すべてここを通る。経路が分かれると、
+   * どこから来たかで選択や絞り込みの結果が違う状態ができる。
+   *
+   * **同じノードをもう一度指したら、絞り込みを解く**。図を広げて全体の中の
+   * 位置を見る操作が、選び直しと同じ手つきでできる（参照仕様）。選択は残す。
+   */
+  function moveTo(nodeId: string): void {
+    if (selectedNodeId.value === nodeId && narrowedToSelection.value) {
+      narrowedToSelection.value = false
+      return
+    }
+
+    select(nodeId)
+    // `select` は粒度を合わせることがある。その先で絞り込みが成立するかは
+    // `setNarrowedToSelection` が見る
+    setNarrowedToSelection(true)
+  }
+
+  /**
    * 選択に絞るかを切り替える（US-14）。
    *
    * 選択が無ければ絞り込みは成立しないので、そのときは倒す。値を素で公開すると
@@ -318,6 +340,7 @@ export const useViewState = defineStore('view-state', () => {
     canGoForward,
 
     applyLoadOutcome,
+    moveTo,
     setNarrowedToSelection,
     select,
     clearSelection,

@@ -330,3 +330,79 @@ describe('購読の仕方', () => {
     expect(Object.keys(state.$state).sort()).toEqual(['columnAxis', 'query', 'sidebarOpen'])
   })
 })
+
+describe('移動の経路（UT-14）', () => {
+  it('移動すると、選択が移り絞り込みも立つ（US-12）', () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const target = viewModel.nodes.file[2]!
+
+    state.moveTo(target.id)
+
+    expect(state.selectedNodeId).toBe(target.id)
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('同じノードへもう一度移動すると、絞り込みだけ解く', () => {
+    // 図を広げて全体の中の位置を見る操作が、選び直しと同じ手つきでできる
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const target = viewModel.nodes.file[2]!
+
+    state.moveTo(target.id)
+    state.moveTo(target.id)
+
+    expect(state.narrowedToSelection).toBe(false)
+    expect(state.selectedNodeId).toBe(target.id)
+  })
+
+  it('解いたあと同じノードへ移動すると、また絞る', () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const target = viewModel.nodes.file[2]!
+
+    state.moveTo(target.id)
+    state.moveTo(target.id)
+    state.moveTo(target.id)
+
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('別のノードへ移動すると、そちらを中心に絞り直す', () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const first = viewModel.nodes.file[2]!
+    const second = viewModel.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+
+    expect(state.selectedNodeId).toBe(second.id)
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('移動は履歴に積まれる（UT-15 の 1 手）', () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const first = viewModel.nodes.file[2]!
+    const second = viewModel.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    state.moveTo(second.id)
+
+    // 絞り込みの解除は「移動」ではないので積まない
+    expect(state.history.map((entry) => entry.nodeId)).toEqual([first.id, second.id])
+  })
+
+  it('メソッドへ移動すると、粒度のほうが合う（UT-05 の規則）', () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const method = viewModel.nodes.method[0]!
+
+    state.moveTo(method.id)
+
+    expect(state.granularity).toBe('method')
+    expect(state.narrowedToSelection).toBe(true)
+  })
+})
