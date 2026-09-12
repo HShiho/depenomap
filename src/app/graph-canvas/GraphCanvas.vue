@@ -362,6 +362,12 @@ watch(
         @click.stop="onNodeClick(placed.node)"
         @contextmenu="emit('nodeContextMenu', placed.node, $event)"
       >
+        <!--
+          参照仕様に無い追加。ノードのホバー表示を所有する UT は無く、mockup の
+          `.tip` は概要シート（UT-13）にしか結ばれていない。素のツールチップは
+          遅延して出るうえ抑止できないので、ノードにスタイル付きのホバーカードを
+          載せる UT は、これを外すかそちらへ統合すること。
+        -->
         <title>{{ nodeVisuals.get(placed.node.id)?.tooltip }}</title>
         <rect class="box" :width="NODE_WIDTH" :height="NODE_HEIGHT" rx="9" />
         <!-- 層の色帯。上下に余白を残した短い帯（参照仕様） -->
