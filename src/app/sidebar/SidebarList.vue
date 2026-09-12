@@ -11,7 +11,7 @@
  * 粒度のほうが合う、という規則もそこが持つ。移動や絞り込みを伴う経路は
  * UT-14 が載せるので、ここでは**選ぶところまで**にする。
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import { layerColours } from '../shell/layer-colour'
 import { useViewState } from '../shell/view-state'
@@ -39,6 +39,29 @@ function toggle(id: string): void {
   if (!next.delete(id)) next.add(id)
   opened.value = next
 }
+
+/*
+ * 選ばれたメソッドの所属ファイルを開く。
+ *
+ * キャンバスで選んだメソッドが閉じたファイルの中にあると、一覧には何も現れず、
+ * 「どこが選ばれているのか」が面から読めない。閉じたまま選択だけ進む状態を
+ * 作らない。
+ *
+ * **開くところまで**にする。その行が見える位置まで一覧をスクロールさせるのは
+ * 「移動」であり、UT-14 が持つ単一の移動経路とぶつかる。
+ */
+watch(
+  () => state.selectedNodeId,
+  (nodeId) => {
+    if (nodeId === undefined) return
+    const node = state.viewModel?.nodeById.get(nodeId)
+    if (node?.kind !== 'method') return
+
+    const next = new Set(opened.value)
+    next.add(node.parent)
+    opened.value = next
+  },
+)
 </script>
 
 <template>

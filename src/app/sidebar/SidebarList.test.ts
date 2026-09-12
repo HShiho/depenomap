@@ -130,3 +130,48 @@ describe('一覧からの選択', () => {
     expect(wrapper.find(`[data-node-id="${target.id}"]`).attributes('aria-current')).toBe('true')
   })
 })
+
+describe('選択への追従', () => {
+  it('メソッドが選ばれたら、所属ファイルを開く', async () => {
+    // 閉じたファイルの中のメソッドが選ばれると、面からは何も読めない
+    const { state, wrapper } = setup()
+    const method = viewModel.nodes.method[5]!
+
+    state.select(method.id)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find(`[data-node-id="${method.id}"]`).exists()).toBe(true)
+    expect(wrapper.find(`[data-node-id="${method.id}"]`).attributes('aria-current')).toBe('true')
+  })
+
+  it('ファイルが選ばれただけでは開かない', async () => {
+    // 中身を見たいかどうかは別の話。勝手に開くと一覧が伸びる
+    const { state, wrapper } = setup()
+    const file = viewModel.nodes.file.find(
+      (node) => (viewModel.methodsOfFile.get(node.id) ?? []).length > 0,
+    )!
+
+    state.select(file.id)
+    await wrapper.vm.$nextTick()
+
+    const caret = wrapper
+      .find(`[data-node-id="${file.id}"]`)
+      .element.parentElement!.querySelector('[aria-expanded]')!
+    expect(caret.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('自分で開いたファイルは、選択が動いても閉じない', async () => {
+    const { state, wrapper } = setup()
+    const first = viewModel.nodes.file[0]!
+    const method = viewModel.nodes.method[5]!
+
+    await openFile(wrapper, first.id)
+    state.select(method.id)
+    await wrapper.vm.$nextTick()
+
+    const caret = wrapper
+      .find(`[data-node-id="${first.id}"]`)
+      .element.parentElement!.querySelector('[aria-expanded]')!
+    expect(caret.getAttribute('aria-expanded')).toBe('true')
+  })
+})
