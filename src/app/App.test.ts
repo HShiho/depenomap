@@ -104,12 +104,20 @@ describe('検索の効き方（UT-11）', () => {
   it('検索結果の行からノードへ行く経路は、一覧の行と同じ', async () => {
     // 検索専用の移動経路を作らない（ADR-003 の実装方針）
     const { state, wrapper } = await setup()
+    const rowsOf = () => wrapper.findAll('.shell-panel [data-node-id]')
+    const before = rowsOf().length
+
     await wrapper.find('input[type="search"]').setValue('Todo')
 
-    const row = wrapper.find('.shell-panel [data-node-id]')
-    const id = row.attributes('data-node-id')!
-    await row.trigger('click')
+    // 押す行が検索結果であること自体を前提として確かめる。
+    // ここを見ないと、検索欄が何もしなくてもこの検査は通る
+    expect(rowsOf().length).toBeLessThan(before)
 
+    const row = rowsOf()[0]!
+    const id = row.attributes('data-node-id')!
+    expect(id.toLowerCase()).toContain('todo')
+
+    await row.trigger('click')
     expect(state.selectedNodeId).toBe(id)
     expect(state.history.at(-1)?.nodeId).toBe(id)
   })
