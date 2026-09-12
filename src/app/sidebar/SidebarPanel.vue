@@ -11,6 +11,9 @@
  *
  * 検索欄（UT-11）は並べ替えの上。同じ入力欄でディレクトリ名も絞れる（ADR-003）。
  *
+ * 検索欄で Esc を押したら**検索語を消す**。図の絞り込みを解く Esc（UT-14）は
+ * 画面全体で拾っているので、ここで止めないと入力中に図のほうが動く。
+ *
  * 畳む口はここ（見出しの隣）とレール（画面の左端）の 2 つある。**同じ状態を
  * 触る**ので、どちらから閉じても同じ。閉じると面ごと見えなくなるため、開き直す
  * 口は面の外＝レールに要る。
@@ -84,6 +87,7 @@ const countLabel = computed(() =>
         class="w-full rounded-control border border-line bg-surface-2 px-9 py-6 text-ui text-ink placeholder:text-ink-3"
         placeholder="ファイル名・メソッド名・パス"
         autocomplete="off"
+        @keydown.escape.stop="state.query = ''"
       />
     </div>
 

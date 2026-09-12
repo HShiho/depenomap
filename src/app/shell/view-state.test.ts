@@ -330,3 +330,156 @@ describe('購読の仕方', () => {
     expect(Object.keys(state.$state).sort()).toEqual(['columnAxis', 'query', 'sidebarOpen'])
   })
 })
+
+describe('移動の経路（UT-14）', () => {
+  it('移動すると、選択が移り絞り込みも立つ（US-12）', () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const target = viewModel.nodes.file[2]!
+
+    state.moveTo(target.id)
+
+    expect(state.selectedNodeId).toBe(target.id)
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('図の上で同じノードをもう一度押すと、絞り込みだけ解く', () => {
+    // 図を広げて全体の中の位置を見る操作が、選び直しと同じ手つきでできる
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const target = viewModel.nodes.file[2]!
+
+    state.moveTo(target.id, { toggle: true })
+    state.moveTo(target.id, { toggle: true })
+
+    expect(state.narrowedToSelection).toBe(false)
+    expect(state.selectedNodeId).toBe(target.id)
+  })
+
+  it('図の上でさらにもう一度押すと、選択も外れる', () => {
+    /*
+     * 選択を外す口が無いと、深度軸では起点が選んだノードに固定されたまま
+     * 戻れなくなる（ADR-001 の既定の起点へ帰れない）
+     */
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const target = viewModel.nodes.file[2]!
+
+    state.moveTo(target.id, { toggle: true })
+    state.moveTo(target.id, { toggle: true })
+    state.moveTo(target.id, { toggle: true })
+
+    expect(state.selectedNodeId).toBeUndefined()
+    expect(state.narrowedToSelection).toBe(false)
+  })
+
+  it('一覧や検索の行は、同じノードでも絞り込みを解かない', () => {
+    // 行を押す意図は「この行を選ぶ」。押しただけで図の絞り込みが解けない
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const target = viewModel.nodes.file[2]!
+
+    state.moveTo(target.id)
+    state.moveTo(target.id)
+
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('外したあと選び直すと、また絞る', () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const target = viewModel.nodes.file[2]!
+
+    state.moveTo(target.id, { toggle: true })
+    state.moveTo(target.id, { toggle: true })
+    state.moveTo(target.id, { toggle: true })
+    state.moveTo(target.id, { toggle: true })
+
+    expect(state.selectedNodeId).toBe(target.id)
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('別のノードへ移動すると、そちらを中心に絞り直す', () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const first = viewModel.nodes.file[2]!
+    const second = viewModel.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+
+    expect(state.selectedNodeId).toBe(second.id)
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('移動は履歴に積まれる（UT-15 の 1 手）', () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const first = viewModel.nodes.file[2]!
+    const second = viewModel.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    state.moveTo(second.id, { toggle: true })
+
+    // 絞り込みの解除は「移動」ではないので積まない
+    expect(state.history.map((entry) => entry.nodeId)).toEqual([first.id, second.id])
+  })
+
+  it('メソッドへ移動すると、粒度のほうが合う（UT-05 の規則）', () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const method = viewModel.nodes.method[0]!
+
+    state.moveTo(method.id)
+
+    expect(state.granularity).toBe('method')
+    expect(state.narrowedToSelection).toBe(true)
+  })
+})
+
+describe('解除の出どころ（UT-14）', () => {
+  const ready = () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    return state
+  }
+
+  it('Esc や ✕ で解いたあと同じノードを押すと、絞り直す', () => {
+    // 絞り直すつもりの押下で、選択ごと失わない
+    const state = ready()
+    const target = viewModel.nodes.file[2]!
+
+    state.moveTo(target.id, { toggle: true })
+    state.setNarrowedToSelection(false)
+    state.moveTo(target.id, { toggle: true })
+
+    expect(state.selectedNodeId).toBe(target.id)
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('押して解いたあと続けて押したときだけ、選択も外す', () => {
+    const state = ready()
+    const target = viewModel.nodes.file[2]!
+
+    state.moveTo(target.id, { toggle: true })
+    state.moveTo(target.id, { toggle: true })
+    state.moveTo(target.id, { toggle: true })
+
+    expect(state.selectedNodeId).toBeUndefined()
+  })
+
+  it('間に別のノードを挟むと、2 段目にはならない', () => {
+    const state = ready()
+    const first = viewModel.nodes.file[2]!
+    const other = viewModel.nodes.file[3]!
+
+    state.moveTo(first.id, { toggle: true })
+    state.moveTo(first.id, { toggle: true })
+    state.moveTo(other.id, { toggle: true })
+    state.moveTo(first.id, { toggle: true })
+
+    expect(state.selectedNodeId).toBe(first.id)
+    expect(state.narrowedToSelection).toBe(true)
+  })
+})

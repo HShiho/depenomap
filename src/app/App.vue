@@ -5,9 +5,11 @@
  * 各領域の中身は UT-06 以降が差し込む。いまレールと通知に入っているのは、
  * 器が動いていることを目で確かめるための**暫定表示**である。
  */
-import { onMounted } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
+import NarrowingChip from './graph-canvas/NarrowingChip.vue'
+import { fullTitleOf } from './graph-canvas/node-label'
 import SidebarPanel from './sidebar/SidebarPanel.vue'
 import GranularityToggle from './graph-canvas/GranularityToggle.vue'
 import GraphCanvas from './graph-canvas/GraphCanvas.vue'
@@ -18,6 +20,39 @@ import { useViewState } from './shell/view-state'
 const state = useViewState()
 
 onMounted(() => void loadGraphInto(state))
+
+/**
+ * Esc で絞り込みを解く（UT-14 の決定）。
+ *
+ * 解く口が印の ✕ だけだと、キャンバスを見ている手をそこまで動かすことになる。
+ * **選択は解かない** — Esc は「絞り込みをやめる」であって「選んでいたことを
+ * 忘れる」ではない。
+ *
+ * 画面全体で拾う。絞り込み中はどこを触っていても解けてほしい。**入力欄は除く** —
+ * 検索欄の Esc は検索語を消す（`SidebarPanel`）ので、そちらを妨げない。
+ */
+function onKeydown(event: KeyboardEvent): void {
+  if (event.key !== 'Escape' || !state.narrowedToSelection) return
+  const target = event.target
+  if (target instanceof HTMLElement && target.closest('input, textarea, select')) return
+
+  state.setNarrowedToSelection(false)
+}
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+
+/**
+ * 絞り込み中に出す名前。絞っていなければ `undefined`。
+ *
+ * 図から消えたノードは、消えたこと自体が画面から読めない。何を中心に絞って
+ * いるのかを出す（US-12）。
+ */
+const narrowingLabel = computed(() =>
+  state.narrowedToSelection && state.selectedNode !== undefined
+    ? fullTitleOf(state.selectedNode)
+    : undefined,
+)
 </script>
 
 <template>
@@ -30,6 +65,10 @@ onMounted(() => void loadGraphInto(state))
       見え方の切り替えはキャンバス下部の 1 つの器に集める（参照仕様）。
       列の軸（UT-08）もこの中に並べる
     -->
+    <template #canvas-overlay>
+      <NarrowingChip v-if="narrowingLabel !== undefined" :label="narrowingLabel" />
+    </template>
+
     <template #toolbar>
       <div
         v-if="state.status.kind === 'ready'"

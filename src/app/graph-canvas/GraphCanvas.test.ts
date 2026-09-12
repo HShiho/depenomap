@@ -8,6 +8,7 @@ import { loadGraphFromValue } from '@/core/graph/loader'
 import { buildViewModel, type Granularity } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
 import * as columnAxis from './column-axis'
+import * as layoutModule from './layout'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import GraphCanvas from './GraphCanvas.vue'
 
@@ -92,22 +93,32 @@ describe('層が未設定のノード', () => {
 })
 
 describe('操作の口', () => {
-  it('ノードのクリックで選択する', async () => {
+  it('ノードのクリックで選択が移り、絞り込みも立つ（US-12）', async () => {
     const { state, wrapper } = setup()
+    const node = wrapper.find('g.node')
+    const id = node.attributes('data-node-id')!
 
-    await wrapper.find('g.node').trigger('click')
+    await node.trigger('click')
 
-    expect(state.selectedNodeId).toBeDefined()
-    expect(wrapper.find('g.node').classes()).toContain('selected')
+    // 絞り込みで並びが変わるので、押した行は ID で掴む
+    expect(state.selectedNodeId).toBe(id)
+    expect(state.narrowedToSelection).toBe(true)
+    expect(wrapper.find(`[data-node-id="${id}"]`).classes()).toContain('selected')
   })
 
-  it('背景のクリックで選択を外す', async () => {
+  it('背景のクリックでは、選択も絞り込みも解けない（UT-14 の決定）', async () => {
+    /*
+     * 絞り込み中は背景の面積が大きく、図を眺めるつもりの空クリックで解けてしまう。
+     * 解く口は印の ✕・Esc・同じノードの再クリックの 3 つに絞る
+     */
     const { state, wrapper } = setup()
     await wrapper.find('g.node').trigger('click')
+    const selected = state.selectedNodeId
 
     await wrapper.find('svg').trigger('click')
 
-    expect(state.selectedNodeId).toBeUndefined()
+    expect(state.selectedNodeId).toBe(selected)
+    expect(state.narrowedToSelection).toBe(true)
   })
 
   it('右クリックは口を開けておく。中身は後続 UT が載せる', async () => {
@@ -558,8 +569,11 @@ describe('並べ方を切り替えたときの視点（UT-08）', () => {
     expect(lowest).toBeLessThanOrEqual(CANVAS.height)
   })
 
-  it('深度軸で選択が変わっても、全体表示に戻さない', async () => {
-    // 起点が変わるので図の形は変わるが、ここで戻すと寄せる操作を毎回上書きする
+  it('深度軸で選択が変わっても、全体表示に戻さない（寄せはする）', async () => {
+    /*
+     * 起点が変わるので図の形は変わるが、ここで全体表示に戻すと寄せる操作を毎回
+     * 上書きする。拡大率は据え置いたまま、そのノードへ寄る（UT-14 の決定）
+     */
     const { state, wrapper } = setup()
     state.columnAxis = 'depth'
     await wrapper.vm.$nextTick()
@@ -570,7 +584,7 @@ describe('並べ方を切り替えたときの視点（UT-08）', () => {
     state.select(viewModel.nodes.file[3]!.id)
     await wrapper.vm.$nextTick()
 
-    expect({ ...canvas.viewport }).toEqual(before)
+    expect(canvas.viewport.scale).toBe(before.scale)
   })
 
   it('軸を切り替えても選択を見失わない', async () => {
@@ -642,5 +656,336 @@ describe('経由の呼び出しが依っている前提', () => {
 
     expect(via.length).toBeGreaterThan(0)
     expect(uncovered).toEqual([])
+  })
+})
+
+describe('選択による絞り込み（US-12 / UT-14）', () => {
+  /** 依存先も依存元も持つファイル */
+  const hub = viewModel.nodes.file.find(
+    (node) =>
+      viewModel.dependenciesOf(node.id, 'file').length > 0 &&
+      viewModel.fanInOf(node.id, 'file') > 0,
+  )!
+
+  const shown = (wrapper: ReturnType<typeof setup>['wrapper']) =>
+    wrapper.findAll('g.node').map((node) => node.attributes('data-node-id')!)
+
+  it('絞り込みを立てるまでは、全部出る', async () => {
+    const { state, wrapper } = setup()
+    state.select(hub.id)
+    await wrapper.vm.$nextTick()
+
+    expect(shown(wrapper)).toHaveLength(viewModel.nodes.file.length)
+  })
+
+  it('立てると、選んだノードと直接の相手だけが残る', async () => {
+    const { state, wrapper } = setup()
+    state.select(hub.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    const ids = shown(wrapper)
+    expect(ids).toContain(hub.id)
+    expect(ids.length).toBeLessThan(viewModel.nodes.file.length)
+    for (const id of ids) {
+      if (id === hub.id) continue
+      const touching = viewModel.edges.file.some(
+        (edge) =>
+          (edge.from === hub.id && edge.to === id) || (edge.to === hub.id && edge.from === id),
+      )
+      expect(touching, id).toBe(true)
+    }
+  })
+
+  it('関係しないノードは薄くするのではなく消す', async () => {
+    const { state, wrapper } = setup()
+    state.select(hub.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    const gone = viewModel.nodes.file.find((node) => !shown(wrapper).includes(node.id))!
+    expect(wrapper.find(`[data-node-id="${gone.id}"]`).exists()).toBe(false)
+  })
+
+  it('選んだノードを介さない線は描かない', async () => {
+    const { state, wrapper } = setup()
+    state.select(hub.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    for (const path of wrapper.findAll('path[data-edge-id]')) {
+      const edge = viewModel.edgeById.get(path.attributes('data-edge-id')!)!
+      expect(edge.from === hub.id || edge.to === hub.id).toBe(true)
+    }
+  })
+
+  it('空になった列は詰める', async () => {
+    const { state, wrapper } = setup()
+    const before = wrapper.findAll('g.head-group').length
+
+    state.select(hub.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('g.head-group').length).toBeLessThan(before)
+  })
+
+  it('解くと戻る', async () => {
+    const { state, wrapper } = setup()
+    state.select(hub.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+    state.setNarrowedToSelection(false)
+    await wrapper.vm.$nextTick()
+
+    expect(shown(wrapper)).toHaveLength(viewModel.nodes.file.length)
+  })
+})
+
+describe('移動したときの視点（UT-14）', () => {
+  const viewportOf = (wrapper: ReturnType<typeof setup>['wrapper']) =>
+    (wrapper.vm as unknown as { viewport: { scale: number; x: number; y: number } }).viewport
+
+  it('絞り込みが立つと図が組み替わるので、全体表示に合わせ直す', async () => {
+    // 残ったぶんを画面へ収め直すほうが先に要る（US-12）
+    const { state, wrapper } = setup()
+    const before = { ...viewportOf(wrapper) }
+
+    state.moveTo(viewModel.nodes.file[3]!.id)
+    await wrapper.vm.$nextTick()
+
+    expect(viewportOf(wrapper).scale).not.toBe(before.scale)
+  })
+
+  it('図が組み替わらない移動では、拡大率を保ってそのノードへ寄せる', async () => {
+    // この経路は、選択だけを動かす側（UT-15 の戻る・進む）から通る
+    const { state, wrapper } = setup()
+    // 絞り込みを解いた状態にしてから、別のノードを選ぶ
+    state.select(viewModel.nodes.file[3]!.id)
+    await wrapper.vm.$nextTick()
+    const before = { ...viewportOf(wrapper) }
+
+    state.select(viewModel.nodes.file[7]!.id)
+    await wrapper.vm.$nextTick()
+
+    const after = viewportOf(wrapper)
+    expect(after.scale).toBe(before.scale)
+    expect({ x: after.x, y: after.y }).not.toEqual({ x: before.x, y: before.y })
+  })
+
+  it('寄せた先が画面の中に入る', async () => {
+    const { state, wrapper } = setup()
+    const target = viewModel.nodes.file[7]!
+
+    state.select(target.id)
+    await wrapper.vm.$nextTick()
+
+    const node = wrapper.find(`svg [data-node-id="${target.id}"]`)
+    const transform = /translate\(([\d.-]+),([\d.-]+)\)/.exec(node.attributes('transform') ?? '')!
+    const view = viewportOf(wrapper)
+    const screenX = Number(transform[1]) * view.scale + view.x
+    const screenY = Number(transform[2]) * view.scale + view.y
+
+    expect(screenX).toBeGreaterThanOrEqual(0)
+    expect(screenX).toBeLessThanOrEqual(CANVAS.width)
+    expect(screenY).toBeGreaterThanOrEqual(0)
+    expect(screenY).toBeLessThanOrEqual(CANVAS.height)
+  })
+})
+
+describe('絞り込みと粒度（UT-14）', () => {
+  const shown = (wrapper: ReturnType<typeof setup>['wrapper']) =>
+    wrapper.findAll('g.node').map((node) => node.attributes('data-node-id')!)
+
+  it('メソッド粒度でも、選んだノードと直接の相手だけが残る', async () => {
+    const { state, wrapper } = setup({ granularity: 'method' })
+    const target = viewModel.nodes.method.find(
+      (node) => viewModel.dependenciesOf(node.id, 'method').length > 0,
+    )!
+
+    state.moveTo(target.id)
+    await wrapper.vm.$nextTick()
+
+    const ids = shown(wrapper)
+    expect(ids).toContain(target.id)
+    expect(ids.length).toBeLessThan(viewModel.nodes.method.length)
+  })
+
+  it('絞り込んだまま粒度を切り替えても、破綻しない', async () => {
+    // 選択は粒度をまたいで持ち越されない（UT-05 の規則）
+    const { state, wrapper } = setup()
+    state.moveTo(viewModel.nodes.file[3]!.id)
+    await wrapper.vm.$nextTick()
+
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('g.node').length).toBeGreaterThan(0)
+    expect(wrapper.findAll('text.head').length).toBeGreaterThan(0)
+  })
+
+  it('メソッドを選ぶと粒度が合い、そのうえで絞り込みが立つ', async () => {
+    const { state, wrapper } = setup()
+    const method = viewModel.nodes.method.find(
+      (node) => viewModel.dependenciesOf(node.id, 'method').length > 0,
+    )!
+
+    state.moveTo(method.id)
+    await wrapper.vm.$nextTick()
+
+    expect(state.granularity).toBe('method')
+    expect(state.narrowedToSelection).toBe(true)
+    expect(shown(wrapper)).toContain(method.id)
+  })
+})
+
+describe('絞り込みが持たないもの（UT-14）', () => {
+  it('依存元・依存先を列挙した一覧を作らない（N-4）', async () => {
+    // ノードマップ上で辿る。図と一覧で同じことを二重に持たない
+    const { state, wrapper } = setup()
+    state.moveTo(viewModel.nodes.file[3]!.id)
+    await wrapper.vm.$nextTick()
+
+    for (const word of ['依存元', '依存先', '使っている', '使われている']) {
+      expect(wrapper.text()).not.toContain(word)
+    }
+  })
+
+  it('到達範囲の適否を判定しない（N-1 / N-6）', async () => {
+    const { state, wrapper } = setup()
+    state.moveTo(viewModel.nodes.file[3]!.id)
+    await wrapper.vm.$nextTick()
+
+    for (const word of ['多すぎ', '警告', 'エラー', '問題', '違反']) {
+      expect(wrapper.text()).not.toContain(word)
+    }
+  })
+
+  it('深度を指定して表示範囲を切り替える操作を持たない（N-2）', async () => {
+    /*
+     * 残るのは常に直接の相手だけ。何段目まで見ているかという状態を持たない
+     * （持つと深度での出し入れに近づく）
+     */
+    const { state, wrapper } = setup()
+    const target = viewModel.nodes.file.find(
+      (node) => viewModel.dependenciesOf(node.id, 'file').length > 0,
+    )!
+
+    state.moveTo(target.id)
+    await wrapper.vm.$nextTick()
+    const first = wrapper.findAll('g.node').length
+
+    // もう一度同じノードへ移動しても、範囲は広がらない（解けるだけ）
+    state.moveTo(target.id)
+    state.moveTo(target.id)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('g.node').length).toBe(first)
+  })
+})
+
+describe('深度軸から既定の起点へ戻れる（UT-14 / ADR-001）', () => {
+  it('選択を外すと、被依存 0 のノード群が起点に戻る', async () => {
+    // 外す口が無いと、起点が選んだノードに固定されたまま帰れない
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+    const before = wrapper.findAll('text.head')[0]!.text()
+
+    const node = wrapper.find('svg g.node')
+    const id = node.attributes('data-node-id')!
+    await node.trigger('click')
+    await wrapper.find(`svg [data-node-id="${id}"]`).trigger('click')
+    await wrapper.find(`svg [data-node-id="${id}"]`).trigger('click')
+
+    expect(state.selectedNodeId).toBeUndefined()
+    expect(wrapper.findAll('text.head')[0]!.text()).toBe(before)
+  })
+})
+
+describe('絞り込み中の配置（UT-14）', () => {
+  it('配置に渡す線と、描く線が同じ', async () => {
+    /*
+     * 描かない線で交差削減を回すと、列の中の並びが画面の線と対応しない。
+     * 行の並びそのものは外から見えないので、配置へ渡す集合を直接見る
+     */
+    const spy = vi.spyOn(layoutModule, 'buildLayout')
+    try {
+      const { state, wrapper } = setup()
+      const target = viewModel.nodes.file.find(
+        (node) => viewModel.dependenciesOf(node.id, 'file').length > 1,
+      )!
+
+      state.moveTo(target.id)
+      await wrapper.vm.$nextTick()
+
+      const passed = spy.mock.calls.at(-1)![0].edges
+      expect(passed.length).toBeGreaterThan(0)
+      for (const edge of passed) {
+        expect(edge.from === target.id || edge.to === target.id, edge.id).toBe(true)
+      }
+
+      const drawn = wrapper
+        .findAll('path[data-edge-id]')
+        .map((path) => path.attributes('data-edge-id')!)
+      expect(new Set(drawn)).toEqual(new Set(passed.map((edge) => edge.id)))
+    } finally {
+      spy.mockRestore()
+    }
+  })
+})
+
+describe('深度軸で絞り込んだとき（UT-14 / UT-08）', () => {
+  it('依存元の列が「依存元」と読める', async () => {
+    // US-14 で見たい相手が「たどり着けない」と読めてしまわないようにする
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    const used = viewModel.nodes.file.find((node) => viewModel.fanInOf(node.id, 'file') > 0)!
+    state.moveTo(used.id)
+    await wrapper.vm.$nextTick()
+
+    const heads = wrapper.findAll('text.head').map((head) => head.text())
+    expect(heads.some((head) => head.includes('依存元'))).toBe(true)
+    expect(heads.some((head) => head.includes('深度未定'))).toBe(false)
+  })
+
+  it('絞り込みを解くと、元の見出しに戻る', async () => {
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+    const used = viewModel.nodes.file.find((node) => viewModel.fanInOf(node.id, 'file') > 0)!
+
+    state.moveTo(used.id)
+    await wrapper.vm.$nextTick()
+    state.setNarrowedToSelection(false)
+    await wrapper.vm.$nextTick()
+
+    const heads = wrapper.findAll('text.head').map((head) => head.text())
+    expect(heads.some((head) => head.includes('依存元'))).toBe(false)
+  })
+})
+
+describe('層軸と絞り込みの計算（UT-14 / UT-08）', () => {
+  it('層軸では、絞り込みが立っても列の割り当てを作り直さない', async () => {
+    /*
+     * 絞り込みの判定を見出しへ渡すようになったので、軸で囲わないと層軸でも
+     * 選ぶたびに割り当てが作り直される。既存の検査は `select` を使っていて
+     * 絞り込みを立てないため、この経路を通らない
+     */
+    const spy = vi.spyOn(columnAxis, 'buildColumnPlan')
+    try {
+      const { state, wrapper } = setup()
+      await wrapper.vm.$nextTick()
+      const before = spy.mock.calls.length
+
+      state.moveTo(viewModel.nodes.file[2]!.id)
+      await wrapper.vm.$nextTick()
+
+      expect(spy.mock.calls.length).toBe(before)
+    } finally {
+      spy.mockRestore()
+    }
   })
 })

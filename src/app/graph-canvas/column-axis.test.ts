@@ -177,3 +177,76 @@ describe('依存深度を列にする', () => {
     expect(roots.headOf(TRAILING_COLUMN).label).toBe('深度未定')
   })
 })
+
+describe('絞り込み中の深度の見出し（UT-14）', () => {
+  it('最後尾は「依存元」と読める', () => {
+    /*
+     * 深度は選択を起点に依存の向きへ数えるので、選択を使っている側は必ず
+     * 到達不能になる。「たどり着けない」と出すと、US-14 で見たい相手が
+     * そう読めてしまう
+     */
+    const used = viewModel.nodes.file.find((node) => viewModel.fanInOf(node.id, 'file') > 0)!
+    const plan = depthColumns(viewModel, 'file', used.id, true)
+
+    expect(plan.headOf(TRAILING_COLUMN).label).toContain('依存元')
+    expect(plan.headOf(TRAILING_COLUMN).label).not.toContain('深度未定')
+  })
+
+  it('依存元が実際にその列へ入る', () => {
+    const used = viewModel.nodes.file.find((node) => viewModel.fanInOf(node.id, 'file') > 0)!
+    const plan = depthColumns(viewModel, 'file', used.id, true)
+
+    const dependents = viewModel.dependentNodesOf(used.id, 'file')
+    expect(dependents.length).toBeGreaterThan(0)
+    for (const node of dependents) expect(plan.columnOf(node)).toBe(TRAILING_COLUMN)
+  })
+
+  it('絞っていないときは、これまでどおり「深度未定」', () => {
+    const plan = depthColumns(viewModel, 'file', viewModel.nodes.file[0]!.id)
+
+    expect(plan.headOf(TRAILING_COLUMN).label).toBe('深度未定')
+  })
+})
+
+describe('絞り込み中の深度の列（UT-14）', () => {
+  /** その選択にとって「依存元ではあるが依存先ではない」ノード */
+  const pureDependents = (nodeId: string) => {
+    const dependencies = new Set(
+      viewModel.dependenciesOf(nodeId, 'file').map((dependency) => dependency.node.id),
+    )
+    return viewModel
+      .dependentNodesOf(nodeId, 'file')
+      .filter((dependent) => !dependencies.has(dependent.id))
+  }
+
+  /** 全体で数えると、純粋な依存元が依存先の側へ並んでしまう選択 */
+  const scattered = viewModel.nodes.file.filter((node) => {
+    const plan = depthColumns(viewModel, 'file', node.id, false)
+    return pureDependents(node.id).some((dependent) => plan.columnOf(dependent) !== TRAILING_COLUMN)
+  })
+
+  it('全体で数えると、依存元が依存先の側へ並ぶ選択が実在する', () => {
+    // ここが 0 件になると、以下の 2 件は何も見ていないことになる
+    expect(scattered.length).toBeGreaterThan(0)
+  })
+
+  it('絞り込み中は、純粋な依存元がすべて最後尾に入る', () => {
+    // 描かれていない経路を根拠に「依存先の側」へ並ばせない
+    for (const node of scattered) {
+      const plan = depthColumns(viewModel, 'file', node.id, true)
+      for (const dependent of pureDependents(node.id)) {
+        expect(plan.columnOf(dependent), `${node.name} <- ${dependent.name}`).toBe(TRAILING_COLUMN)
+      }
+    }
+  })
+
+  it('絞り込み中の列は、選択 0 / 依存先 1 / 依存元の 3 通りだけ', () => {
+    const target = scattered[0]!
+    const plan = depthColumns(viewModel, 'file', target.id, true)
+
+    expect(plan.columnOf(target)).toBe(0)
+    for (const dependency of viewModel.dependenciesOf(target.id, 'file')) {
+      expect(plan.columnOf(dependency.node)).toBe(1)
+    }
+  })
+})

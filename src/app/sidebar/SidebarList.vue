@@ -18,9 +18,9 @@
  * 見え方で、一覧は常にファイルとその中のメソッドを見せる。連動させると、
  * ファイル粒度のときにメソッドへ辿り着く道が画面から消える。
  *
- * 行の選択は器（UT-05）の `select` へ渡す。選んだノードが今の粒度に無ければ
- * 粒度のほうが合う、という規則もそこが持つ。移動や絞り込みを伴う経路は
- * UT-14 が載せるので、ここでは**選ぶところまで**にする。
+ * 行を押したら、**移動の経路（UT-14）を通す**。キャンバスのクリック・検索の
+ * 結果と同じ口なので、どこから選んでも選択・絞り込み・視点の動きが揃う。
+ * 選んだノードが今の粒度に無ければ粒度のほうが合う、という規則も器が持つ。
  */
 import { computed, ref, watch } from 'vue'
 
@@ -197,7 +197,7 @@ function toggle(id: string): void {
         :selected="state.selectedNodeId === file.node.id"
         :colour="file.colour"
         @toggle="toggle(file.node.id)"
-        @select="state.select(file.node.id)"
+        @select="state.moveTo(file.node.id)"
       >
         <template #badges>
           <MatchBadge v-if="file.match === 'path'" />
@@ -212,7 +212,7 @@ function toggle(id: string): void {
           :node="method.node"
           :fan-in="method.fanIn"
           :selected="state.selectedNodeId === method.node.id"
-          @select="state.select(method.node.id)"
+          @select="state.moveTo(method.node.id)"
         >
           <!-- メソッドの印はパスでは付かない（`sidebar-list.ts`） -->
           <template #badges>

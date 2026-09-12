@@ -101,6 +101,8 @@
   --color-accent-ink: #ffffff;
   /** ON 状態の背景・フォーカスリング */
   --color-accent-soft: rgba(15, 110, 140, 0.12);
+  /** アクセント面の輪郭。`accent-soft` の上に置く枠 */
+  --color-accent-line: rgba(15, 110, 140, 0.45);
 
   /*
    * 意味を持つ色は **循環している依存**だけに割り当てる。
@@ -230,6 +232,7 @@
     --color-accent: #4fc3d9;
     --color-accent-ink: #06202a;
     --color-accent-soft: rgba(79, 195, 217, 0.16);
+    --color-accent-line: rgba(79, 195, 217, 0.45);
 
     --color-warn: #e5ac55;
     --color-warn-soft: rgba(229, 172, 85, 0.14);
@@ -265,6 +268,7 @@
   --color-accent: #4fc3d9;
   --color-accent-ink: #06202a;
   --color-accent-soft: rgba(79, 195, 217, 0.16);
+  --color-accent-line: rgba(79, 195, 217, 0.45);
 
   --color-warn: #e5ac55;
   --color-warn-soft: rgba(229, 172, 85, 0.14);

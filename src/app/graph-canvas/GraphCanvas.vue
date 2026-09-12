@@ -16,6 +16,7 @@ import type { Granularity, ViewModel } from '@/core/ir/view-model'
 import { useViewState, type ColumnAxis } from '../shell/view-state'
 import { layerColours } from '../shell/layer-colour'
 import { buildColumnPlan } from './column-axis'
+import { narrowedNodeIds } from './narrowing'
 import { edgeMidpoint, edgePath } from './edge-path'
 import { subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
@@ -45,6 +46,9 @@ const columnPlan = computed(() => {
      * computed に畳んだ意味が消える。
      */
     selectedNodeId: axis === 'depth' ? state.selectedNodeId : undefined,
+    // 絞り込み中は、深度軸の最後尾が「たどり着けない」ではなく依存元になる。
+    // 判定は絞り込みそのもの（粒度のずれも見る）へ寄せる
+    narrowed: axis === 'depth' && narrowed.value !== undefined,
   })
 })
 
@@ -69,13 +73,53 @@ function sortKeyOf(node: GraphNode): string {
   return `${node.parent}#${line}`
 }
 
+/**
+ * 絞り込みで残るノード（UT-14 / US-12）。`undefined` は「絞っていない」。
+ *
+ * **絞り込みが立っているときだけ効く**。選択そのものは絞り込みを伴わない
+ * （器が別々に持つ / UT-05）ので、全体の中で選んだノードの位置を見る経路が残る。
+ */
+const narrowed = computed(() =>
+  !state.narrowedToSelection || state.viewModel === undefined
+    ? undefined
+    : narrowedNodeIds({
+        nodes: state.viewModel.nodes[state.granularity],
+        edges: state.viewModel.edges[state.granularity],
+        selectedNodeId: state.selectedNodeId,
+      }),
+)
+
+/** 描くノード。絞っていなければ全部 */
+const shownNodes = computed(() => {
+  const nodes = state.viewModel?.nodes[state.granularity] ?? []
+  const kept = narrowed.value
+  return kept === undefined ? nodes : nodes.filter((node) => kept.has(node.id))
+})
+
+/**
+ * 描く線。絞り込み中は**選んだノードに繋がる線だけ**。
+ *
+ * 残った 2 つが互いに依存していても、選んだノードを介さない線は「このノードの
+ * 周り」の話ではない。
+ *
+ * 配置（交差削減）にも同じ集合を渡す。描かない線で行の順を決めると、列の中の
+ * 並びが画面に出ている線と対応しなくなる。
+ */
+const shownEdges = computed(() => {
+  const edges = state.viewModel?.edges[state.granularity] ?? []
+  if (narrowed.value === undefined) return edges
+
+  const selected = state.selectedNodeId
+  return edges.filter((edge) => edge.from === selected || edge.to === selected)
+})
+
 const layout = computed(() => {
   const viewModel = state.viewModel
   if (!viewModel) return buildLayout({ nodes: [], edges: [], columnOf: () => 0 })
 
   return buildLayout({
-    nodes: viewModel.nodes[state.granularity],
-    edges: viewModel.edges[state.granularity],
+    nodes: shownNodes.value,
+    edges: shownEdges.value,
     columnOf: (node) => columnPlan.value?.columnOf(node) ?? 0,
     sortKeyOf,
   })
@@ -111,7 +155,7 @@ function variantOf(edge: GraphEdge): EdgeVariant {
 }
 
 const edges = computed(() =>
-  (state.viewModel?.edges[state.granularity] ?? []).flatMap((edge) => {
+  shownEdges.value.flatMap((edge) => {
     const from = positions.value.get(edge.from)
     const to = positions.value.get(edge.to)
     // 位置が引けないエッジは描かない。参照整合性は UT-01 が保証済みで、
@@ -216,13 +260,27 @@ const emit = defineEmits<{
   nodeContextMenu: [node: GraphNode, event: MouseEvent]
 }>()
 
+/**
+ * ノードのクリック（US-12）。**移動の経路（UT-14）を通す**。
+ *
+ * 選択だけを動かす経路をここに残すと、キャンバスから選んだときだけ絞り込みが
+ * 立たない、という食い違いができる。
+ */
 function onNodeClick(node: GraphNode): void {
-  state.select(node.id)
+  // 図の上で同じノードをもう一度押したときだけ、絞り込みを解く
+  state.moveTo(node.id, { toggle: true })
 }
 
-function onBackgroundClick(): void {
-  state.clearSelection()
-}
+/**
+ * 背景のクリック（UT-14 の決定）。**何もしない**。
+ *
+ * 絞り込み中は背景の面積が大きく、図を眺めるつもりの空クリックで解けてしまう。
+ * UT-16 でパンが載ると、背景のドラッグとクリックの区別も微妙になる。解く口は
+ * 印の ✕・Esc・同じノードの再クリックの 3 つに絞る（参照仕様）。
+ *
+ * ハンドラ自体は残す。UT-16 がここでドラッグの開始を拾う。
+ */
+function onBackgroundClick(): void {}
 
 /* --- ビューポート操作の口（UT-16 / UT-14 / UT-11 が使う） -------------- */
 
@@ -249,13 +307,21 @@ defineExpose({ viewport, fitToContent, focusNode })
  * パンの手段が載るのは UT-16 なので、いまは戻す方法が無い。
  *
  * **深度軸で選択が変わったときは合わせ直さない。** 起点が変わるので図の形は
- * 変わるが、ここで全体表示に戻すと、選んだノードへ寄せる操作（`focusNode`）を
- * 常に上書きすることになる。下の未決と同じ話で、優先順位はその UT で決める。
+ * 変わるが、ここで全体表示に戻すと、選んだノードへ寄せる操作を常に上書きする。
  *
- * **未決**: `select()` は、選んだノードが現在の粒度に無いと粒度を切り替える
- * （UT-05）。その経路でも全体表示が走るため、「一覧や検索から選んで、その
- * ノードへ寄せる」（UT-11 / UT-12 / UT-14）を実装すると、寄せた視点が
- * 全体表示に上書きされる。どちらを優先するかは、その UT で決める。
+ * **寄せると全体表示の優先順位**（UT-07 から先送りしていた点）は、参照仕様に
+ * 従って次のように決めた — **図が組み替わったら全体表示、組み替わっていなければ
+ * そのノードへ寄せる**。絞り込みが立つと列が組み替わるので、残ったぶんを画面へ
+ * 収め直すほうが先に要る。組み替わらない移動では、位置を保ったまま目的のノードへ
+ * 寄せる。
+ *
+ * **寄せる側は、いまの画面からは通らない。** 画面の移動はすべて `moveTo` を通り、
+ * `moveTo` は選択を動かすとき必ず絞り込みを立て、絞り込みだけを動かす経路でも
+ * 図の鍵（絞り込みの中心）が変わる。例外は**選択を外す押下**で、こちらは鍵が
+ * 変わらないまま寄せる側へ来るが、行き先が無いので下のガードで何もしない。
+ * 実際に寄せるのは、選択だけを動かす経路 — 履歴の戻る・進む（UT-15）が
+ * 配線されたときになる。
+ * 規則を先に決めておくのは、そのとき両方の側が揃っている必要があるため。
  *
  * リサイズのたびに合わせ直すと、寄せた位置（`focusNode`）やこの先のパン・
  * ズーム（UT-16）が、ウィンドウの変形やサイドバーの開閉で毎回巻き戻る。
@@ -266,8 +332,18 @@ defineExpose({ viewport, fitToContent, focusNode })
  * **登録順**が正しさの条件になる。合わせた対象そのものを覚えておけば、
  * 判定が 1 つの式で閉じる。
  */
-let lastFitted:
-  { viewModel: ViewModel | undefined; granularity: Granularity; axis: ColumnAxis } | undefined
+/** 図の形を決めるもの。ここが変われば、図そのものが組み替わっている */
+type FitKey = {
+  viewModel: ViewModel | undefined
+  granularity: Granularity
+  axis: ColumnAxis
+  /** 絞り込みの中心。絞っていなければ `undefined` */
+  narrowedTo: string | undefined
+}
+
+let lastFitted: FitKey | undefined
+/** 最後に寄せたノード。図が組み替わらない移動で使う */
+let lastFocused: string | undefined
 
 /*
  * 図が入れ替わったら全体表示に戻す。読み込み直後は「どこを見ているか」の
@@ -284,25 +360,47 @@ watch(
       state.viewModel,
       state.granularity,
       state.columnAxis,
+      state.narrowedToSelection ? state.selectedNodeId : undefined,
+      state.selectedNodeId,
       layout.value.width,
       layout.value.height,
       view.value.width,
       view.value.height,
     ] as const,
-  ([viewModel, granularity, axis, contentWidth, contentHeight, viewWidth, viewHeight]) => {
+  ([
+    viewModel,
+    granularity,
+    axis,
+    narrowedTo,
+    selectedNodeId,
+    contentWidth,
+    contentHeight,
+    viewWidth,
+    viewHeight,
+  ]) => {
     const ready = contentWidth > 0 && contentHeight > 0 && viewWidth > 0 && viewHeight > 0
     if (!ready) return
+
     const fitted = lastFitted
-    if (
-      fitted &&
+    const sameFigure =
+      fitted !== undefined &&
       fitted.viewModel === viewModel &&
       fitted.granularity === granularity &&
-      fitted.axis === axis
-    )
-      return
+      fitted.axis === axis &&
+      fitted.narrowedTo === narrowedTo
 
-    lastFitted = { viewModel, granularity, axis }
-    fitToContent()
+    if (!sameFigure) {
+      lastFitted = { viewModel, granularity, axis, narrowedTo }
+      lastFocused = selectedNodeId
+      fitToContent()
+      return
+    }
+
+    // 図が組み替わっていない移動は、位置を保ったまま目的のノードへ寄せる
+    if (selectedNodeId !== undefined && selectedNodeId !== lastFocused) {
+      lastFocused = selectedNodeId
+      focusNode(selectedNodeId)
+    }
   },
   { immediate: true },
 )

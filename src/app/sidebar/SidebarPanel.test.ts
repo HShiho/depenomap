@@ -569,3 +569,15 @@ describe('ファイル名も当たったときのメソッド（UT-11）', () =>
     expect(shown.some((id) => id.startsWith('method:'))).toBe(false)
   })
 })
+
+describe('検索欄の Esc（UT-11 / UT-14）', () => {
+  it('検索語を消す', async () => {
+    const { state, wrapper } = setup()
+    const search = wrapper.find('input[type="search"]')
+    await search.setValue('Todo')
+
+    await search.trigger('keydown', { key: 'Escape' })
+
+    expect(state.query).toBe('')
+  })
+})
