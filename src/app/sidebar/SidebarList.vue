@@ -72,15 +72,13 @@ const pinned = computed(() => {
  * 中のメソッドが検索に当たったファイル。**ファイル自身が当たったかは見ない** —
  * 見ると、同じ検索語に当たったメソッドが、所属ファイルの名前次第で畳まれる。
  *
- * **絞っていないときは空**。絞っていない一覧では全ファイルが「自身は当たって
- * いない」形になり、そのまま数えると全部が開いてしまう。
+ * 絞っていないときは空になる。印を付けるのは絞り込みだけなので、通っていない
+ * 一覧のメソッドは `match` を持たない。
  */
 const matchedByMethod = computed(() =>
-  !isActiveQuery(state.query)
-    ? []
-    : list.value
-        .filter((file) => file.methods.some((method) => method.match !== undefined))
-        .map((file) => file.node.id),
+  list.value
+    .filter((file) => file.methods.some((method) => method.match !== undefined))
+    .map((file) => file.node.id),
 )
 
 /**

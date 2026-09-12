@@ -123,9 +123,14 @@ function sortMethods(methods: SidebarMethod[], order: MethodOrder): readonly Sid
  * のであって 0 件ではない。
  *
  * ファイル行は**自身が一致したとき**と**中のメソッドが一致したとき**に残る。
- * 自身が一致したときは中のメソッドをすべて残す（そのファイルを探し当てたの
- * だから、開けば中身が見えてほしい）。メソッドだけが一致したときは、当たった
- * ものだけを並べる。
+ * **どちらの場合も、並ぶメソッドは当たったものだけ**（参照仕様）。
+ *
+ * 自身が当たったファイルの中身を丸ごと残すと、自動で開いたときに、当たった行と
+ * 当たっていない行が同じ場所に並ぶ。メソッド行には当たった印が無いので見分け
+ * られず、「なぜこの行がここにあるのか」が読めない。メソッドだけが当たった
+ * ファイルは当たった行しか並べないため、同じ一覧の中で中身の意味も食い違う。
+ *
+ * 絞り込みをやめれば中身は戻る。探している最中に見えるのは、探しているものだけ。
  *
  * 照合は IR の検索キー（ADR-003）に委ねる。**ここで対象や一致方式を書き直さ
  * ない** — 対象が散ると、同じ入力で違う結果が出る場所ができる。
@@ -140,14 +145,13 @@ export function filterSidebarList(
   const kept: SidebarFile[] = []
   for (const file of list) {
     const fileMatch = matchOf(viewModel, file.node.id, query)
-    const marked = file.methods.map((method) => ({
-      ...method,
-      match: nameMatchOf(viewModel, method.node.id, query),
-    }))
-    const hits = marked.filter((method) => method.match !== undefined)
+    const hits = file.methods
+      .map((method) => ({ ...method, match: nameMatchOf(viewModel, method.node.id, query) }))
+      .filter((method) => method.match !== undefined)
 
-    if (fileMatch !== undefined) kept.push({ ...file, match: fileMatch, methods: marked })
-    else if (hits.length > 0) kept.push({ ...file, methods: hits })
+    if (fileMatch !== undefined || hits.length > 0) {
+      kept.push({ ...file, match: fileMatch, methods: hits })
+    }
   }
   return kept
 }

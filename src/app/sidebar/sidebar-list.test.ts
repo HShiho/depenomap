@@ -173,8 +173,11 @@ describe('検索で絞る（UT-11 / US-07）', () => {
     for (const shown of owner.methods) expect(shown.node.name.toLowerCase()).toContain('execute')
   })
 
-  it('ファイル自身が当たったときは、中のメソッドを落とさない', () => {
-    // そのファイルを探し当てたのだから、開けば中身が見えてほしい
+  it('ファイル自身が当たっても、並ぶメソッドは当たったものだけ', () => {
+    /*
+     * 中身を丸ごと残すと、自動で開いたときに当たった行と当たっていない行が
+     * 同じ場所に並ぶ。メソッド行に当たった印は無いので、見分けられない
+     */
     const target = all.find(
       (file) =>
         file.methods.length > 0 &&
@@ -184,7 +187,7 @@ describe('検索で絞る（UT-11 / US-07）', () => {
     const found = kept.find((file) => file.node.id === target.node.id)!
 
     expect(found.match).toBe('name')
-    expect(found.methods).toHaveLength(target.methods.length)
+    expect(found.methods).toHaveLength(0)
   })
 
   it('パスにだけ当たった行は、そうと分かる', () => {
@@ -223,12 +226,14 @@ describe('当たったメソッドの印（UT-11）', () => {
     }
   })
 
-  it('ファイル名が当たったときは、当たらなかったメソッドも落とさない', () => {
+  it('ファイル名が当たっても、当たらなかったメソッドは並べない', () => {
     const kept = filterSidebarList(all, viewModel, 'todo')
-    const target = kept.find((file) => file.match === 'name' && file.methods.length > 1)!
-    const original = all.find((file) => file.node.id === target.node.id)!
+    const named = kept.filter((file) => file.match === 'name')
 
-    expect(target.methods).toHaveLength(original.methods.length)
+    expect(named.length).toBeGreaterThan(0)
+    for (const file of named) {
+      for (const method of file.methods) expect(method.node.name.toLowerCase()).toContain('todo')
+    }
   })
 
   it('メソッドの印はパスでは付かない', () => {
