@@ -13,7 +13,7 @@ import { computed, ref, watch } from 'vue'
 
 import type { GraphEdge, GraphNode } from '@/core/graph/schema'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
-import { useViewState } from '../shell/view-state'
+import { useViewState, type ColumnAxis } from '../shell/view-state'
 import { buildColumnPlan, layerColours } from './column-axis'
 import { edgeMidpoint, edgePath } from './edge-path'
 import { subtitleOf, titleOf, tooltipOf } from './node-label'
@@ -226,11 +226,17 @@ function focusNode(nodeId: string): void {
 defineExpose({ viewport, fitToContent, focusNode })
 
 /**
- * 最後に全体表示を合わせた対象。**グラフと粒度の組につき 1 回だけ**合わせる。
+ * 最後に全体表示を合わせた対象。**グラフ・粒度・並べ方の組につき 1 回だけ**
+ * 合わせる。
  *
  * 粒度を切り替えると図の大きさが変わる（メソッド粒度はフィクスチャで縦に
  * 約 2.7 倍）。視点を据え置くと、切り替えた瞬間に下半分が画面の外へ出る。
+ * 並べ方（UT-08）を切り替えたときも、列の数と各列の高さが変わる。
  * パンの手段が載るのは UT-16 なので、いまは戻す方法が無い。
+ *
+ * **深度軸で選択が変わったときは合わせ直さない。** 起点が変わるので図の形は
+ * 変わるが、ここで全体表示に戻すと、選んだノードへ寄せる操作（`focusNode`）を
+ * 常に上書きすることになる。下の未決と同じ話で、優先順位はその UT で決める。
  *
  * **未決**: `select()` は、選んだノードが現在の粒度に無いと粒度を切り替える
  * （UT-05）。その経路でも全体表示が走るため、「一覧や検索から選んで、その
@@ -246,7 +252,8 @@ defineExpose({ viewport, fitToContent, focusNode })
  * **登録順**が正しさの条件になる。合わせた対象そのものを覚えておけば、
  * 判定が 1 つの式で閉じる。
  */
-let lastFitted: { viewModel: ViewModel | undefined; granularity: Granularity } | undefined
+let lastFitted:
+  { viewModel: ViewModel | undefined; granularity: Granularity; axis: ColumnAxis } | undefined
 
 /*
  * 図が入れ替わったら全体表示に戻す。読み込み直後は「どこを見ているか」の
@@ -262,18 +269,25 @@ watch(
     [
       state.viewModel,
       state.granularity,
+      state.columnAxis,
       layout.value.width,
       layout.value.height,
       view.value.width,
       view.value.height,
     ] as const,
-  ([viewModel, granularity, contentWidth, contentHeight, viewWidth, viewHeight]) => {
+  ([viewModel, granularity, axis, contentWidth, contentHeight, viewWidth, viewHeight]) => {
     const ready = contentWidth > 0 && contentHeight > 0 && viewWidth > 0 && viewHeight > 0
     if (!ready) return
     const fitted = lastFitted
-    if (fitted && fitted.viewModel === viewModel && fitted.granularity === granularity) return
+    if (
+      fitted &&
+      fitted.viewModel === viewModel &&
+      fitted.granularity === granularity &&
+      fitted.axis === axis
+    )
+      return
 
-    lastFitted = { viewModel, granularity }
+    lastFitted = { viewModel, granularity, axis }
     fitToContent()
   },
   { immediate: true },

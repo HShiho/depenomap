@@ -401,6 +401,65 @@ describe('粒度を切り替えたときの視点', () => {
   })
 })
 
+describe('並べ方を切り替えたときの視点（UT-08）', () => {
+  it('列の形が変わるので、全体表示に合わせ直す', async () => {
+    const { state, wrapper } = setup()
+    const canvas = wrapper.vm as unknown as { viewport: { scale: number; x: number } }
+    const before = { ...canvas.viewport }
+
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    expect({ scale: canvas.viewport.scale, x: canvas.viewport.x }).not.toEqual({
+      scale: before.scale,
+      x: before.x,
+    })
+  })
+
+  it('切り替えたあとも、いちばん下のノードが画面に入る', async () => {
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    const canvas = wrapper.vm as unknown as { viewport: { scale: number; y: number } }
+    const bottoms = wrapper.findAll('g.node').map((node) => {
+      const y = /translate\([^,]+,([\d.]+)\)/.exec(node.attributes('transform') ?? '')?.[1]
+      return Number(y ?? 0)
+    })
+
+    const lowest = (Math.max(...bottoms) + NODE_HEIGHT) * canvas.viewport.scale + canvas.viewport.y
+    expect(lowest).toBeLessThanOrEqual(CANVAS.height)
+  })
+
+  it('深度軸で選択が変わっても、全体表示に戻さない', async () => {
+    // 起点が変わるので図の形は変わるが、ここで戻すと寄せる操作を毎回上書きする
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    const canvas = wrapper.vm as unknown as { viewport: { scale: number; x: number; y: number } }
+    const before = { ...canvas.viewport }
+
+    state.select(viewModel.nodes.file[3]!.id)
+    await wrapper.vm.$nextTick()
+
+    expect({ ...canvas.viewport }).toEqual(before)
+  })
+
+  it('軸を切り替えても選択を見失わない', async () => {
+    const { state, wrapper } = setup()
+    const target = viewModel.nodes.file[2]!.id
+    state.select(target)
+    await wrapper.vm.$nextTick()
+
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    expect(state.selectedNodeId).toBe(target)
+    expect(wrapper.find(`[data-node-id="${target}"]`).classes()).toContain('selected')
+  })
+})
+
 describe('見出しの切り詰め', () => {
   it('ノードに、切り詰める前の全文を重ねる', () => {
     const { wrapper } = setup()
