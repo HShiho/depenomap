@@ -495,15 +495,18 @@ describe('列の割り当てを作り直す条件（UT-08）', () => {
     // 起点が選択で変わるのは深度軸の規則（ADR-001）。層軸では答えが同じなので、
     // ここで作り直すと配置と表示物の再計算が丸ごと無駄になる
     const spy = vi.spyOn(columnAxis, 'buildColumnPlan')
-    const { state, wrapper } = setup()
-    await wrapper.vm.$nextTick()
-    const before = spy.mock.calls.length
+    try {
+      const { state, wrapper } = setup()
+      await wrapper.vm.$nextTick()
+      const before = spy.mock.calls.length
 
-    state.select(viewModel.nodes.file[2]!.id)
-    await wrapper.vm.$nextTick()
+      state.select(viewModel.nodes.file[2]!.id)
+      await wrapper.vm.$nextTick()
 
-    expect(spy.mock.calls.length).toBe(before)
-    spy.mockRestore()
+      expect(spy.mock.calls.length).toBe(before)
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   it('深度軸では、選択が変わったら作り直す', async () => {
@@ -512,13 +515,16 @@ describe('列の割り当てを作り直す条件（UT-08）', () => {
     await wrapper.vm.$nextTick()
 
     const spy = vi.spyOn(columnAxis, 'buildColumnPlan')
-    const before = spy.mock.calls.length
+    try {
+      const before = spy.mock.calls.length
 
-    state.select(viewModel.nodes.file[2]!.id)
-    await wrapper.vm.$nextTick()
+      state.select(viewModel.nodes.file[2]!.id)
+      await wrapper.vm.$nextTick()
 
-    expect(spy.mock.calls.length).toBeGreaterThan(before)
-    spy.mockRestore()
+      expect(spy.mock.calls.length).toBeGreaterThan(before)
+    } finally {
+      spy.mockRestore()
+    }
   })
 })
 
