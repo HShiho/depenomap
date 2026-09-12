@@ -97,6 +97,12 @@ export function layerColumns(viewModel: ViewModel): ColumnPlan {
  * **深度は `via: logical` で計算される**（`depth.ts`）。`actual` で依存を
  * たどる見方を入れる UT は、`computeDepths` / `findRootOrigins` に `via` を
  * 通すこと。ここで別のたどりを書かない。
+ *
+ * **申し送り**: 選択したノードを起点にすると、そこからたどれないノードが
+ * 「深度未定」の 1 列へ積み上がる（フィクスチャのメソッド粒度で 60 件中 46 件）。
+ * 起点が 1 件になるぶん到達範囲が狭まるためで、ADR-001 と N-2（深度で隠さない）
+ * を両方守った結果にあたる。ここで間引くのは N-2 に反するので、見え方の手当ては
+ * 選択による絞り込み（UT-14 / `narrowedToSelection`）が持つ。
  */
 export function depthColumns(
   viewModel: ViewModel,
