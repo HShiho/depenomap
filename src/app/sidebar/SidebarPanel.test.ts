@@ -513,3 +513,59 @@ describe('結果の変化の知らせ方（UT-11）', () => {
     )
   })
 })
+
+describe('ファイル名も当たったときのメソッド（UT-11）', () => {
+  /** 自身の名前が当たり、かつ中にも当たったメソッドがあるファイル */
+  const both = (() => {
+    const query = 'todo'
+    const file = viewModel.nodes.file.find(
+      (node) =>
+        node.name.toLowerCase().includes(query) &&
+        (viewModel.methodsOfFile.get(node.id) ?? []).some((method) =>
+          method.name.toLowerCase().includes(query),
+        ),
+    )!
+    const method = viewModel.methodsOfFile
+      .get(file.id)!
+      .find((node) => node.name.toLowerCase().includes(query))!
+    return { query, file, method }
+  })()
+
+  it('ファイル名が当たっても、中の当たったメソッドが画面に出る', async () => {
+    // 印が付いていても開かなければ、利用者からは何も変わっていない
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue(both.query)
+
+    expect(wrapper.find(`[data-node-id="${both.file.id}"]`).exists()).toBe(true)
+    expect(wrapper.find(`[data-node-id="${both.method.id}"]`).exists()).toBe(true)
+  })
+
+  it('当たったメソッドが無いファイルは、閉じたまま出る', async () => {
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue(both.query)
+
+    const closed = viewModel.nodes.file.find(
+      (node) =>
+        node.name.toLowerCase().includes(both.query) &&
+        (viewModel.methodsOfFile.get(node.id) ?? []).length > 0 &&
+        !(viewModel.methodsOfFile.get(node.id) ?? []).some((method) =>
+          method.name.toLowerCase().includes(both.query),
+        ),
+    )!
+    const caret = wrapper
+      .find(`[data-node-id="${closed.id}"]`)
+      .element.parentElement!.querySelector('[aria-expanded]')!
+
+    expect(caret.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('パスだけで当たったファイルは、中を開かない', async () => {
+    // ファイル行のパスの印が理由を示している。中の行で繰り返さない
+    const { wrapper } = setup()
+    await wrapper.find('input[type="search"]').setValue('src/infra/')
+
+    const shown = wrapper.findAll('[data-node-id]').map((row) => row.attributes('data-node-id')!)
+    expect(shown.length).toBeGreaterThan(0)
+    expect(shown.some((id) => id.startsWith('method:'))).toBe(false)
+  })
+})

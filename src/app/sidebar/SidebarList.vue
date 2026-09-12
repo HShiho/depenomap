@@ -69,7 +69,8 @@ const pinned = computed(() => {
 })
 
 /**
- * 自身ではなく、中のメソッドが検索に当たって残ったファイル。
+ * 中のメソッドが検索に当たったファイル。**ファイル自身が当たったかは見ない** —
+ * 見ると、同じ検索語に当たったメソッドが、所属ファイルの名前次第で畳まれる。
  *
  * **絞っていないときは空**。絞っていない一覧では全ファイルが「自身は当たって
  * いない」形になり、そのまま数えると全部が開いてしまう。
@@ -78,7 +79,7 @@ const matchedByMethod = computed(() =>
   !isActiveQuery(state.query)
     ? []
     : list.value
-        .filter((file) => file.match === undefined && file.methods.length > 0)
+        .filter((file) => file.methods.some((method) => method.match !== undefined))
         .map((file) => file.node.id),
 )
 
@@ -215,8 +216,8 @@ function toggle(id: string): void {
           :selected="state.selectedNodeId === method.node.id"
           @select="state.select(method.node.id)"
         >
+          <!-- メソッドの印はパスでは付かない（`sidebar-list.ts`） -->
           <template #badges>
-            <MatchBadge v-if="method.match === 'path'" />
             <slot name="method-badges" :node="method.node" />
           </template>
         </MethodRow>

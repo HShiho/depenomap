@@ -39,11 +39,22 @@ export interface SidebarEntry<T extends FileNode | MethodNode> {
   match?: SidebarMatch
 }
 
+/**
+ * メソッド行の印。**名前に当たったときだけ**持つ。
+ *
+ * メソッドの検索キーのパスは所属ファイルのパスそのもの（ADR-003）なので、
+ * パスに当たればファイル行も必ず当たる。型でも `path` を持てないようにして、
+ * 出す側が「出ない分岐」を書かないようにする。
+ */
+export interface SidebarMethod extends SidebarEntry<MethodNode> {
+  match?: 'name'
+}
+
 export interface SidebarFile extends SidebarEntry<FileNode> {
   /** 層の色。**ここで 1 回引く** — 行ごとにテンプレートで引くと、選択が動く
    * たびに全行ぶんの引き当てとオブジェクト生成が走る */
   colour: string
-  methods: readonly SidebarEntry<MethodNode>[]
+  methods: readonly SidebarMethod[]
 }
 
 /**
@@ -98,10 +109,7 @@ function rankOf(viewModel: ViewModel, granularity: Granularity): (nodeId: string
 /** 開いた中のメソッドの並べ方。軸と、その軸に要る土台を対で持つ */
 type MethodOrder = { axis: 'path' } | { axis: 'fan-in'; rank: (nodeId: string) => number }
 
-function sortMethods(
-  methods: SidebarEntry<MethodNode>[],
-  order: MethodOrder,
-): readonly SidebarEntry<MethodNode>[] {
+function sortMethods(methods: SidebarMethod[], order: MethodOrder): readonly SidebarMethod[] {
   return order.axis === 'path'
     ? methods.sort((a, b) => a.node.loc.line - b.node.loc.line)
     : methods.sort((a, b) => order.rank(a.node.id) - order.rank(b.node.id))
