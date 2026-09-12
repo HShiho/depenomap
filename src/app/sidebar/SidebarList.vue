@@ -7,6 +7,9 @@
  *
  * **依存元／依存先の一覧はここに作らない**（N-4）。ノードマップを見れば分かる。
  *
+ * 行に出す印は `file-badges` / `method-badges` で外から渡す。循環（UT-10）と
+ * 検索の一致（UT-11）が、**行の作りにも一覧の作りにも触らずに**差し込める。
+ *
  * 行の選択は器（UT-05）の `select` へ渡す。選んだノードが今の粒度に無ければ
  * 粒度のほうが合う、という規則もそこが持つ。移動や絞り込みを伴う経路は
  * UT-14 が載せるので、ここでは**選ぶところまで**にする。
@@ -75,7 +78,11 @@ watch(
         :colour="colourOf(state.viewModel?.layerOf(file.node.id).key)"
         @toggle="toggle(file.node.id)"
         @select="state.select(file.node.id)"
-      />
+      >
+        <template #badges>
+          <slot name="file-badges" :node="file.node" />
+        </template>
+      </FileRow>
 
       <div v-if="opened.has(file.node.id)" class="pt-1 pb-5 pl-24">
         <MethodRow
@@ -85,7 +92,11 @@ watch(
           :fan-in="method.fanIn"
           :selected="state.selectedNodeId === method.node.id"
           @select="state.select(method.node.id)"
-        />
+        >
+          <template #badges>
+            <slot name="method-badges" :node="method.node" />
+          </template>
+        </MethodRow>
 
         <p v-if="file.methods.length === 0" class="px-8 py-3 text-caption text-ink-3">
           メソッドなし

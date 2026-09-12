@@ -142,3 +142,32 @@ describe('持たないもの', () => {
     expect(wrapper.find('select').element.closest('.overflow-y-auto')).toBeNull()
   })
 })
+
+describe('印の差し込み（UT-10 / UT-11 の受け皿）', () => {
+  it('面越しに、ファイル行へ印を差し込める', () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const wrapper = mount(SidebarPanel, {
+      slots: { 'file-badges': '<span data-test="mark">循環</span>' },
+    })
+
+    expect(wrapper.findAll('[data-test="mark"]')).toHaveLength(viewModel.nodes.file.length)
+  })
+
+  it('差し込む側は、どのノードの行かを受け取れる', async () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const wrapper = mount(SidebarPanel, {
+      slots: {
+        'file-badges': '<span :data-mark="node.id">•</span>',
+        'method-badges': '<span :data-mark="node.id">•</span>',
+      },
+    })
+    await openFirstFileWithMethods(wrapper)
+
+    const marked = wrapper.findAll('[data-mark]').map((el) => el.attributes('data-mark')!)
+    const rows = wrapper.findAll('[data-node-id]').map((el) => el.attributes('data-node-id')!)
+
+    expect(marked.sort()).toEqual(rows.sort())
+  })
+})

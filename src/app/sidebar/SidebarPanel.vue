@@ -6,6 +6,9 @@
  * 表示設定なので、器（UT-05）ではなくここが覚える。ノードマップの並び（UT-08）
  * とは別物で、連動させない。
  *
+ * 行に出す印は一覧へ素通しする。UT-10 / UT-11 はこの面を使うだけで、行にも
+ * 一覧にも手を入れずに印を足せる。
+ *
  * 検索欄（UT-11）はこの並べ替えの上に入る。
  *
  * 畳む口はここ（見出しの隣）とレール（画面の左端）の 2 つある。**同じ状態を
@@ -66,7 +69,14 @@ const fileCount = computed(() => state.viewModel?.nodes.file.length ?? 0)
     </div>
 
     <div class="min-h-0 grow overflow-y-auto">
-      <SidebarList :sort="sort" />
+      <SidebarList :sort="sort">
+        <template #file-badges="{ node }">
+          <slot name="file-badges" :node="node" />
+        </template>
+        <template #method-badges="{ node }">
+          <slot name="method-badges" :node="node" />
+        </template>
+      </SidebarList>
     </div>
   </div>
 </template>
