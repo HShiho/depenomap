@@ -790,3 +790,94 @@ describe('移動したときの視点（UT-14）', () => {
     expect(screenY).toBeLessThanOrEqual(CANVAS.height)
   })
 })
+
+describe('絞り込みと粒度（UT-14）', () => {
+  const shown = (wrapper: ReturnType<typeof setup>['wrapper']) =>
+    wrapper.findAll('g.node').map((node) => node.attributes('data-node-id')!)
+
+  it('メソッド粒度でも、選んだノードと直接の相手だけが残る', async () => {
+    const { state, wrapper } = setup({ granularity: 'method' })
+    const target = viewModel.nodes.method.find(
+      (node) => viewModel.dependenciesOf(node.id, 'method').length > 0,
+    )!
+
+    state.moveTo(target.id)
+    await wrapper.vm.$nextTick()
+
+    const ids = shown(wrapper)
+    expect(ids).toContain(target.id)
+    expect(ids.length).toBeLessThan(viewModel.nodes.method.length)
+  })
+
+  it('絞り込んだまま粒度を切り替えても、破綻しない', async () => {
+    // 選択は粒度をまたいで持ち越されない（UT-05 の規則）
+    const { state, wrapper } = setup()
+    state.moveTo(viewModel.nodes.file[3]!.id)
+    await wrapper.vm.$nextTick()
+
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('g.node').length).toBeGreaterThan(0)
+    expect(wrapper.findAll('text.head').length).toBeGreaterThan(0)
+  })
+
+  it('メソッドを選ぶと粒度が合い、そのうえで絞り込みが立つ', async () => {
+    const { state, wrapper } = setup()
+    const method = viewModel.nodes.method.find(
+      (node) => viewModel.dependenciesOf(node.id, 'method').length > 0,
+    )!
+
+    state.moveTo(method.id)
+    await wrapper.vm.$nextTick()
+
+    expect(state.granularity).toBe('method')
+    expect(state.narrowedToSelection).toBe(true)
+    expect(shown(wrapper)).toContain(method.id)
+  })
+})
+
+describe('絞り込みが持たないもの（UT-14）', () => {
+  it('依存元・依存先を列挙した一覧を作らない（N-4）', async () => {
+    // ノードマップ上で辿る。図と一覧で同じことを二重に持たない
+    const { state, wrapper } = setup()
+    state.moveTo(viewModel.nodes.file[3]!.id)
+    await wrapper.vm.$nextTick()
+
+    for (const word of ['依存元', '依存先', '使っている', '使われている']) {
+      expect(wrapper.text()).not.toContain(word)
+    }
+  })
+
+  it('到達範囲の適否を判定しない（N-1 / N-6）', async () => {
+    const { state, wrapper } = setup()
+    state.moveTo(viewModel.nodes.file[3]!.id)
+    await wrapper.vm.$nextTick()
+
+    for (const word of ['多すぎ', '警告', 'エラー', '問題', '違反']) {
+      expect(wrapper.text()).not.toContain(word)
+    }
+  })
+
+  it('深度を指定して表示範囲を切り替える操作を持たない（N-2）', async () => {
+    /*
+     * 残るのは常に直接の相手だけ。何段目まで見ているかという状態を持たない
+     * （持つと深度での出し入れに近づく）
+     */
+    const { state, wrapper } = setup()
+    const target = viewModel.nodes.file.find(
+      (node) => viewModel.dependenciesOf(node.id, 'file').length > 0,
+    )!
+
+    state.moveTo(target.id)
+    await wrapper.vm.$nextTick()
+    const first = wrapper.findAll('g.node').length
+
+    // もう一度同じノードへ移動しても、範囲は広がらない（解けるだけ）
+    state.moveTo(target.id)
+    state.moveTo(target.id)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('g.node').length).toBe(first)
+  })
+})
