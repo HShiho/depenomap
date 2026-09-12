@@ -104,9 +104,16 @@ watch(
 )
 
 function toggle(id: string): void {
+  /*
+   * 選択中のメソッドを含むファイルは閉じない。**不変条件はここに置く** —
+   * 行側のガードだけに頼ると、行ボタン以外から呼ばれた経路（キーボード、
+   * 一括開閉、行を別の場所で使う）で記録から静かに外れ、見た目は開いたまま
+   * 選択が外れた瞬間に畳まれる。
+   */
+  if (id === selectedMethodParent.value) return
+
   const next = new Set(openedByHand.value)
-  // 選択で開いているファイルを閉じるときも、手の側の記録から外すだけでよい
-  if (!next.delete(id) && !opened.value.has(id)) next.add(id)
+  if (!next.delete(id)) next.add(id)
   openedByHand.value = next
 }
 </script>

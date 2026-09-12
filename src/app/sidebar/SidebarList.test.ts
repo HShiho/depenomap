@@ -283,3 +283,25 @@ describe('選択が済んだあとに一覧が現れる', () => {
     expect(caretOf(wrapper, method.parent).getAttribute('aria-expanded')).toBe('true')
   })
 })
+
+describe('閉じない不変条件の置き場所', () => {
+  it('行の外から開閉を頼まれても、選択中のファイルは閉じない', async () => {
+    // 行側のガードだけだと、別の経路から呼ばれたときに記録から静かに外れる
+    const { state, wrapper } = setup()
+    const method = viewModel.nodes.method[5]!
+
+    state.select(method.id)
+    await wrapper.vm.$nextTick()
+
+    wrapper
+      .findAllComponents({ name: 'FileRow' })
+      .find((file) => file.props('node').id === method.parent)!
+      .vm.$emit('toggle')
+    await wrapper.vm.$nextTick()
+
+    state.clearSelection()
+    await wrapper.vm.$nextTick()
+
+    expect(caretOf(wrapper, method.parent).getAttribute('aria-expanded')).toBe('true')
+  })
+})
