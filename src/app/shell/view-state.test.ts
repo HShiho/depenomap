@@ -356,6 +356,23 @@ describe('移動の経路（UT-14）', () => {
     expect(state.selectedNodeId).toBe(target.id)
   })
 
+  it('図の上でさらにもう一度押すと、選択も外れる', () => {
+    /*
+     * 選択を外す口が無いと、深度軸では起点が選んだノードに固定されたまま
+     * 戻れなくなる（ADR-001 の既定の起点へ帰れない）
+     */
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    const target = viewModel.nodes.file[2]!
+
+    state.moveTo(target.id, { toggle: true })
+    state.moveTo(target.id, { toggle: true })
+    state.moveTo(target.id, { toggle: true })
+
+    expect(state.selectedNodeId).toBeUndefined()
+    expect(state.narrowedToSelection).toBe(false)
+  })
+
   it('一覧や検索の行は、同じノードでも絞り込みを解かない', () => {
     // 行を押す意図は「この行を選ぶ」。押しただけで図の絞り込みが解けない
     const state = useViewState()
@@ -368,7 +385,7 @@ describe('移動の経路（UT-14）', () => {
     expect(state.narrowedToSelection).toBe(true)
   })
 
-  it('解いたあと同じノードを押すと、また絞る', () => {
+  it('外したあと選び直すと、また絞る', () => {
     const state = useViewState()
     state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
     const target = viewModel.nodes.file[2]!
@@ -376,7 +393,9 @@ describe('移動の経路（UT-14）', () => {
     state.moveTo(target.id, { toggle: true })
     state.moveTo(target.id, { toggle: true })
     state.moveTo(target.id, { toggle: true })
+    state.moveTo(target.id, { toggle: true })
 
+    expect(state.selectedNodeId).toBe(target.id)
     expect(state.narrowedToSelection).toBe(true)
   })
 

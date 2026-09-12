@@ -195,8 +195,17 @@ export const useViewState = defineStore('view-state', () => {
    * 押しただけで図の絞り込みが黙って解けると、意図と結果が対応しない。
    */
   function moveTo(nodeId: string, options: { toggle?: boolean } = {}): void {
-    if (options.toggle === true && selectedNodeId.value === nodeId && narrowedToSelection.value) {
-      narrowedToSelection.value = false
+    if (options.toggle === true && selectedNodeId.value === nodeId) {
+      /*
+       * 押すたびに 1 段ずつ戻る。1 回目で絞り込みを解き、**2 回目で選択も外す**。
+       *
+       * 選択を外す口が無いと、深度軸では起点が選んだノードに固定されたまま
+       * 戻れなくなる（ADR-001 の既定の起点＝被依存 0 のノード群へ帰れない）。
+       * 参照仕様は解除で選択ごと落としているが、ここは「解く」と「忘れる」を
+       * 分けて、同じ手つきの 2 段にしてある。
+       */
+      if (narrowedToSelection.value) narrowedToSelection.value = false
+      else clearSelection()
       return
     }
 

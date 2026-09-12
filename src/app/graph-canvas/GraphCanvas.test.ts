@@ -881,3 +881,22 @@ describe('絞り込みが持たないもの（UT-14）', () => {
     expect(wrapper.findAll('g.node').length).toBe(first)
   })
 })
+
+describe('深度軸から既定の起点へ戻れる（UT-14 / ADR-001）', () => {
+  it('選択を外すと、被依存 0 のノード群が起点に戻る', async () => {
+    // 外す口が無いと、起点が選んだノードに固定されたまま帰れない
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+    const before = wrapper.findAll('text.head')[0]!.text()
+
+    const node = wrapper.find('svg g.node')
+    const id = node.attributes('data-node-id')!
+    await node.trigger('click')
+    await wrapper.find(`svg [data-node-id="${id}"]`).trigger('click')
+    await wrapper.find(`svg [data-node-id="${id}"]`).trigger('click')
+
+    expect(state.selectedNodeId).toBeUndefined()
+    expect(wrapper.findAll('text.head')[0]!.text()).toBe(before)
+  })
+})
