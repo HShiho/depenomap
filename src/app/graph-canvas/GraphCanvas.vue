@@ -14,7 +14,7 @@ import { computed, ref, watch } from 'vue'
 import type { GraphEdge, GraphNode } from '@/core/graph/schema'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
-import { layerColours, layerColumns } from './column-axis'
+import { buildColumnPlan, layerColours } from './column-axis'
 import { edgeMidpoint, edgePath } from './edge-path'
 import { subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
@@ -26,7 +26,15 @@ const viewport = ref<Viewport>({ x: 0, y: 0, scale: 1 })
 
 /** 列の割り当て。軸ごとの規則は `column-axis.ts` が持つ */
 const columnPlan = computed(() =>
-  state.viewModel === undefined ? undefined : layerColumns(state.viewModel),
+  state.viewModel === undefined
+    ? undefined
+    : buildColumnPlan({
+        viewModel: state.viewModel,
+        granularity: state.granularity,
+        axis: state.columnAxis,
+        // 深度軸の起点は選択で変わる（ADR-001）。層軸では読まれない
+        selectedNodeId: state.selectedNodeId,
+      }),
 )
 
 /** 層の色。列の軸に依らず、ノードの層で決まる */

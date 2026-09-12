@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { loadGraphFromValue } from '@/core/graph/loader'
 import { buildViewModel, NO_LAYER } from '@/core/ir/view-model'
-import { layerColours, layerColumns, TRAILING_COLUMN } from './column-axis'
+import { depthColumns, layerColours, layerColumns, TRAILING_COLUMN } from './column-axis'
 
 import fixture from '../../../test-data/dependency-graph.complex.json'
 
@@ -70,5 +70,68 @@ describe('層の色', () => {
 
     expect(colourOf(NO_LAYER)).toBe('var(--color-ink-3)')
     expect(colourOf(undefined)).toBe('var(--color-ink-3)')
+  })
+})
+
+describe('依存深度を列にする', () => {
+  it('未選択のときは被依存数 0 のノード群が、そろって深度 0 に並ぶ（ADR-001）', () => {
+    const plan = depthColumns(viewModel, 'file', undefined)
+    const roots = viewModel.nodes.file.filter((node) => viewModel.fanInOf(node.id, 'file') === 0)
+
+    expect(roots.length).toBeGreaterThan(1)
+    for (const root of roots) expect(plan.columnOf(root)).toBe(0)
+  })
+
+  it('選択中はそのノード 1 件が起点になる（ADR-001）', () => {
+    const target = viewModel.nodes.file.find((node) => viewModel.fanInOf(node.id, 'file') > 0)!
+    const plan = depthColumns(viewModel, 'file', target.id)
+
+    expect(plan.columnOf(target)).toBe(0)
+    // 起点が変われば、もとの起点は 0 ではなくなる
+    const roots = viewModel.nodes.file.filter((node) => viewModel.fanInOf(node.id, 'file') === 0)
+    expect(roots.every((root) => plan.columnOf(root) === 0)).toBe(false)
+  })
+
+  it('依存の向きに 1 つ進むと、列が 1 つ右へ行く', () => {
+    const plan = depthColumns(viewModel, 'file', undefined)
+    const root = viewModel.nodes.file.find(
+      (node) =>
+        viewModel.fanInOf(node.id, 'file') === 0 &&
+        viewModel.dependenciesOf(node.id, 'file').length > 0,
+    )!
+
+    for (const dependency of viewModel.dependenciesOf(root.id, 'file')) {
+      // 最短距離で数えるため、別の起点から近ければ 1 未満にもなりうる
+      expect(plan.columnOf(dependency.node)).toBeLessThanOrEqual(1)
+    }
+  })
+
+  it('起点からたどり着けないノードは最後尾へまとまる（ADR-001）', () => {
+    // 起点 1 件に絞ると、到達できないノードが必ず出る
+    const target = viewModel.nodes.file[0]!
+    const plan = depthColumns(viewModel, 'file', target.id)
+    const unreachable = viewModel.nodes.file.filter(
+      (node) => plan.columnOf(node) === TRAILING_COLUMN,
+    )
+
+    expect(unreachable.length).toBeGreaterThan(0)
+  })
+
+  it('粒度に無いノードを選んでいても、列が 1 本に潰れない', () => {
+    const method = viewModel.nodes.method[0]!
+    const plan = depthColumns(viewModel, 'file', method.id)
+
+    const columns = new Set(viewModel.nodes.file.map((node) => plan.columnOf(node)))
+    expect(columns.size).toBeGreaterThan(1)
+  })
+
+  it('見出しは深度。0 の列は起点だと分かる', () => {
+    const roots = depthColumns(viewModel, 'file', undefined)
+    const fromSelection = depthColumns(viewModel, 'file', viewModel.nodes.file[0]!.id)
+
+    expect(roots.headOf(0).label).toBe('深度 0（起点）')
+    expect(fromSelection.headOf(0).label).toBe('深度 0（選択中）')
+    expect(roots.headOf(2).label).toBe('深度 2')
+    expect(roots.headOf(TRAILING_COLUMN).label).toBe('深度未定')
   })
 })
