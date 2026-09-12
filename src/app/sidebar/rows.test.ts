@@ -137,3 +137,32 @@ describe('メソッド行', () => {
     expect(wrapper.find('[data-test="badge"]').exists()).toBe(true)
   })
 })
+
+describe('印の差し込み口', () => {
+  it('押せる印を入れ子にしない（ファイル行）', async () => {
+    // ボタンの中にボタンを置くと HTML として不正になり、押しただけで選択も動く
+    const wrapper = mount(FileRow, {
+      props: { node: file, fanIn: 1, open: false, selected: false, colour: '#000' },
+      slots: { badges: '<button type="button" data-test="jump">循環</button>' },
+    })
+
+    const badge = wrapper.find('[data-test="jump"]')
+    expect(badge.element.closest('button')).toBe(badge.element)
+
+    await badge.trigger('click')
+    expect(wrapper.emitted('select')).toBeUndefined()
+  })
+
+  it('押せる印を入れ子にしない（メソッド行）', async () => {
+    const wrapper = mount(MethodRow, {
+      props: { node: method, fanIn: 2, selected: false },
+      slots: { badges: '<button type="button" data-test="jump">循環</button>' },
+    })
+
+    const badge = wrapper.find('[data-test="jump"]')
+    expect(badge.element.closest('button')).toBe(badge.element)
+
+    await badge.trigger('click')
+    expect(wrapper.emitted('select')).toBeUndefined()
+  })
+})

@@ -7,6 +7,9 @@
  * 行が作り直されたときに状態が消える。
  *
  * `badges` スロットは、循環の印（UT-10）と検索の一致（UT-11）の差し込み先。
+ * **選択のボタンの外に置く** — 中に入れると、押せる印（循環へ飛ぶ、一致箇所へ
+ * 飛ぶ）を差し込んだ時点でボタンが入れ子になり、HTML として不正になるうえ、
+ * 印を押しただけで選択も動く。
  */
 import type { FileNode } from '@/core/graph/schema'
 import FanInBadge from './FanInBadge.vue'
@@ -52,7 +55,7 @@ function directoryOf(path: string): string {
     <button
       type="button"
       :data-node-id="node.id"
-      class="flex min-w-0 grow items-center gap-7 rounded-item px-8 py-6 text-left"
+      class="flex min-w-0 grow items-center gap-7 rounded-item py-6 pl-8 text-left"
       :class="selected ? 'bg-accent-soft' : 'hover:bg-surface-2'"
       :aria-current="selected ? 'true' : undefined"
       @click="$emit('select')"
@@ -64,9 +67,11 @@ function directoryOf(path: string): string {
         {{ node.name }}
         <span class="text-caption text-ink-3">{{ directoryOf(node.path) }}</span>
       </span>
+    </button>
 
+    <div class="flex shrink-0 items-center gap-7 pr-8">
       <slot name="badges" />
       <FanInBadge :count="fanIn" />
-    </button>
+    </div>
   </div>
 </template>
