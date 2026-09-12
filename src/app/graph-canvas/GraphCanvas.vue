@@ -347,7 +347,6 @@ watch(
     </defs>
 
     <g :transform="transformOf(viewport)">
-      <!-- 列見出し。層の名前は JSON の定義（ADR-002） -->
       <g
         v-for="head in columnHeads"
         :key="head.column"
