@@ -177,6 +177,41 @@ describe('絞り込みの印と解除（US-12 / UT-14）', () => {
       expect(chip(wrapper).text()).not.toContain(word)
     }
   })
+
+  it('依存先の並びが何の順なのかを、印に添える（UT-09 / US-05）', async () => {
+    // 縦に並んでいれば「順序がある」とは読めるが、何の順かは図から読めない。
+    // 順序が効くのは絞り込み中だけなので、出る条件が同じこの印に添える
+    const { state, wrapper } = await setup()
+    state.select(state.viewModel!.nodes.file[2]!.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    expect(chip(wrapper).text()).toContain('ソース出現順')
+  })
+
+  it('実行順ではないことを、開かないと読めない場所に置かない（C-7）', async () => {
+    // 正本 JSON は実行の順序を持たない。推測させないための断りなので、
+    // ホバーしないと出ない title だけに入れると役目を果たさない
+    const { state, wrapper } = await setup()
+    state.select(state.viewModel!.nodes.file[2]!.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    expect(chip(wrapper).text()).toContain('実行順ではない')
+  })
+
+  it('断りは列見出しではなく印に置く', async () => {
+    // 見出しは軸の名前を出す場所（UT-08）。説明を足すと図の上に長い文字列が並ぶ
+    const { state, wrapper } = await setup()
+    state.select(state.viewModel!.nodes.file[2]!.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    const heads = wrapper.findAll('.head').map((head) => head.text())
+    expect(heads.length).toBeGreaterThan(0)
+    expect(heads.join(' ')).not.toContain('順')
+    expect(chip(wrapper).text()).toContain('ソース出現順')
+  })
 })
 
 describe('絞り込みの解き方（UT-14 の決定）', () => {
