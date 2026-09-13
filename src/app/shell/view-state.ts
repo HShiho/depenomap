@@ -163,7 +163,14 @@ export const useViewState = defineStore('view-state', () => {
       ? undefined
       : viewModel.value?.nodeById.get(selectedNodeId.value),
   )
-  const canGoBack = computed(() => historyIndex.value > 0)
+  /**
+   * 戻れるか。**選択が外れていれば、いまの位置へ帰れる**ので押せる
+   * （`back` の説明を参照）。
+   */
+  const canGoBack = computed(
+    () =>
+      historyIndex.value > 0 || (selectedNodeId.value === undefined && history.value.length > 0),
+  )
   const canGoForward = computed(() => historyIndex.value < history.value.length - 1)
 
   /** 履歴を進めずに選択だけを差し替える。履歴側から戻す・進むときに使う */
@@ -305,7 +312,20 @@ export const useViewState = defineStore('view-state', () => {
     narrowedToSelection.value = entry.narrowed
   }
 
+  /**
+   * 1 つ前へ戻る（US-13）。
+   *
+   * **選択が外れているときは、いまの位置のノードへ帰る**。選択を外しても履歴は
+   * 残る（`clearSelection`）が、位置は動かないので、そのまま 1 つ手前へ進むと
+   * いま外したばかりのノードを飛ばすことになる。履歴が 1 件しか無ければ、
+   * 帰る手段が無くなる。
+   */
   function back(): void {
+    if (selectedNodeId.value === undefined && history.value[historyIndex.value]) {
+      applyEntry(history.value[historyIndex.value])
+      return
+    }
+
     if (!canGoBack.value) return
     historyIndex.value -= 1
     applyEntry(history.value[historyIndex.value])

@@ -107,7 +107,8 @@ describe('選択と履歴', () => {
     expect(state.selectedNodeId).toBe('a')
   })
 
-  it('選択を外しても履歴は消えない', () => {
+  it('選択を外しても履歴は消えない。戻ると、外したノードへ帰る', () => {
+    // 位置は動いていないので、そのまま 1 つ手前へ進むと外したノードを飛ばす
     const state = setup()
     state.select('a')
     state.select('b')
@@ -116,6 +117,18 @@ describe('選択と履歴', () => {
 
     expect(state.selectedNodeId).toBeUndefined()
     expect(state.history.map((entry) => entry.nodeId)).toEqual(['a', 'b'])
+    state.back()
+    expect(state.selectedNodeId).toBe('b')
+    state.back()
+    expect(state.selectedNodeId).toBe('a')
+  })
+
+  it('履歴が 1 件でも、外したノードへ帰れる', () => {
+    const state = setup()
+    state.select('a')
+    state.clearSelection()
+
+    expect(state.canGoBack).toBe(true)
     state.back()
     expect(state.selectedNodeId).toBe('a')
   })
@@ -573,6 +586,10 @@ describe('戻る・進むと絞り込み（UT-15 / US-13）', () => {
     state.setNarrowedToSelection(true)
 
     expect(state.history[1]!.narrowed).toBe(true)
+
+    // 選択が外れているので、まず外したノードへ帰る
+    state.back()
+    expect(state.selectedNodeId).toBe(second.id)
 
     state.back()
     expect(state.selectedNodeId).toBe(first.id)
