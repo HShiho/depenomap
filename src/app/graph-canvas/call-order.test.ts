@@ -25,7 +25,7 @@ const caller = viewModel.nodes.method.find(
 )!
 
 const orderFor = (selectedNodeId: string, granularity: Granularity = 'method', model = viewModel) =>
-  callOrder({ viewModel: model, granularity, selectedNodeId })
+  callOrder({ viewModel: model, granularity, selectedNodeId, narrowed: true })
 
 const node = (id: string) => ({ id }) as GraphNode
 
@@ -188,6 +188,32 @@ describe('呼び出し順の並び（US-05）', () => {
     expect(order.applies).toBe(false)
     for (const dependency of viewModel.dependenciesOf(file.id, 'file')) {
       expect(order.keyOf(dependency.node)).toBeUndefined()
+    }
+  })
+
+  it('絞っていなければ、並びに口を出さない', () => {
+    // 絞っていない図では「ある対象」が定まらない。図の並びと画面の断り書きが
+    // 別々に前段の条件を持たないよう、判定はここに閉じる
+    const order = callOrder({
+      viewModel,
+      granularity: 'method',
+      selectedNodeId: caller.id,
+      narrowed: false,
+    })
+
+    expect(order.applies).toBe(false)
+    expect(order.keyOf(caller)).toBeUndefined()
+  })
+
+  it('読み込み前・未選択でも答えを返す', () => {
+    for (const input of [
+      { viewModel: undefined, selectedNodeId: caller.id },
+      { viewModel, selectedNodeId: undefined },
+    ]) {
+      const order = callOrder({ ...input, granularity: 'method' as const, narrowed: true })
+
+      expect(order.applies).toBe(false)
+      expect(order.keyOf(caller)).toBeUndefined()
     }
   })
 

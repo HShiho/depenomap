@@ -81,17 +81,17 @@ function defaultSortKeyOf(node: GraphNode): string {
  * 定まらないので、既定の並びのまま。順序の材料が無いとき（`applies` が偽）も
  * 既定の並びのままで、出現順を名乗らない（C-7）。
  */
-const currentCallOrder = computed(() => {
-  const selected = state.selectedNodeId
-  const viewModel = state.viewModel
-  if (narrowed.value === undefined || selected === undefined || viewModel === undefined) {
-    return undefined
-  }
-  return callOrder({ viewModel, granularity: state.granularity, selectedNodeId: selected })
-})
+const currentCallOrder = computed(() =>
+  callOrder({
+    viewModel: state.viewModel,
+    granularity: state.granularity,
+    selectedNodeId: state.selectedNodeId,
+    narrowed: state.narrowedToSelection,
+  }),
+)
 
 function sortKeyOf(node: GraphNode): string {
-  return currentCallOrder.value?.keyOf(node) ?? defaultSortKeyOf(node)
+  return currentCallOrder.value.keyOf(node) ?? defaultSortKeyOf(node)
 }
 
 /**

@@ -64,12 +64,15 @@ const narrowingLabel = computed(() =>
  * 材料が無い。依存先が 1 件以下のときも並びようがない。そこで「出現順に
  * 並んでいる」と言うと、正本 JSON が持たない順序を読ませることになる（C-7）。
  */
-const showsOrderNote = computed(() => {
-  const viewModel = state.viewModel
-  const selected = state.selectedNodeId
-  if (!state.narrowedToSelection || viewModel === undefined || selected === undefined) return false
-  return callOrder({ viewModel, granularity: state.granularity, selectedNodeId: selected }).applies
-})
+const showsOrderNote = computed(
+  () =>
+    callOrder({
+      viewModel: state.viewModel,
+      granularity: state.granularity,
+      selectedNodeId: state.selectedNodeId,
+      narrowed: state.narrowedToSelection,
+    }).applies,
+)
 </script>
 
 <template>

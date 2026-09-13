@@ -19,6 +19,11 @@
  *
  * 効くのは**絞り込み中だけ**（UT-14）。絞っていない図では「ある対象」が定まらず、
  * 呼び出し順という概念そのものが無い。
+ *
+ * **効くかどうかの判定はここに閉じる。** 図の並びと画面の断り書きは別の場所で
+ * 組み立てるので、前段の条件を各々が持つと、片方だけ条件が増えたときに
+ * 「出現順と書いてあるのに並んでいない」が戻ってくる。呼ぶ側は絞り込み中か
+ * どうかだけを渡し、残りはここが決める。
  */
 
 import type { GraphNode } from '@/core/graph/schema'
@@ -61,10 +66,16 @@ const NONE: CallOrder = { applies: false, keyOf: () => undefined }
  * `dependenciesOf` は出現順で並べて返すので、これは最も早い出現順にあたる。
  */
 export function callOrder(input: {
-  viewModel: ViewModel
+  viewModel: ViewModel | undefined
   granularity: Granularity
-  selectedNodeId: string
+  selectedNodeId: string | undefined
+  /** 選択の周辺だけに絞っているか（UT-14） */
+  narrowed: boolean
 }): CallOrder {
+  if (!input.narrowed || input.viewModel === undefined || input.selectedNodeId === undefined) {
+    return NONE
+  }
+
   const ordered = input.viewModel
     .dependenciesOf(input.selectedNodeId, input.granularity)
     .filter((dependency) => sourceOrderOf(dependency.edge) !== undefined)
