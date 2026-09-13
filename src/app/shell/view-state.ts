@@ -151,6 +151,9 @@ export const useViewState = defineStore('view-state', () => {
   /**
    * 移動の履歴（US-13）。**選択したノードの列**であり、粒度の切り替えや
    * 絞り込みの ON/OFF は積まない。それらは「移動」ではない。
+   *
+   * **上限は設けない**（UT-15 の決定）。永続化しない（C-3）ので、1 回の閲覧で
+   * 伸びるだけであり、たどった経路の途中が黙って消えるほうが害が大きい。
    */
   const history = ref<HistoryEntry[]>([])
   const historyIndex = ref(-1)

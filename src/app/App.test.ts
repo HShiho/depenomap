@@ -502,3 +502,28 @@ describe('履歴に積まれる単位（UT-15 / UT-14 と一致すること）',
     expect(state.canGoBack).toBe(false)
   })
 })
+
+describe('戻る・進むが持たないもの（UT-15）', () => {
+  it('キーボードを奪わない', async () => {
+    /*
+     * `Alt` + 矢印はブラウザの戻る・進む。奪うと利用者がページを離れる手段を
+     * 失う。`Backspace` も入力欄の外で同じ意味を持つ環境がある
+     */
+    const { state, wrapper } = await setup({ attach: true })
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    await wrapper.vm.$nextTick()
+
+    for (const event of [
+      new KeyboardEvent('keydown', { key: 'ArrowLeft', altKey: true, bubbles: true }),
+      new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true }),
+    ]) {
+      document.body.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+    }
+
+    expect(state.selectedNodeId).toBe(second.id)
+  })
+})
