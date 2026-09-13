@@ -758,7 +758,7 @@ describe('移動したときの視点（UT-14）', () => {
   })
 
   it('図が組み替わらない移動では、拡大率を保ってそのノードへ寄せる', async () => {
-    // この経路は、選択だけを動かす側（UT-15 の戻る・進む）から通る
+    // 同じ経路を、利用者の操作（戻る）で通るものは下の「戻るときの視点」にある
     const { state, wrapper } = setup()
     // 絞り込みを解いた状態にしてから、別のノードを選ぶ
     state.select(viewModel.nodes.file[3]!.id)
@@ -986,6 +986,59 @@ describe('層軸と絞り込みの計算（UT-14 / UT-08）', () => {
       expect(spy.mock.calls.length).toBe(before)
     } finally {
       spy.mockRestore()
+    }
+  })
+})
+
+describe('戻るときの視点（UT-15 / UT-14 の未決）', () => {
+  const viewportOf = (wrapper: ReturnType<typeof setup>['wrapper']) =>
+    (wrapper.vm as unknown as { viewport: { scale: number; x: number; y: number } }).viewport
+
+  it('絞り込みを解いたまま戻ると、拡大率を保って戻り先へ寄せる', async () => {
+    /*
+     * UT-14 が「図が組み替わらない移動では寄せる」と決めた分岐は、ここで初めて
+     * 画面から通る。両方の記録が「解いた状態」なら図の形が変わらない
+     */
+    const { state, wrapper } = setup()
+    const first = viewModel.nodes.file[2]!
+    const second = viewModel.nodes.file[7]!
+
+    state.moveTo(first.id)
+    state.setNarrowedToSelection(false)
+    state.moveTo(second.id)
+    state.setNarrowedToSelection(false)
+    await wrapper.vm.$nextTick()
+    const before = { ...viewportOf(wrapper) }
+
+    state.back()
+    await wrapper.vm.$nextTick()
+
+    const after = viewportOf(wrapper)
+    expect(after.scale).toBe(before.scale)
+    expect({ x: after.x, y: after.y }).not.toEqual({ x: before.x, y: before.y })
+  })
+
+  it('絞り込んだまま戻ると、残ったぶんが画面に収まる', async () => {
+    // 図が組み替わるので全体表示に合わせ直す。倍率は組み替えた先と同じこともある
+    const { state, wrapper } = setup()
+    const first = viewModel.nodes.file[2]!
+    const second = viewModel.nodes.file[7]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    await wrapper.vm.$nextTick()
+    state.back()
+    await wrapper.vm.$nextTick()
+
+    const view = viewportOf(wrapper)
+    const nodes = wrapper.findAll('g.node')
+    expect(nodes.length).toBeGreaterThan(0)
+    for (const node of nodes) {
+      const at = /translate\(([\d.-]+),([\d.-]+)\)/.exec(node.attributes('transform') ?? '')!
+      const right = (Number(at[1]) + NODE_WIDTH) * view.scale + view.x
+      const bottom = (Number(at[2]) + NODE_HEIGHT) * view.scale + view.y
+      expect(right).toBeLessThanOrEqual(CANVAS.width)
+      expect(bottom).toBeLessThanOrEqual(CANVAS.height)
     }
   })
 })

@@ -313,7 +313,7 @@ describe('絞り込みの印の作り（UT-14）', () => {
 
 describe('戻る・進む（US-13 / UT-15）', () => {
   const nav = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], label: string) =>
-    wrapper.findAll('.shell-toolbar button').find((b) => b.attributes('aria-label') === label)!
+    buttonWithLabel(wrapper, '.shell-toolbar', label)!
 
   it('はじめは、どちらも押せない', async () => {
     const { wrapper } = await setup()
@@ -424,10 +424,19 @@ describe('戻る・進む（US-13 / UT-15）', () => {
     state.moveTo(second.id)
     await wrapper.vm.$nextTick()
 
-    // たどってきた経路がどこにも並ばない
-    const toolbar = wrapper.find('.shell-toolbar')
-    expect(toolbar.text()).not.toContain(first.name)
-    expect(toolbar.text()).not.toContain(second.name)
+    /*
+     * たどってきた経路がどこにも並ばない。**一覧を持たない領域**を見る —
+     * サイドバーは全ファイルを並べるので、そこに名前が出ること自体は経路の
+     * 一覧とは無関係。パンくずが置かれるとすればツールバー（戻る・進むの隣）か
+     * キャンバスの上（絞り込みの印の隣）になる
+     */
+    for (const region of ['.shell-toolbar', '.shell-overlay']) {
+      const text = wrapper.find(region).text()
+      expect(text, region).not.toContain(first.name)
+    }
+
+    // 絞り込みの印は、いま選んでいる 1 件だけを出す（経路ではない）
+    expect(wrapper.find('.shell-overlay').text()).toContain(second.name)
   })
 })
 
