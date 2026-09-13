@@ -557,4 +557,25 @@ describe('戻る・進むと絞り込み（UT-15 / US-13）', () => {
     expect(state.history[0]!.narrowed).toBe(true)
     expect(state.history[1]!.narrowed).toBe(false)
   })
+
+  it('選択が外れているあいだの切り替えは、どの記録にも書かない', () => {
+    /*
+     * 選択を外しても履歴は残る（戻れば帰れる）。その状態で絞り込みを触ると、
+     * 記録の持ち主が居ないまま最後の 1 件へ書き込まれかねない
+     */
+    const state = ready()
+    const first = viewModel.nodes.file[2]!
+    const second = viewModel.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    state.clearSelection()
+    state.setNarrowedToSelection(true)
+
+    expect(state.history[1]!.narrowed).toBe(true)
+
+    state.back()
+    expect(state.selectedNodeId).toBe(first.id)
+    expect(state.narrowedToSelection).toBe(true)
+  })
 })
