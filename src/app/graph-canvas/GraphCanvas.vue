@@ -15,7 +15,7 @@ import type { GraphEdge, GraphNode } from '@/core/graph/schema'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
 import { useViewState, type ColumnAxis } from '../shell/view-state'
 import { layerColours } from '../shell/layer-colour'
-import { callOrderKeys } from './call-order'
+import { callOrder } from './call-order'
 import { buildColumnPlan } from './column-axis'
 import { narrowedNodeIds } from './narrowing'
 import { edgeMidpoint, edgePath } from './edge-path'
@@ -77,18 +77,21 @@ function defaultSortKeyOf(node: GraphNode): string {
 /**
  * 絞り込み中の列内の並び（UT-09 / US-05）。
  *
- * 残るのは選択と直接の相手だけなので、各ノードは選択との間にちょうど 1 本の
- * エッジを持つ。その `sourceOrder` で並べれば、**ある対象の依存先が呼び出し順に
- * 並ぶ**。絞っていない図では「ある対象」が定まらないので、既定の並びのまま。
+ * **ある対象の依存先**が呼び出し順に並ぶ。絞っていない図では「ある対象」が
+ * 定まらないので、既定の並びのまま。順序の材料が無いとき（`applies` が偽）も
+ * 既定の並びのままで、出現順を名乗らない（C-7）。
  */
-const callOrderKeyOf = computed(() => {
+const currentCallOrder = computed(() => {
   const selected = state.selectedNodeId
-  if (narrowed.value === undefined || selected === undefined) return undefined
-  return callOrderKeys({ edges: shownEdges.value, selectedNodeId: selected })
+  const viewModel = state.viewModel
+  if (narrowed.value === undefined || selected === undefined || viewModel === undefined) {
+    return undefined
+  }
+  return callOrder({ viewModel, granularity: state.granularity, selectedNodeId: selected })
 })
 
 function sortKeyOf(node: GraphNode): string {
-  return callOrderKeyOf.value?.(node) ?? defaultSortKeyOf(node)
+  return currentCallOrder.value?.keyOf(node) ?? defaultSortKeyOf(node)
 }
 
 /**

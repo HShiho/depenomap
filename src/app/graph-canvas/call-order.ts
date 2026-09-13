@@ -8,55 +8,73 @@
  * 一致しない。制御構文によって実行時にしか定まらない順序は、正本 JSON が持って
  * いないので、ここでも持たない。
  *
- * 効くのは**絞り込み中だけ**（UT-14）。そのとき残るのは選択と直接の相手だけで、
- * 各ノードは選択との間にちょうど 1 本のエッジを持つ。絞っていない図では「ある
- * 対象」が定まらず、呼び出し順という概念そのものが無い。
+ * **並べ替えそのものは IR に委ねる**（`dependenciesOf` が `sortBySourceOrder` を
+ * 通す）。ここでエッジ配列を自前で走査すると、同じ 2 ノード間に複数エッジが
+ * あるとき・順序を持たないエッジが混ざるときの答えが IR とずれる。ここは
+ * 「返ってきた並びを列の中の位置に写す」だけにしてある。
+ *
+ * **効くのは依存先だけ。** `sourceOrder` は呼ぶ側の本体の中での採番なので、
+ * 依存元に当てると、選択とは無関係な採番空間の数値で並べることになる。US-05 が
+ * 言っているのも依存先の順序である。依存元は既定の並びへ落とす。
+ *
+ * 効くのは**絞り込み中だけ**（UT-14）。絞っていない図では「ある対象」が定まらず、
+ * 呼び出し順という概念そのものが無い。
  */
 
-import type { GraphEdge, GraphNode } from '@/core/graph/schema'
+import type { GraphNode } from '@/core/graph/schema'
+import { sourceOrderOf } from '@/core/ir/traversal'
+import type { Granularity, ViewModel } from '@/core/ir/view-model'
 
 /** 並べ替えの桁合わせ。文字列として比べるため、数値は幅を揃える */
 const WIDTH = 6
 
+export interface CallOrder {
+  /**
+   * 呼び出し順が実際に効いているか。
+   *
+   * 順序を持つ依存先が 2 件以上あって初めて、並びが出現順を表す。材料が無い
+   * ところで「出現順に並んでいる」と名乗らないための札で、画面の断り書きは
+   * これを見て出す（C-7）。
+   */
+  applies: boolean
+  /** 列の中の並び順のキー。順序が効かないノードは `undefined`（既定の並びへ落ちる） */
+  keyOf: (node: GraphNode) => string | undefined
+}
+
+/** 順序が効かないときの答え。呼ぶ側は既定の並びをそのまま使う */
+const NONE: CallOrder = { applies: false, keyOf: () => undefined }
+
 /**
- * 選択との間のエッジから、列内の並び順のキーを作る。
+ * 選択の依存先を、ソース上の出現順で列の中に並べるキーを作る。
  *
- * 3 つの段に分ける。
+ * 2 段に分ける。
  *
  *   1. 選択そのもの — 自分の列の先頭に置く
- *   2. `sourceOrder` を持つエッジの相手 — その昇順（US-05）
- *   3. 持たないエッジの相手（`import` / `implements`）— 正本 JSON の並びのまま、
- *      持つものの後ろ（UT-02 の決定。ここで順序を捏造しない）
+ *   2. 依存先 — `dependenciesOf` が返した順（順序を持たないエッジの相手は、
+ *      持つものの後ろ。IR の決定をそのまま使う）
+ *
+ * 同じノードへ複数のエッジが向いているときは、**先に来たほうを採る**。
+ * `dependenciesOf` は出現順で並べて返すので、これは最も早い出現順にあたる。
  */
-export function callOrderKeys(input: {
-  edges: readonly GraphEdge[]
+export function callOrder(input: {
+  viewModel: ViewModel
+  granularity: Granularity
   selectedNodeId: string
-}): (node: GraphNode) => string | undefined {
+}): CallOrder {
+  const dependencies = input.viewModel.dependenciesOf(input.selectedNodeId, input.granularity)
+  const ordered = dependencies.filter(
+    (dependency) => sourceOrderOf(dependency.edge) !== undefined,
+  ).length
+  if (ordered < 2) return NONE
+
   const keys = new Map<string, string>()
   keys.set(input.selectedNodeId, '0')
 
-  input.edges.forEach((edge, index) => {
-    const other =
-      edge.from === input.selectedNodeId
-        ? edge.to
-        : edge.to === input.selectedNodeId
-          ? edge.from
-          : undefined
-    if (other === undefined || other === input.selectedNodeId || keys.has(other)) return
-
-    const order = orderOf(edge)
-    keys.set(
-      other,
-      order === undefined
-        ? `2:${String(index).padStart(WIDTH, '0')}`
-        : `1:${String(order).padStart(WIDTH, '0')}`,
-    )
+  dependencies.forEach((dependency, rank) => {
+    const id = dependency.node.id
+    if (keys.has(id)) return
+    keys.set(id, `1:${String(rank).padStart(WIDTH, '0')}`)
   })
 
-  return (node) => keys.get(node.id)
-}
-
-/** `sourceOrder` は call / construct にしか無い（スキーマ §3） */
-function orderOf(edge: GraphEdge): number | undefined {
-  return edge.kind === 'call' || edge.kind === 'construct' ? edge.sourceOrder : undefined
+  return { applies: true, keyOf: (node) => keys.get(node.id) }
 }
