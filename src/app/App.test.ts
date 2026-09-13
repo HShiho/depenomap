@@ -399,3 +399,106 @@ describe('戻る・進む（US-13 / UT-15）', () => {
     expect(toolbar.text()).not.toContain(second.name)
   })
 })
+
+describe('履歴に積まれる単位（UT-15 / UT-14 と一致すること）', () => {
+  const canvasNode = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], id: string) =>
+    wrapper.find(`svg [data-node-id="${id}"]`)
+  const panelRow = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], id: string) =>
+    wrapper.find(`.shell-panel [data-node-id="${id}"]`)
+
+  it('図から選んでも一覧から選んでも、1 手として積まれる', async () => {
+    // どちらも UT-14 の移動経路を通るので、積まれ方も同じになる
+    const { state, wrapper } = await setup()
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+
+    await canvasNode(wrapper, first.id).trigger('click')
+    await panelRow(wrapper, second.id).trigger('click')
+
+    expect(state.history.map((entry) => entry.nodeId)).toEqual([first.id, second.id])
+  })
+
+  it('検索から選んでも、同じように積まれる', async () => {
+    const { state, wrapper } = await setup()
+    await wrapper.find('input[type="search"]').setValue('Todo')
+
+    const row = wrapper.find('.shell-panel [data-node-id]')
+    const id = row.attributes('data-node-id')!
+    await row.trigger('click')
+
+    expect(state.history.map((entry) => entry.nodeId)).toEqual([id])
+  })
+
+  it('同じノードを選び直しても、二重に積まれない', async () => {
+    const { state, wrapper } = await setup()
+    const target = state.viewModel!.nodes.file[2]!
+
+    await canvasNode(wrapper, target.id).trigger('click')
+    await panelRow(wrapper, target.id).trigger('click')
+
+    expect(state.history).toHaveLength(1)
+  })
+
+  it('絞り込みの解除・選択の解除は積まない', async () => {
+    // 「移動」ではないものを拾わない
+    const { state, wrapper } = await setup()
+    const target = state.viewModel!.nodes.file[2]!
+
+    await canvasNode(wrapper, target.id).trigger('click')
+    await canvasNode(wrapper, target.id).trigger('click')
+    await canvasNode(wrapper, target.id).trigger('click')
+
+    expect(state.selectedNodeId).toBeUndefined()
+    expect(state.history).toHaveLength(1)
+  })
+
+  it('粒度と並べ方の切り替えは積まない', async () => {
+    const { state, wrapper } = await setup()
+    await canvasNode(wrapper, state.viewModel!.nodes.file[2]!.id).trigger('click')
+
+    state.setGranularity('method')
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    expect(state.history).toHaveLength(1)
+  })
+
+  it('戻る・進む自体は積まない', async () => {
+    const { state, wrapper } = await setup()
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+
+    await canvasNode(wrapper, first.id).trigger('click')
+    await panelRow(wrapper, second.id).trigger('click')
+    state.back()
+    state.forward()
+    await wrapper.vm.$nextTick()
+
+    expect(state.history).toHaveLength(2)
+  })
+
+  it('戻ったあと別のノードへ移動すると、進む先は捨てる', async () => {
+    const { state, wrapper } = await setup()
+    const [first, second, third] = state.viewModel!.nodes.file
+
+    await canvasNode(wrapper, first!.id).trigger('click')
+    await panelRow(wrapper, second!.id).trigger('click')
+    state.back()
+    await wrapper.vm.$nextTick()
+    await panelRow(wrapper, third!.id).trigger('click')
+
+    expect(state.history.map((entry) => entry.nodeId)).toEqual([first!.id, third!.id])
+    expect(state.canGoForward).toBe(false)
+  })
+
+  it('読み込み直すと履歴は残らない（C-3）', async () => {
+    const { state, wrapper } = await setup()
+    await canvasNode(wrapper, state.viewModel!.nodes.file[2]!.id).trigger('click')
+
+    state.applyLoadOutcome({ kind: 'loading' })
+    await wrapper.vm.$nextTick()
+
+    expect(state.history).toHaveLength(0)
+    expect(state.canGoBack).toBe(false)
+  })
+})
