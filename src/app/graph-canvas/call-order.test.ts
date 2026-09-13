@@ -176,6 +176,38 @@ describe('呼び出し順の並び（US-05）', () => {
     expect(order.keyOf(node(target))).toBeUndefined()
   })
 
+  it('自分自身を呼んでいても、数に入れない', () => {
+    // 再帰は自己ループとして描かれるだけで、列に並ぶ依存先が増えるわけではない
+    const target = viewModel.dependenciesOf(caller.id, 'method')[0]!.node.id
+    const model = vmOf((graph) => {
+      graph.edges = graph.edges.filter((edge) => edge.from !== caller.id)
+      graph.edges.push(
+        {
+          id: 'probe:self',
+          from: caller.id,
+          to: caller.id,
+          kind: 'call',
+          granularity: 'method',
+          resolution: 'static',
+          sourceOrder: 0,
+        },
+        {
+          id: 'probe:other',
+          from: caller.id,
+          to: target,
+          kind: 'call',
+          granularity: 'method',
+          resolution: 'static',
+          sourceOrder: 1,
+        },
+      )
+    })
+    const order = orderFor(caller.id, 'method', model)
+
+    expect(order.applies).toBe(false)
+    expect(order.keyOf(node(target))).toBeUndefined()
+  })
+
   it('ファイル粒度では順序の材料が無いので、既定の並びのまま', () => {
     // `sourceOrder` は call / construct、すなわちメソッド粒度にしか無い
     // （スキーマ §3）。材料が無いところで出現順を名乗らない（C-7）

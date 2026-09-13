@@ -76,9 +76,14 @@ export function callOrder(input: {
     return NONE
   }
 
+  const selected = input.selectedNodeId
   const ordered = input.viewModel
-    .dependenciesOf(input.selectedNodeId, input.granularity)
-    .filter((dependency) => sourceOrderOf(dependency.edge) !== undefined)
+    .dependenciesOf(selected, input.granularity)
+    // 自分自身への依存（再帰）は数に入れない。並ぶ先が増えるわけではない
+    .filter(
+      (dependency) =>
+        sourceOrderOf(dependency.edge) !== undefined && dependency.node.id !== selected,
+    )
 
   /*
    * **数えるのはノードで、エッジではない。** 同じ相手を 2 箇所から呼ぶと
@@ -93,7 +98,7 @@ export function callOrder(input: {
   })
   if (keys.size < 2) return NONE
 
-  keys.set(input.selectedNodeId, '0')
+  keys.set(selected, '0')
 
   return { applies: true, keyOf: (node) => keys.get(node.id) }
 }
