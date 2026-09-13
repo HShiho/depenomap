@@ -1050,3 +1050,68 @@ describe('戻るときの視点（UT-15 / UT-14 の未決）', () => {
     }
   })
 })
+
+describe('呼び出し順の並び（US-05 / UT-09）', () => {
+  /** 呼び出しを 3 本以上持つメソッド。1 列に並ぶので順序が見える */
+  const caller = viewModel.nodes.method.find(
+    (node) =>
+      viewModel.edges.method.filter(
+        (edge) => edge.from === node.id && (edge.kind === 'call' || edge.kind === 'construct'),
+      ).length > 2,
+  )!
+
+  const callsOf = (nodeId: string) =>
+    viewModel.edges.method
+      .filter((edge) => edge.from === nodeId && (edge.kind === 'call' || edge.kind === 'construct'))
+      .map((edge) => ({ to: edge.to, order: 'sourceOrder' in edge ? edge.sourceOrder : -1 }))
+
+  const rowOf = (wrapper: ReturnType<typeof setup>['wrapper'], id: string) => {
+    const at = wrapper.find(`[data-node-id="${id}"]`).attributes('transform') ?? ''
+    return Number(/translate\([\d.-]+,([\d.-]+)\)/.exec(at)?.[1] ?? 0)
+  }
+
+  it('絞り込むと、依存先がソース上の出現順に並ぶ', async () => {
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    state.moveTo(caller.id)
+    await wrapper.vm.$nextTick()
+
+    const calls = callsOf(caller.id)
+    expect(calls.length).toBeGreaterThan(2)
+    const byOrder = [...calls].sort((a, b) => a.order - b.order).map((call) => call.to)
+    const byRow = [...calls].sort((a, b) => rowOf(wrapper, a.to) - rowOf(wrapper, b.to))
+
+    expect(byRow.map((call) => call.to)).toEqual(byOrder)
+  })
+
+  it('交差削減に上書きされない', async () => {
+    // 並べ替えたあと重心法が走る。絞り込み中は線が選択に集まるので入れ替わらない
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+    state.moveTo(caller.id)
+    await wrapper.vm.$nextTick()
+
+    const rows = callsOf(caller.id)
+      .sort((a, b) => a.order - b.order)
+      .map((call) => rowOf(wrapper, call.to))
+
+    expect(rows).toEqual([...rows].sort((a, b) => a - b))
+    expect(new Set(rows).size).toBe(rows.length)
+  })
+
+  it('絞っていないときは、既定の並びのまま', async () => {
+    // 「ある対象」が定まらないので、呼び出し順という概念そのものが無い
+    const { state, wrapper } = setup({ granularity: 'method' })
+    const before = wrapper.findAll('g.node').map((node) => node.attributes('data-node-id')!)
+
+    state.select(caller.id)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('g.node').map((node) => node.attributes('data-node-id')!)).toEqual(
+      before,
+    )
+  })
+})

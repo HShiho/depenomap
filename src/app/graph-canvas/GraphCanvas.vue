@@ -15,6 +15,7 @@ import type { GraphEdge, GraphNode } from '@/core/graph/schema'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
 import { useViewState, type ColumnAxis } from '../shell/view-state'
 import { layerColours } from '../shell/layer-colour'
+import { callOrderKeys } from './call-order'
 import { buildColumnPlan } from './column-axis'
 import { narrowedNodeIds } from './narrowing'
 import { edgeMidpoint, edgePath } from './edge-path'
@@ -67,10 +68,27 @@ const layerColour = computed(() =>
  * 所属そのものはノードの 2 行目（所属ファイルのパス）で示す（US-02）。囲み枠で
  * 束ねると層の列と入れ子になり、線が読めなくなる。
  */
-function sortKeyOf(node: GraphNode): string {
+function defaultSortKeyOf(node: GraphNode): string {
   if (node.kind === 'file') return node.path
   const line = String(node.loc.line).padStart(6, '0')
   return `${node.parent}#${line}`
+}
+
+/**
+ * 絞り込み中の列内の並び（UT-09 / US-05）。
+ *
+ * 残るのは選択と直接の相手だけなので、各ノードは選択との間にちょうど 1 本の
+ * エッジを持つ。その `sourceOrder` で並べれば、**ある対象の依存先が呼び出し順に
+ * 並ぶ**。絞っていない図では「ある対象」が定まらないので、既定の並びのまま。
+ */
+const callOrderKeyOf = computed(() => {
+  const selected = state.selectedNodeId
+  if (narrowed.value === undefined || selected === undefined) return undefined
+  return callOrderKeys({ edges: shownEdges.value, selectedNodeId: selected })
+})
+
+function sortKeyOf(node: GraphNode): string {
+  return callOrderKeyOf.value?.(node) ?? defaultSortKeyOf(node)
 }
 
 /**
