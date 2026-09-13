@@ -310,3 +310,92 @@ describe('絞り込みの印の作り（UT-14）', () => {
     expect(chip.text()).toContain('の周辺だけを表示中')
   })
 })
+
+describe('戻る・進む（US-13 / UT-15）', () => {
+  const nav = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], label: string) =>
+    wrapper.findAll('.shell-toolbar button').find((b) => b.attributes('aria-label') === label)!
+
+  it('はじめは、どちらも押せない', async () => {
+    const { wrapper } = await setup()
+
+    expect(nav(wrapper, '戻る').attributes('disabled')).toBeDefined()
+    expect(nav(wrapper, '進む').attributes('disabled')).toBeDefined()
+  })
+
+  it('直前に見ていたノードへ戻る', async () => {
+    const { state, wrapper } = await setup()
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    await wrapper.vm.$nextTick()
+    await nav(wrapper, '戻る').trigger('click')
+
+    expect(state.selectedNodeId).toBe(first.id)
+  })
+
+  it('戻る前にいたノードへ進む', async () => {
+    const { state, wrapper } = await setup()
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    state.back()
+    await wrapper.vm.$nextTick()
+    await nav(wrapper, '進む').trigger('click')
+
+    expect(state.selectedNodeId).toBe(second.id)
+  })
+
+  it('端にいることが、ボタンの状態で分かる', async () => {
+    const { state, wrapper } = await setup()
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    await wrapper.vm.$nextTick()
+    expect(nav(wrapper, '戻る').attributes('disabled')).toBeUndefined()
+    expect(nav(wrapper, '進む').attributes('disabled')).toBeDefined()
+
+    state.back()
+    await wrapper.vm.$nextTick()
+    expect(nav(wrapper, '進む').attributes('disabled')).toBeUndefined()
+
+    state.back()
+    await wrapper.vm.$nextTick()
+    expect(nav(wrapper, '戻る').attributes('disabled')).toBeDefined()
+  })
+
+  it('戻った先の見え方まで帰る', async () => {
+    const { state, wrapper } = await setup()
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.setNarrowedToSelection(false)
+    state.moveTo(second.id)
+    await wrapper.vm.$nextTick()
+    await nav(wrapper, '戻る').trigger('click')
+
+    expect(state.narrowedToSelection).toBe(false)
+    expect(wrapper.findAll('svg g.node').length).toBe(state.viewModel!.nodes.file.length)
+  })
+
+  it('経路の一覧は作らない（N-3）', async () => {
+    const { state, wrapper } = await setup()
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    await wrapper.vm.$nextTick()
+
+    // たどってきた経路がどこにも並ばない
+    const toolbar = wrapper.find('.shell-toolbar')
+    expect(toolbar.text()).not.toContain(first.name)
+    expect(toolbar.text()).not.toContain(second.name)
+  })
+})

@@ -14,6 +14,7 @@ import SidebarPanel from './sidebar/SidebarPanel.vue'
 import GranularityToggle from './graph-canvas/GranularityToggle.vue'
 import GraphCanvas from './graph-canvas/GraphCanvas.vue'
 import AppShell from './shell/AppShell.vue'
+import HistoryNav from './shell/HistoryNav.vue'
 import { loadGraphInto } from './shell/graph-source'
 import { useViewState } from './shell/view-state'
 
@@ -74,6 +75,10 @@ const narrowingLabel = computed(() =>
         v-if="state.status.kind === 'ready'"
         class="flex items-center gap-9 rounded-panel border border-line bg-surface px-11 py-7 shadow-float"
       >
+        <HistoryNav />
+
+        <span class="h-17 w-px shrink-0 bg-line"></span>
+
         <GranularityToggle />
         <ColumnAxisToggle />
       </div>
