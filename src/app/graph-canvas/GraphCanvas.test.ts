@@ -4,6 +4,7 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { FileNode } from '@/core/graph/schema'
 import { loadGraphFromValue } from '@/core/graph/loader'
 import { buildViewModel, type Granularity } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
@@ -1100,6 +1101,33 @@ describe('呼び出し順の並び（US-05 / UT-09）', () => {
 
     expect(rows).toEqual([...rows].sort((a, b) => a - b))
     expect(new Set(rows).size).toBe(rows.length)
+  })
+
+  it('ファイル粒度では、絞り込んでも並びが変わらない', async () => {
+    // `sourceOrder` を持つのは call / construct だけ。材料が無い粒度で
+    // 並べ替えると、エッジ配列の並びを出現順として見せることになる（C-7）
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    const target = viewModel.nodes.file.find(
+      (node) => viewModel.dependenciesOf(node.id, 'file').length > 1,
+    )!
+    state.select(target.id)
+    await wrapper.vm.$nextTick()
+    const dependencies = viewModel
+      .dependenciesOf(target.id, 'file')
+      .map((dependency) => dependency.node)
+      .filter((node): node is FileNode => node.kind === 'file')
+
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    // 依存先は 1 つの列に並ぶ。既定の並び（パス順）のままで、正本 JSON の
+    // エッジ配列の並びに乗り換えていない
+    const byRow = [...dependencies].sort((a, b) => rowOf(wrapper, a.id) - rowOf(wrapper, b.id))
+    const byPath = [...dependencies].sort((a, b) => a.path.localeCompare(b.path))
+    expect(byRow.map((node) => node.id)).toEqual(byPath.map((node) => node.id))
   })
 
   it('絞っていないときは、既定の並びのまま', async () => {
