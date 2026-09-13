@@ -231,7 +231,8 @@ export const useViewState = defineStore('view-state', () => {
        * 直すつもりで選択ごと失う。解除の出どころを区別する。
        */
       if (narrowedToSelection.value) {
-        narrowedToSelection.value = false
+        // 記録の書き戻しごと `applyNarrowing` に任せる。押下の連なりは残す
+        applyNarrowing(false)
         releasedByClick = nodeId
         return
       }
@@ -260,21 +261,30 @@ export const useViewState = defineStore('view-state', () => {
    * 0 件になる。落とす側（`applySelection` / `applyLoadOutcome`）だけが守っていても、
    * 立てる側が開いていれば同じ状態に行き着く。
    */
-  function setNarrowedToSelection(next: boolean): void {
-    // 解除の出どころが「押下」以外に変わる
-    releasedByClick = undefined
+  /**
+   * 絞り込みを書き換える**唯一の場所**。
+   *
+   * いま見ているノードの履歴にも書き戻す。積むのは「移動」だけ（絞り込みの
+   * 切り替えは 1 手にしない）が、**戻ってきたときに同じ見え方へ帰る**ために、
+   * そのノードで最後にどう見ていたかは覚えておく必要がある。
+   *
+   * 書き換える経路が増えるほど、書き戻しを忘れる場所が増える。解除の口は
+   * 3 つある（印の ✕ / Esc / 図の上で同じノードを押す）ので、全部ここを通す。
+   */
+  function applyNarrowing(next: boolean): void {
     narrowedToSelection.value = next && selectedNodeId.value !== undefined
 
-    /*
-     * いま見ているノードの履歴にも書き戻す。積むのは「移動」だけ（絞り込みの
-     * 切り替えは 1 手にしない）が、**戻ってきたときに同じ見え方へ帰る**ために、
-     * そのノードで最後にどう見ていたかは覚えておく必要がある。
-     */
     const current = history.value[historyIndex.value]
     if (current === undefined || current.nodeId !== selectedNodeId.value) return
     history.value = history.value.map((entry, index) =>
       index === historyIndex.value ? { ...entry, narrowed: narrowedToSelection.value } : entry,
     )
+  }
+
+  function setNarrowedToSelection(next: boolean): void {
+    // 解除の出どころが「押下」以外に変わる
+    releasedByClick = undefined
+    applyNarrowing(next)
   }
 
   /** 選択を外す。履歴は消さない（戻れば直前のノードへ帰れる） */

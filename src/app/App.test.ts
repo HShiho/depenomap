@@ -384,6 +384,37 @@ describe('戻る・進む（US-13 / UT-15）', () => {
     expect(wrapper.findAll('svg g.node').length).toBe(state.viewModel!.nodes.file.length)
   })
 
+  it('図の上で解いたときも、戻ると解いた状態で帰る', async () => {
+    /*
+     * 解除の口は 3 つある（印の ✕ / Esc / 図の上で同じノードを押す）。器の口を
+     * 直接叩く検査だけだと、この経路で記録が取り残されていても気付けない
+     */
+    const { state, wrapper } = await setup()
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+
+    await wrapper.find(`svg [data-node-id="${first.id}"]`).trigger('click')
+    await wrapper.find(`svg [data-node-id="${first.id}"]`).trigger('click')
+    await wrapper.find(`svg [data-node-id="${second.id}"]`).trigger('click')
+    await nav(wrapper, '戻る').trigger('click')
+
+    expect(state.selectedNodeId).toBe(first.id)
+    expect(state.narrowedToSelection).toBe(false)
+  })
+
+  it('印の ✕ で解いたときも、戻ると解いた状態で帰る', async () => {
+    const { state, wrapper } = await setup()
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+
+    await wrapper.find(`svg [data-node-id="${first.id}"]`).trigger('click')
+    await wrapper.find('.shell-overlay button').trigger('click')
+    await wrapper.find(`svg [data-node-id="${second.id}"]`).trigger('click')
+    await nav(wrapper, '戻る').trigger('click')
+
+    expect(state.narrowedToSelection).toBe(false)
+  })
+
   it('経路の一覧は作らない（N-3）', async () => {
     const { state, wrapper } = await setup()
     const first = state.viewModel!.nodes.file[2]!
