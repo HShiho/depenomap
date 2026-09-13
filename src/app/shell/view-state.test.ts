@@ -483,3 +483,78 @@ describe('解除の出どころ（UT-14）', () => {
     expect(state.narrowedToSelection).toBe(true)
   })
 })
+
+describe('戻る・進むと絞り込み（UT-15 / US-13）', () => {
+  const ready = () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    return state
+  }
+
+  it('戻ると、そのノードで見ていた絞り込みの状態に帰る', () => {
+    const state = ready()
+    const first = viewModel.nodes.file[2]!
+    const second = viewModel.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    state.back()
+
+    expect(state.selectedNodeId).toBe(first.id)
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('解いたまま離れたノードへ戻ると、解いた状態で帰る', () => {
+    // 移動そのものは必ず絞るが、そのあと解いたなら、それが最後の見え方
+    const state = ready()
+    const first = viewModel.nodes.file[2]!
+    const second = viewModel.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.setNarrowedToSelection(false)
+    state.moveTo(second.id)
+    state.back()
+
+    expect(state.selectedNodeId).toBe(first.id)
+    expect(state.narrowedToSelection).toBe(false)
+  })
+
+  it('進むでも、そのときの状態に帰る', () => {
+    const state = ready()
+    const first = viewModel.nodes.file[2]!
+    const second = viewModel.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    state.setNarrowedToSelection(false)
+    state.back()
+    state.forward()
+
+    expect(state.selectedNodeId).toBe(second.id)
+    expect(state.narrowedToSelection).toBe(false)
+  })
+
+  it('絞り込みの切り替えは 1 手として積まない', () => {
+    const state = ready()
+    const target = viewModel.nodes.file[2]!
+
+    state.moveTo(target.id)
+    state.setNarrowedToSelection(false)
+    state.setNarrowedToSelection(true)
+
+    expect(state.history).toHaveLength(1)
+  })
+
+  it('いま見ていないノードの記録は、絞り込みを切り替えても動かない', () => {
+    const state = ready()
+    const first = viewModel.nodes.file[2]!
+    const second = viewModel.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    state.setNarrowedToSelection(false)
+
+    expect(state.history[0]!.narrowed).toBe(true)
+    expect(state.history[1]!.narrowed).toBe(false)
+  })
+})

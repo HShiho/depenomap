@@ -46,11 +46,18 @@ export type ColumnAxis = 'layer' | 'depth'
  *
  * ノード ID だけを積むと、粒度をまたいで戻ったときに「ファイル粒度なのに
  * メソッドが選ばれている」状態ができる。戻る・進むは、そのとき見ていた
- * 見え方ごと復元する。
+ * 見え方ごと復元する（粒度と、絞り込んでいたかどうか）。
  */
 export interface HistoryEntry {
   readonly nodeId: string
   readonly granularity: Granularity
+  /**
+   * そのノードを見ていたあいだ、周辺だけに絞っていたか（UT-14 / US-12）。
+   *
+   * 移動そのものは必ず絞り込みを立てるが、そのあと解くこともある。**最後に
+   * そのノードで見ていた状態**を持つので、戻ったときに同じ見え方へ帰れる。
+   */
+  readonly narrowed: boolean
 }
 
 /**
@@ -183,7 +190,7 @@ export const useViewState = defineStore('view-state', () => {
 
     history.value = [
       ...history.value.slice(0, historyIndex.value + 1),
-      { nodeId, granularity: granularity.value },
+      { nodeId, granularity: granularity.value, narrowed: narrowedToSelection.value },
     ]
     historyIndex.value = history.value.length - 1
   }
@@ -254,6 +261,17 @@ export const useViewState = defineStore('view-state', () => {
     // 解除の出どころが「押下」以外に変わる
     releasedByClick = undefined
     narrowedToSelection.value = next && selectedNodeId.value !== undefined
+
+    /*
+     * いま見ているノードの履歴にも書き戻す。積むのは「移動」だけ（絞り込みの
+     * 切り替えは 1 手にしない）が、**戻ってきたときに同じ見え方へ帰る**ために、
+     * そのノードで最後にどう見ていたかは覚えておく必要がある。
+     */
+    const current = history.value[historyIndex.value]
+    if (current === undefined || current.nodeId !== selectedNodeId.value) return
+    history.value = history.value.map((entry, index) =>
+      index === historyIndex.value ? { ...entry, narrowed: narrowedToSelection.value } : entry,
+    )
   }
 
   /** 選択を外す。履歴は消さない（戻れば直前のノードへ帰れる） */
@@ -261,11 +279,17 @@ export const useViewState = defineStore('view-state', () => {
     applySelection(undefined)
   }
 
-  /** 履歴の 1 件へ戻す。そのとき見ていた粒度ごと復元する */
+  /**
+   * 履歴の 1 件へ戻す。そのとき見ていた見え方ごと復元する。
+   *
+   * 絞り込みは `setNarrowedToSelection` を通さずに戻す。通すと、いま復元した
+   * ばかりの履歴の 1 件を、その場で上書きしてしまう。
+   */
   function applyEntry(entry: HistoryEntry | undefined): void {
     if (!entry) return
     granularity.value = entry.granularity
     applySelection(entry.nodeId)
+    narrowedToSelection.value = entry.narrowed
   }
 
   function back(): void {
