@@ -6,7 +6,9 @@
  * 絞っているのかと、解く口をここに出す。
  *
  * 依存先の並びが**ソース上の出現順**であることも、ここで伝える（UT-09 / US-05）。
- * 順序が効いているのは絞り込み中だけなので、この印と出る条件が同じになる。
+ * 順序が効いているのは絞り込み中だけなので、この印に添える場所がある。ただし
+ * **効いているときだけ出す** — 材料（`sourceOrder`）を持つ依存先が無ければ、
+ * 並びは出現順を表していない。出す・出さないの判定は呼ぶ側が持つ。
  * **実行順ではない** — 条件分岐やループがあれば一致しない。正本 JSON が持って
  * いない順序を推測しないので（C-7）、そのことを言い切っておく。列見出しは短く
  * 保ちたいので、説明はこちらへ寄せた。
@@ -26,7 +28,11 @@ const state = useViewState()
 const ORDER_NOTE =
   '依存先は、ソースに現れた順に並びます。条件分岐やループがあると実行の順序とは一致しません'
 
-defineProps<{ label: string }>()
+defineProps<{
+  label: string
+  /** 依存先の並びについての断りを出すか。順序が効いていないときは出さない */
+  orderNote: boolean
+}>()
 </script>
 
 <template>
@@ -38,7 +44,7 @@ defineProps<{ label: string }>()
       <span class="shrink-0">の周辺だけを表示中</span>
     </span>
 
-    <span class="shrink-0 text-caption text-ink-3" :title="ORDER_NOTE">
+    <span v-if="orderNote" class="shrink-0 text-caption text-ink-3" :title="ORDER_NOTE">
       依存先はソース出現順（実行順ではない）
     </span>
 

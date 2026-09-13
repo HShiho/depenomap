@@ -178,13 +178,25 @@ describe('絞り込みの印と解除（US-12 / UT-14）', () => {
     }
   })
 
-  it('依存先の並びが何の順なのかを、印に添える（UT-09 / US-05）', async () => {
-    // 縦に並んでいれば「順序がある」とは読めるが、何の順かは図から読めない。
-    // 順序が効くのは絞り込み中だけなので、出る条件が同じこの印に添える
-    const { state, wrapper } = await setup()
-    state.select(state.viewModel!.nodes.file[2]!.id)
+  /** 呼び出し順が効く題材へ絞る。メソッド粒度で、呼び出しを 2 本以上持つ */
+  const narrowToCaller = async (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) => {
+    const state = useViewState()
+    state.setGranularity('method')
+    const caller = state.viewModel!.nodes.method.find(
+      (node) =>
+        state.viewModel!.edges.method.filter(
+          (edge) => edge.from === node.id && (edge.kind === 'call' || edge.kind === 'construct'),
+        ).length > 1,
+    )!
+    state.select(caller.id)
     state.setNarrowedToSelection(true)
     await wrapper.vm.$nextTick()
+  }
+
+  it('依存先の並びが何の順なのかを、印に添える（UT-09 / US-05）', async () => {
+    // 縦に並んでいれば「順序がある」とは読めるが、何の順かは図から読めない
+    const { wrapper } = await setup()
+    await narrowToCaller(wrapper)
 
     expect(chip(wrapper).text()).toContain('ソース出現順')
   })
@@ -192,25 +204,47 @@ describe('絞り込みの印と解除（US-12 / UT-14）', () => {
   it('実行順ではないことを、開かないと読めない場所に置かない（C-7）', async () => {
     // 正本 JSON は実行の順序を持たない。推測させないための断りなので、
     // ホバーしないと出ない title だけに入れると役目を果たさない
-    const { state, wrapper } = await setup()
-    state.select(state.viewModel!.nodes.file[2]!.id)
-    state.setNarrowedToSelection(true)
-    await wrapper.vm.$nextTick()
+    const { wrapper } = await setup()
+    await narrowToCaller(wrapper)
 
     expect(chip(wrapper).text()).toContain('実行順ではない')
   })
 
   it('断りは列見出しではなく印に置く', async () => {
     // 見出しは軸の名前を出す場所（UT-08）。説明を足すと図の上に長い文字列が並ぶ
-    const { state, wrapper } = await setup()
-    state.select(state.viewModel!.nodes.file[2]!.id)
-    state.setNarrowedToSelection(true)
-    await wrapper.vm.$nextTick()
+    const { wrapper } = await setup()
+    await narrowToCaller(wrapper)
 
     const heads = wrapper.findAll('.head').map((head) => head.text())
     expect(heads.length).toBeGreaterThan(0)
     expect(heads.join(' ')).not.toContain('順')
     expect(chip(wrapper).text()).toContain('ソース出現順')
+  })
+
+  it('順序の材料が無い粒度では、断りを出さない（C-7）', async () => {
+    // `sourceOrder` を持つのは call / construct だけ。ファイル粒度の依存は
+    // import で、並びは出現順を表していない。そこで出現順を名乗らない
+    const { state, wrapper } = await setup()
+    state.select(state.viewModel!.nodes.file[2]!.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    expect(chip(wrapper).text()).toContain('周辺だけを表示中')
+    expect(chip(wrapper).text()).not.toContain('ソース出現順')
+  })
+
+  it('依存先が並びようのないノードでは、断りを出さない', async () => {
+    // 呼び出しが 1 本以下なら「順に並んでいる」と言えるものが無い
+    const { state, wrapper } = await setup()
+    state.setGranularity('method')
+    const leaf = state.viewModel!.nodes.method.find(
+      (node) => state.viewModel!.dependenciesOf(node.id, 'method').length === 0,
+    )!
+    state.select(leaf.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    expect(chip(wrapper).text()).not.toContain('ソース出現順')
   })
 })
 
