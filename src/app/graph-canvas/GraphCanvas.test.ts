@@ -1103,6 +1103,39 @@ describe('呼び出し順の並び（US-05 / UT-09）', () => {
     expect(new Set(rows).size).toBe(rows.length)
   })
 
+  it('依存元は既定の並びのまま。呼び出し順のキーを配らない', async () => {
+    // `sourceOrder` は呼ぶ側の本体の中での採番。依存元に当てると、選択とは
+    // 無関係な採番空間の数値で並べることになる
+    const { state, wrapper } = setup({ granularity: 'method' })
+    const target = viewModel.nodes.method.find((node) => node.name === 'resolve')!
+    state.moveTo(target.id)
+    await wrapper.vm.$nextTick()
+
+    const dependents = viewModel
+      .dependentNodesOf(target.id, 'method')
+      .map((node) => node)
+      .filter((node) => node.kind === 'method')
+    expect(dependents.length).toBeGreaterThan(1)
+
+    const columnOf = (id: string) =>
+      Number(
+        /translate\(([\d.-]+),/.exec(
+          wrapper.find(`[data-node-id="${id}"]`).attributes('transform') ?? '',
+        )?.[1] ?? 0,
+      )
+    const column = columnOf(dependents[0]!.id)
+    const sameColumn = dependents.filter((node) => columnOf(node.id) === column)
+    expect(sameColumn.length).toBeGreaterThan(1)
+
+    // 既定の並び（所属ファイル＋行）のまま
+    const byRow = [...sameColumn].sort((a, b) => rowOf(wrapper, a.id) - rowOf(wrapper, b.id))
+    const keyOf = (node: (typeof sameColumn)[number]) =>
+      `${node.parent}#${String(node.loc.line).padStart(6, '0')}`
+    const byDefault = [...sameColumn].sort((a, b) => keyOf(a).localeCompare(keyOf(b)))
+
+    expect(byRow.map((node) => node.id)).toEqual(byDefault.map((node) => node.id))
+  })
+
   it('ファイル粒度では、絞り込んでも並びが変わらない', async () => {
     // `sourceOrder` を持つのは call / construct だけ。材料が無い粒度で
     // 並べ替えると、エッジ配列の並びを出現順として見せることになる（C-7）
