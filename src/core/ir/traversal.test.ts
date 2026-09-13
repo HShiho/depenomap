@@ -215,6 +215,18 @@ describe('sortBySourceOrder', () => {
 
     expect(sorted.map((x: { edge: { id: string } }) => x.edge.id)).toEqual(['b', 'a'])
   })
+
+  it('同じ sourceOrder のもの同士も渡された並びを保つ', () => {
+    // 同値でも並びが決まっていないと、描画のたびに入れ替わりうる。
+    // 番号が同じなら正本 JSON の並び以外に根拠が無い（C-7）
+    const sorted = sortBySourceOrder([
+      withOrder('b', 2),
+      withOrder('a', 2),
+      withOrder('c', 1),
+    ] as never)
+
+    expect(sorted.map((x: { edge: { id: string } }) => x.edge.id)).toEqual(['c', 'b', 'a'])
+  })
 })
 
 describe('via-interface のたどり方', () => {
