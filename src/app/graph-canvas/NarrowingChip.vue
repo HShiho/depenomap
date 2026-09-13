@@ -22,6 +22,11 @@
  * 最小の幅が上限（`--panel-width`）を超え、枠の外へ文字がはみ出す。行を分ければ
  * どちらも上限の中に収まり、名前だけが縮む形も保てる。
  *
+ * **断りは切らずに折り返す。** 切ると末尾から消えるので、最初に落ちるのが
+ * 「（実行順ではない）」になる。C-7 のために付けた断りそのものが消えて、
+ * 「ソース出現順」だけが残ると、かえって読み違いを招く。幅ではなく高さで
+ * 吸収する。
+ *
  * 良し悪しは示さない（N-1）。残った数や消えた数を「多い／少ない」として
  * 見せることもしない。
  */
@@ -50,7 +55,7 @@ defineProps<{
         <span class="shrink-0">の周辺だけを表示中</span>
       </span>
 
-      <span v-if="orderNote" class="truncate text-caption text-ink-3" :title="ORDER_NOTE">
+      <span v-if="orderNote" class="text-caption text-ink-3" :title="ORDER_NOTE">
         呼び出し・生成はソース出現順（実行順ではない）
       </span>
     </span>
