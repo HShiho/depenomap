@@ -7,6 +7,7 @@
  */
 import { computed, onMounted, onUnmounted } from 'vue'
 
+import { callOrder } from './graph-canvas/call-order'
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
 import NarrowingChip from './graph-canvas/NarrowingChip.vue'
 import { fullTitleOf } from './graph-canvas/node-label'
@@ -54,6 +55,24 @@ const narrowingLabel = computed(() =>
     ? fullTitleOf(state.selectedNode)
     : undefined,
 )
+
+/**
+ * 依存先の並びについての断りを出すか（UT-09 / US-05）。
+ *
+ * **順序が実際に効いているときだけ出す。** `sourceOrder` を持つのは
+ * call / construct、すなわちメソッド粒度のエッジだけなので、ファイル粒度では
+ * 材料が無い。依存先が 1 件以下のときも並びようがない。そこで「出現順に
+ * 並んでいる」と言うと、正本 JSON が持たない順序を読ませることになる（C-7）。
+ */
+const showsOrderNote = computed(
+  () =>
+    callOrder({
+      viewModel: state.viewModel,
+      granularity: state.granularity,
+      selectedNodeId: state.selectedNodeId,
+      narrowed: state.narrowedToSelection,
+    }).applies,
+)
 </script>
 
 <template>
@@ -67,7 +86,11 @@ const narrowingLabel = computed(() =>
       列の軸（UT-08）もこの中に並べる
     -->
     <template #canvas-overlay>
-      <NarrowingChip v-if="narrowingLabel !== undefined" :label="narrowingLabel" />
+      <NarrowingChip
+        v-if="narrowingLabel !== undefined"
+        :label="narrowingLabel"
+        :order-note="showsOrderNote"
+      />
     </template>
 
     <template #toolbar>

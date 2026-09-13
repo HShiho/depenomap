@@ -4,6 +4,7 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { FileNode } from '@/core/graph/schema'
 import { loadGraphFromValue } from '@/core/graph/loader'
 import { buildViewModel, type Granularity } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
@@ -1048,5 +1049,130 @@ describe('戻るときの視点（UT-15 / UT-14 の未決）', () => {
       expect(left + NODE_WIDTH * view.scale).toBeLessThanOrEqual(CANVAS.width)
       expect(top + NODE_HEIGHT * view.scale).toBeLessThanOrEqual(CANVAS.height)
     }
+  })
+})
+
+describe('呼び出し順の並び（US-05 / UT-09）', () => {
+  /** 呼び出しを 3 本以上持つメソッド。1 列に並ぶので順序が見える */
+  const caller = viewModel.nodes.method.find(
+    (node) =>
+      viewModel.edges.method.filter(
+        (edge) => edge.from === node.id && (edge.kind === 'call' || edge.kind === 'construct'),
+      ).length > 2,
+  )!
+
+  const callsOf = (nodeId: string) =>
+    viewModel.edges.method
+      .filter((edge) => edge.from === nodeId && (edge.kind === 'call' || edge.kind === 'construct'))
+      .map((edge) => ({ to: edge.to, order: 'sourceOrder' in edge ? edge.sourceOrder : -1 }))
+
+  const rowOf = (wrapper: ReturnType<typeof setup>['wrapper'], id: string) => {
+    const at = wrapper.find(`[data-node-id="${id}"]`).attributes('transform') ?? ''
+    return Number(/translate\([\d.-]+,([\d.-]+)\)/.exec(at)?.[1] ?? 0)
+  }
+
+  it('絞り込むと、依存先がソース上の出現順に並ぶ', async () => {
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    state.moveTo(caller.id)
+    await wrapper.vm.$nextTick()
+
+    const calls = callsOf(caller.id)
+    expect(calls.length).toBeGreaterThan(2)
+    const byOrder = [...calls].sort((a, b) => a.order - b.order).map((call) => call.to)
+    const byRow = [...calls].sort((a, b) => rowOf(wrapper, a.to) - rowOf(wrapper, b.to))
+
+    expect(byRow.map((call) => call.to)).toEqual(byOrder)
+  })
+
+  it('交差削減に上書きされない', async () => {
+    // 並べ替えたあと重心法が走る。絞り込み中は線が選択に集まるので入れ替わらない
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+    state.moveTo(caller.id)
+    await wrapper.vm.$nextTick()
+
+    const rows = callsOf(caller.id)
+      .sort((a, b) => a.order - b.order)
+      .map((call) => rowOf(wrapper, call.to))
+
+    expect(rows).toEqual([...rows].sort((a, b) => a - b))
+    expect(new Set(rows).size).toBe(rows.length)
+  })
+
+  it('依存元は既定の並びのまま。呼び出し順のキーを配らない', async () => {
+    // `sourceOrder` は呼ぶ側の本体の中での採番。依存元に当てると、選択とは
+    // 無関係な採番空間の数値で並べることになる
+    const { state, wrapper } = setup({ granularity: 'method' })
+    const target = viewModel.nodes.method.find((node) => node.name === 'resolve')!
+    state.moveTo(target.id)
+    await wrapper.vm.$nextTick()
+
+    const dependents = viewModel
+      .dependentNodesOf(target.id, 'method')
+      .map((node) => node)
+      .filter((node) => node.kind === 'method')
+    expect(dependents.length).toBeGreaterThan(1)
+
+    const columnOf = (id: string) =>
+      Number(
+        /translate\(([\d.-]+),/.exec(
+          wrapper.find(`[data-node-id="${id}"]`).attributes('transform') ?? '',
+        )?.[1] ?? 0,
+      )
+    const column = columnOf(dependents[0]!.id)
+    const sameColumn = dependents.filter((node) => columnOf(node.id) === column)
+    expect(sameColumn.length).toBeGreaterThan(1)
+
+    // 既定の並び（所属ファイル＋行）のまま
+    const byRow = [...sameColumn].sort((a, b) => rowOf(wrapper, a.id) - rowOf(wrapper, b.id))
+    const keyOf = (node: (typeof sameColumn)[number]) =>
+      `${node.parent}#${String(node.loc.line).padStart(6, '0')}`
+    const byDefault = [...sameColumn].sort((a, b) => keyOf(a).localeCompare(keyOf(b)))
+
+    expect(byRow.map((node) => node.id)).toEqual(byDefault.map((node) => node.id))
+  })
+
+  it('ファイル粒度では、絞り込んでも並びが変わらない', async () => {
+    // `sourceOrder` を持つのは call / construct だけ。材料が無い粒度で
+    // 並べ替えると、エッジ配列の並びを出現順として見せることになる（C-7）
+    const { state, wrapper } = setup()
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    const target = viewModel.nodes.file.find(
+      (node) => viewModel.dependenciesOf(node.id, 'file').length > 1,
+    )!
+    state.select(target.id)
+    await wrapper.vm.$nextTick()
+    const dependencies = viewModel
+      .dependenciesOf(target.id, 'file')
+      .map((dependency) => dependency.node)
+      .filter((node): node is FileNode => node.kind === 'file')
+
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    // 依存先は 1 つの列に並ぶ。既定の並び（パス順）のままで、正本 JSON の
+    // エッジ配列の並びに乗り換えていない
+    const byRow = [...dependencies].sort((a, b) => rowOf(wrapper, a.id) - rowOf(wrapper, b.id))
+    const byPath = [...dependencies].sort((a, b) => a.path.localeCompare(b.path))
+    expect(byRow.map((node) => node.id)).toEqual(byPath.map((node) => node.id))
+  })
+
+  it('絞っていないときは、既定の並びのまま', async () => {
+    // 「ある対象」が定まらないので、呼び出し順という概念そのものが無い
+    const { state, wrapper } = setup({ granularity: 'method' })
+    const before = wrapper.findAll('g.node').map((node) => node.attributes('data-node-id')!)
+
+    state.select(caller.id)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('g.node').map((node) => node.attributes('data-node-id')!)).toEqual(
+      before,
+    )
   })
 })

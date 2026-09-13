@@ -86,8 +86,8 @@ export function sortBySourceOrder<T extends { edge: GraphEdge }>(
   return [...items]
     .map((item, index) => ({ item, index }))
     .sort((a, b) => {
-      const ao = orderOf(a.item.edge)
-      const bo = orderOf(b.item.edge)
+      const ao = sourceOrderOf(a.item.edge)
+      const bo = sourceOrderOf(b.item.edge)
       if (ao === undefined && bo === undefined) return a.index - b.index
       if (ao === undefined) return 1
       if (bo === undefined) return -1
@@ -96,7 +96,13 @@ export function sortBySourceOrder<T extends { edge: GraphEdge }>(
     .map((entry) => entry.item)
 }
 
-function orderOf(edge: GraphEdge): number | undefined {
+/**
+ * エッジが持つ出現順。持たないものは `undefined`（スキーマ §3）。
+ *
+ * 「順序の材料があるかどうか」を外から問えるように公開している。材料が無い
+ * ところで出現順を名乗らないため（C-7）、判定はここ 1 箇所に置く。
+ */
+export function sourceOrderOf(edge: GraphEdge): number | undefined {
   return edge.kind === 'call' || edge.kind === 'construct' ? edge.sourceOrder : undefined
 }
 

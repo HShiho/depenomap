@@ -15,6 +15,7 @@ import type { GraphEdge, GraphNode } from '@/core/graph/schema'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
 import { useViewState, type ColumnAxis } from '../shell/view-state'
 import { layerColours } from '../shell/layer-colour'
+import { callOrder } from './call-order'
 import { buildColumnPlan } from './column-axis'
 import { narrowedNodeIds } from './narrowing'
 import { edgeMidpoint, edgePath } from './edge-path'
@@ -67,10 +68,30 @@ const layerColour = computed(() =>
  * 所属そのものはノードの 2 行目（所属ファイルのパス）で示す（US-02）。囲み枠で
  * 束ねると層の列と入れ子になり、線が読めなくなる。
  */
-function sortKeyOf(node: GraphNode): string {
+function defaultSortKeyOf(node: GraphNode): string {
   if (node.kind === 'file') return node.path
   const line = String(node.loc.line).padStart(6, '0')
   return `${node.parent}#${line}`
+}
+
+/**
+ * 絞り込み中の列内の並び（UT-09 / US-05）。
+ *
+ * **ある対象の依存先**が呼び出し順に並ぶ。絞っていない図では「ある対象」が
+ * 定まらないので、既定の並びのまま。順序の材料が無いとき（`applies` が偽）も
+ * 既定の並びのままで、出現順を名乗らない（C-7）。
+ */
+const currentCallOrder = computed(() =>
+  callOrder({
+    viewModel: state.viewModel,
+    granularity: state.granularity,
+    selectedNodeId: state.selectedNodeId,
+    narrowed: state.narrowedToSelection,
+  }),
+)
+
+function sortKeyOf(node: GraphNode): string {
+  return currentCallOrder.value.keyOf(node) ?? defaultSortKeyOf(node)
 }
 
 /**
