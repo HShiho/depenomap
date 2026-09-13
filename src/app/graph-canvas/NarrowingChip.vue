@@ -17,6 +17,10 @@
  * **切るのは名前のほう**。説明文を先に落とすと、伝えたい「いま絞り込み中である」
  * が消えて、長い名前だけが残る。
  *
+ * **断りは名前と同じ行に置かない。** 横に並べると、名前を幅 0 まで潰しても
+ * 最小の幅が上限（`--panel-width`）を超え、枠の外へ文字がはみ出す。行を分ければ
+ * どちらも上限の中に収まり、名前だけが縮む形も保てる。
+ *
  * 良し悪しは示さない（N-1）。残った数や消えた数を「多い／少ない」として
  * 見せることもしない。
  */
@@ -39,13 +43,15 @@ defineProps<{
   <div
     class="flex max-w-[var(--panel-width)] items-center gap-7 rounded-round border border-accent-line bg-accent-soft px-10 py-4 text-ink-2 shadow-float"
   >
-    <span class="flex min-w-0 items-baseline gap-4 text-meta">
-      <b class="min-w-0 truncate font-mono font-semibold text-ink">{{ label }}</b>
-      <span class="shrink-0">の周辺だけを表示中</span>
-    </span>
+    <span class="flex min-w-0 flex-col gap-2">
+      <span class="flex min-w-0 items-baseline gap-4 text-meta">
+        <b class="min-w-0 truncate font-mono font-semibold text-ink">{{ label }}</b>
+        <span class="shrink-0">の周辺だけを表示中</span>
+      </span>
 
-    <span v-if="orderNote" class="shrink-0 text-caption text-ink-3" :title="ORDER_NOTE">
-      依存先はソース出現順（実行順ではない）
+      <span v-if="orderNote" class="truncate text-caption text-ink-3" :title="ORDER_NOTE">
+        依存先はソース出現順（実行順ではない）
+      </span>
     </span>
 
     <button
