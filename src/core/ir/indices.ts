@@ -64,6 +64,24 @@ export function buildCyclesByNode(cycles: readonly Cycle[]): ReadonlyMap<string,
 }
 
 /**
+ * 循環に含まれるエッジを引く。
+ *
+ * `cycles[].edges` はエッジ ID の並びで、1 本のエッジが複数の循環に属しうる
+ * （ノードと同じ）。ここも検出は行わず、JSON をそのまま索引にする（スキーマ §4）。
+ */
+export function buildCyclesByEdge(cycles: readonly Cycle[]): ReadonlyMap<string, readonly Cycle[]> {
+  const byEdge = new Map<string, Cycle[]>()
+  for (const cycle of cycles) {
+    for (const edgeId of cycle.edges) {
+      const bucket = byEdge.get(edgeId)
+      if (bucket) bucket.push(cycle)
+      else byEdge.set(edgeId, [cycle])
+    }
+  }
+  return byEdge
+}
+
+/**
  * 未解決依存の引き当て。
  *
  * 「追えなくなった箇所」と「推測された候補」は別の関係であり、混ぜない。

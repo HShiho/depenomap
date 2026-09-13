@@ -122,6 +122,32 @@ describe('循環の引き当て', () => {
     expect(vm.cyclesOf('file:src/domain/Todo.ts').map((c) => c.id)).toEqual(['c_0001', 'c_0002'])
   })
 
+  it('エッジから、それが含まれる循環を引ける', () => {
+    const vm = vmOf()
+    const cycle = vmOf().cyclesOf('file:src/domain/Todo.ts')[0]!
+
+    for (const edgeId of cycle.edges) {
+      expect(vm.cyclesOfEdge(edgeId).map((c) => c.id)).toContain(cycle.id)
+    }
+  })
+
+  it('循環に含まれないエッジは空', () => {
+    const vm = vmOf()
+    const inCycle = new Set(vm.nodes.file.flatMap((n) => vm.cyclesOf(n.id)).flatMap((c) => c.edges))
+    const outside = vm.edges.file.find((edge) => !inCycle.has(edge.id))!
+
+    expect(vm.cyclesOfEdge(outside.id)).toEqual([])
+  })
+
+  it('複数の循環に属するエッジは全部返る', () => {
+    const shared = vmOf().cyclesOf('file:src/domain/Todo.ts')[0]!.edges[0]!
+    const vm = vmOf((g) => {
+      g.cycles[1]!.edges = [...g.cycles[1]!.edges, shared]
+    })
+
+    expect(vm.cyclesOfEdge(shared).map((c) => c.id)).toEqual(['c_0001', 'c_0002'])
+  })
+
   it('実データで循環に含まれるノードは 11 件', () => {
     const vm = vmOf()
     const inCycle = [...vm.nodes.file, ...vm.nodes.method].filter(
