@@ -107,7 +107,8 @@ describe('選択と履歴', () => {
     expect(state.selectedNodeId).toBe('a')
   })
 
-  it('選択を外しても履歴は消えない', () => {
+  it('選択を外しても履歴は消えない。戻ると、外したノードへ帰る', () => {
+    // 位置は動いていないので、そのまま 1 つ手前へ進むと外したノードを飛ばす
     const state = setup()
     state.select('a')
     state.select('b')
@@ -116,6 +117,18 @@ describe('選択と履歴', () => {
 
     expect(state.selectedNodeId).toBeUndefined()
     expect(state.history.map((entry) => entry.nodeId)).toEqual(['a', 'b'])
+    state.back()
+    expect(state.selectedNodeId).toBe('b')
+    state.back()
+    expect(state.selectedNodeId).toBe('a')
+  })
+
+  it('履歴が 1 件でも、外したノードへ帰れる', () => {
+    const state = setup()
+    state.select('a')
+    state.clearSelection()
+
+    expect(state.canGoBack).toBe(true)
     state.back()
     expect(state.selectedNodeId).toBe('a')
   })
@@ -479,6 +492,106 @@ describe('解除の出どころ（UT-14）', () => {
     state.moveTo(other.id, { toggle: true })
     state.moveTo(first.id, { toggle: true })
 
+    expect(state.selectedNodeId).toBe(first.id)
+    expect(state.narrowedToSelection).toBe(true)
+  })
+})
+
+describe('戻る・進むと絞り込み（UT-15 / US-13）', () => {
+  const ready = () => {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    return state
+  }
+
+  it('戻ると、そのノードで見ていた絞り込みの状態に帰る', () => {
+    const state = ready()
+    const first = viewModel.nodes.file[2]!
+    const second = viewModel.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    state.back()
+
+    expect(state.selectedNodeId).toBe(first.id)
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('解いたまま離れたノードへ戻ると、解いた状態で帰る', () => {
+    // 移動そのものは必ず絞るが、そのあと解いたなら、それが最後の見え方
+    const state = ready()
+    const first = viewModel.nodes.file[2]!
+    const second = viewModel.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.setNarrowedToSelection(false)
+    state.moveTo(second.id)
+    state.back()
+
+    expect(state.selectedNodeId).toBe(first.id)
+    expect(state.narrowedToSelection).toBe(false)
+  })
+
+  it('進むでも、そのときの状態に帰る', () => {
+    const state = ready()
+    const first = viewModel.nodes.file[2]!
+    const second = viewModel.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    state.setNarrowedToSelection(false)
+    state.back()
+    state.forward()
+
+    expect(state.selectedNodeId).toBe(second.id)
+    expect(state.narrowedToSelection).toBe(false)
+  })
+
+  it('絞り込みの切り替えは 1 手として積まない', () => {
+    const state = ready()
+    const target = viewModel.nodes.file[2]!
+
+    state.moveTo(target.id)
+    state.setNarrowedToSelection(false)
+    state.setNarrowedToSelection(true)
+
+    expect(state.history).toHaveLength(1)
+  })
+
+  it('いま見ていないノードの記録は、絞り込みを切り替えても動かない', () => {
+    const state = ready()
+    const first = viewModel.nodes.file[2]!
+    const second = viewModel.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    state.setNarrowedToSelection(false)
+
+    expect(state.history[0]!.narrowed).toBe(true)
+    expect(state.history[1]!.narrowed).toBe(false)
+  })
+
+  it('選択が外れているあいだの切り替えは、どの記録にも書かない', () => {
+    /*
+     * 選択を外しても履歴は残る（戻れば帰れる）。その状態で絞り込みを触ると、
+     * 記録の持ち主が居ないまま最後の 1 件へ書き込まれかねない
+     */
+    const state = ready()
+    const first = viewModel.nodes.file[2]!
+    const second = viewModel.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    state.clearSelection()
+    state.setNarrowedToSelection(true)
+
+    expect(state.history[1]!.narrowed).toBe(true)
+
+    // 選択が外れているので、まず外したノードへ帰る
+    state.back()
+    expect(state.selectedNodeId).toBe(second.id)
+
+    state.back()
     expect(state.selectedNodeId).toBe(first.id)
     expect(state.narrowedToSelection).toBe(true)
   })

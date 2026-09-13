@@ -310,3 +310,260 @@ describe('絞り込みの印の作り（UT-14）', () => {
     expect(chip.text()).toContain('の周辺だけを表示中')
   })
 })
+
+describe('戻る・進む（US-13 / UT-15）', () => {
+  const nav = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], label: string) =>
+    buttonWithLabel(wrapper, '.shell-toolbar', label)!
+
+  it('はじめは、どちらも押せない', async () => {
+    const { wrapper } = await setup()
+
+    expect(nav(wrapper, '戻る').attributes('disabled')).toBeDefined()
+    expect(nav(wrapper, '進む').attributes('disabled')).toBeDefined()
+  })
+
+  it('直前に見ていたノードへ戻る', async () => {
+    const { state, wrapper } = await setup()
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    await wrapper.vm.$nextTick()
+    await nav(wrapper, '戻る').trigger('click')
+
+    expect(state.selectedNodeId).toBe(first.id)
+  })
+
+  it('戻る前にいたノードへ進む', async () => {
+    const { state, wrapper } = await setup()
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    state.back()
+    await wrapper.vm.$nextTick()
+    await nav(wrapper, '進む').trigger('click')
+
+    expect(state.selectedNodeId).toBe(second.id)
+  })
+
+  it('端にいることが、ボタンの状態で分かる', async () => {
+    const { state, wrapper } = await setup()
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    await wrapper.vm.$nextTick()
+    expect(nav(wrapper, '戻る').attributes('disabled')).toBeUndefined()
+    expect(nav(wrapper, '進む').attributes('disabled')).toBeDefined()
+
+    state.back()
+    await wrapper.vm.$nextTick()
+    expect(nav(wrapper, '進む').attributes('disabled')).toBeUndefined()
+
+    state.back()
+    await wrapper.vm.$nextTick()
+    expect(nav(wrapper, '戻る').attributes('disabled')).toBeDefined()
+  })
+
+  it('戻った先の見え方まで帰る', async () => {
+    const { state, wrapper } = await setup()
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.setNarrowedToSelection(false)
+    state.moveTo(second.id)
+    await wrapper.vm.$nextTick()
+    await nav(wrapper, '戻る').trigger('click')
+
+    expect(state.narrowedToSelection).toBe(false)
+    expect(wrapper.findAll('svg g.node').length).toBe(state.viewModel!.nodes.file.length)
+  })
+
+  it('図の上で解いたときも、戻ると解いた状態で帰る', async () => {
+    /*
+     * 解除の口は 3 つある（印の ✕ / Esc / 図の上で同じノードを押す）。器の口を
+     * 直接叩く検査だけだと、この経路で記録が取り残されていても気付けない
+     */
+    const { state, wrapper } = await setup()
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+
+    await wrapper.find(`svg [data-node-id="${first.id}"]`).trigger('click')
+    await wrapper.find(`svg [data-node-id="${first.id}"]`).trigger('click')
+    await wrapper.find(`svg [data-node-id="${second.id}"]`).trigger('click')
+    await nav(wrapper, '戻る').trigger('click')
+
+    expect(state.selectedNodeId).toBe(first.id)
+    expect(state.narrowedToSelection).toBe(false)
+  })
+
+  it('印の ✕ で解いたときも、戻ると解いた状態で帰る', async () => {
+    const { state, wrapper } = await setup()
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+
+    await wrapper.find(`svg [data-node-id="${first.id}"]`).trigger('click')
+    await wrapper.find('.shell-overlay button').trigger('click')
+    await wrapper.find(`svg [data-node-id="${second.id}"]`).trigger('click')
+    await nav(wrapper, '戻る').trigger('click')
+
+    expect(state.narrowedToSelection).toBe(false)
+  })
+
+  it('経路の一覧は作らない（N-3）', async () => {
+    const { state, wrapper } = await setup()
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    await wrapper.vm.$nextTick()
+
+    /*
+     * たどってきた経路がどこにも並ばない。**一覧を持たない領域**を見る —
+     * サイドバーは全ファイルを並べるので、そこに名前が出ること自体は経路の
+     * 一覧とは無関係。パンくずが置かれるとすればツールバー（戻る・進むの隣）か
+     * キャンバスの上（絞り込みの印の隣）になる
+     */
+    for (const region of ['.shell-toolbar', '.shell-overlay']) {
+      const text = wrapper.find(region).text()
+      expect(text, region).not.toContain(first.name)
+    }
+
+    // 絞り込みの印は、いま選んでいる 1 件だけを出す（経路ではない）
+    expect(wrapper.find('.shell-overlay').text()).toContain(second.name)
+  })
+})
+
+describe('履歴に積まれる単位（UT-15 / UT-14 と一致すること）', () => {
+  const canvasNode = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], id: string) =>
+    wrapper.find(`svg [data-node-id="${id}"]`)
+  const panelRow = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], id: string) =>
+    wrapper.find(`.shell-panel [data-node-id="${id}"]`)
+
+  it('図から選んでも一覧から選んでも、1 手として積まれる', async () => {
+    // どちらも UT-14 の移動経路を通るので、積まれ方も同じになる
+    const { state, wrapper } = await setup()
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+
+    await canvasNode(wrapper, first.id).trigger('click')
+    await panelRow(wrapper, second.id).trigger('click')
+
+    expect(state.history.map((entry) => entry.nodeId)).toEqual([first.id, second.id])
+  })
+
+  it('検索から選んでも、同じように積まれる', async () => {
+    const { state, wrapper } = await setup()
+    await wrapper.find('input[type="search"]').setValue('Todo')
+
+    const row = wrapper.find('.shell-panel [data-node-id]')
+    const id = row.attributes('data-node-id')!
+    await row.trigger('click')
+
+    expect(state.history.map((entry) => entry.nodeId)).toEqual([id])
+  })
+
+  it('同じノードを選び直しても、二重に積まれない', async () => {
+    const { state, wrapper } = await setup()
+    const target = state.viewModel!.nodes.file[2]!
+
+    await canvasNode(wrapper, target.id).trigger('click')
+    await panelRow(wrapper, target.id).trigger('click')
+
+    expect(state.history).toHaveLength(1)
+  })
+
+  it('絞り込みの解除・選択の解除は積まない', async () => {
+    // 「移動」ではないものを拾わない
+    const { state, wrapper } = await setup()
+    const target = state.viewModel!.nodes.file[2]!
+
+    await canvasNode(wrapper, target.id).trigger('click')
+    await canvasNode(wrapper, target.id).trigger('click')
+    await canvasNode(wrapper, target.id).trigger('click')
+
+    expect(state.selectedNodeId).toBeUndefined()
+    expect(state.history).toHaveLength(1)
+  })
+
+  it('粒度と並べ方の切り替えは積まない', async () => {
+    const { state, wrapper } = await setup()
+    await canvasNode(wrapper, state.viewModel!.nodes.file[2]!.id).trigger('click')
+
+    state.setGranularity('method')
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    expect(state.history).toHaveLength(1)
+  })
+
+  it('戻る・進む自体は積まない', async () => {
+    const { state, wrapper } = await setup()
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+
+    await canvasNode(wrapper, first.id).trigger('click')
+    await panelRow(wrapper, second.id).trigger('click')
+    state.back()
+    state.forward()
+    await wrapper.vm.$nextTick()
+
+    expect(state.history).toHaveLength(2)
+  })
+
+  it('戻ったあと別のノードへ移動すると、進む先は捨てる', async () => {
+    const { state, wrapper } = await setup()
+    const [first, second, third] = state.viewModel!.nodes.file
+
+    await canvasNode(wrapper, first!.id).trigger('click')
+    await panelRow(wrapper, second!.id).trigger('click')
+    state.back()
+    await wrapper.vm.$nextTick()
+    await panelRow(wrapper, third!.id).trigger('click')
+
+    expect(state.history.map((entry) => entry.nodeId)).toEqual([first!.id, third!.id])
+    expect(state.canGoForward).toBe(false)
+  })
+
+  it('読み込み直すと履歴は残らない（C-3）', async () => {
+    const { state, wrapper } = await setup()
+    await canvasNode(wrapper, state.viewModel!.nodes.file[2]!.id).trigger('click')
+
+    state.applyLoadOutcome({ kind: 'loading' })
+    await wrapper.vm.$nextTick()
+
+    expect(state.history).toHaveLength(0)
+    expect(state.canGoBack).toBe(false)
+  })
+})
+
+describe('戻る・進むが持たないもの（UT-15）', () => {
+  it('キーボードを奪わない', async () => {
+    /*
+     * `Alt` + 矢印はブラウザの戻る・進む。奪うと利用者がページを離れる手段を
+     * 失う。`Backspace` も入力欄の外で同じ意味を持つ環境がある
+     */
+    const { state, wrapper } = await setup({ attach: true })
+    const first = state.viewModel!.nodes.file[2]!
+    const second = state.viewModel!.nodes.file[3]!
+    state.moveTo(first.id)
+    state.moveTo(second.id)
+    await wrapper.vm.$nextTick()
+
+    for (const event of [
+      new KeyboardEvent('keydown', { key: 'ArrowLeft', altKey: true, bubbles: true }),
+      new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true }),
+    ]) {
+      document.body.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+    }
+
+    expect(state.selectedNodeId).toBe(second.id)
+  })
+})

@@ -46,11 +46,18 @@ export type ColumnAxis = 'layer' | 'depth'
  *
  * ノード ID だけを積むと、粒度をまたいで戻ったときに「ファイル粒度なのに
  * メソッドが選ばれている」状態ができる。戻る・進むは、そのとき見ていた
- * 見え方ごと復元する。
+ * 見え方ごと復元する（粒度と、絞り込んでいたかどうか）。
  */
 export interface HistoryEntry {
   readonly nodeId: string
   readonly granularity: Granularity
+  /**
+   * そのノードを見ていたあいだ、周辺だけに絞っていたか（UT-14 / US-12）。
+   *
+   * 移動そのものは必ず絞り込みを立てるが、そのあと解くこともある。**最後に
+   * そのノードで見ていた状態**を持つので、戻ったときに同じ見え方へ帰れる。
+   */
+  readonly narrowed: boolean
 }
 
 /**
@@ -144,6 +151,9 @@ export const useViewState = defineStore('view-state', () => {
   /**
    * 移動の履歴（US-13）。**選択したノードの列**であり、粒度の切り替えや
    * 絞り込みの ON/OFF は積まない。それらは「移動」ではない。
+   *
+   * **上限は設けない**（UT-15 の決定）。永続化しない（C-3）ので、1 回の閲覧で
+   * 伸びるだけであり、たどった経路の途中が黙って消えるほうが害が大きい。
    */
   const history = ref<HistoryEntry[]>([])
   const historyIndex = ref(-1)
@@ -153,7 +163,14 @@ export const useViewState = defineStore('view-state', () => {
       ? undefined
       : viewModel.value?.nodeById.get(selectedNodeId.value),
   )
-  const canGoBack = computed(() => historyIndex.value > 0)
+  /**
+   * 戻れるか。**選択が外れていれば、いまの位置へ帰れる**ので押せる
+   * （`back` の説明を参照）。
+   */
+  const canGoBack = computed(
+    () =>
+      historyIndex.value > 0 || (selectedNodeId.value === undefined && history.value.length > 0),
+  )
   const canGoForward = computed(() => historyIndex.value < history.value.length - 1)
 
   /** 履歴を進めずに選択だけを差し替える。履歴側から戻す・進むときに使う */
@@ -183,7 +200,7 @@ export const useViewState = defineStore('view-state', () => {
 
     history.value = [
       ...history.value.slice(0, historyIndex.value + 1),
-      { nodeId, granularity: granularity.value },
+      { nodeId, granularity: granularity.value, narrowed: narrowedToSelection.value },
     ]
     historyIndex.value = history.value.length - 1
   }
@@ -221,7 +238,8 @@ export const useViewState = defineStore('view-state', () => {
        * 直すつもりで選択ごと失う。解除の出どころを区別する。
        */
       if (narrowedToSelection.value) {
-        narrowedToSelection.value = false
+        // 記録の書き戻しごと `applyNarrowing` に任せる。押下の連なりは残す
+        applyNarrowing(false)
         releasedByClick = nodeId
         return
       }
@@ -243,7 +261,31 @@ export const useViewState = defineStore('view-state', () => {
   }
 
   /**
-   * 選択に絞るかを切り替える（US-14）。
+   * **外から絞り込みを変えるときの唯一の口**。
+   *
+   * 例外は 2 つだけで、どちらも履歴と食い違わない — 選択を外すとき
+   * （`applySelection`）と、履歴の 1 件を復元するとき（`applyEntry`）。理由は
+   * それぞれの説明にある。「ここしか書かない」前提で不変条件を足さないこと。
+   *
+   * いま見ているノードの履歴にも書き戻す。積むのは「移動」だけ（絞り込みの
+   * 切り替えは 1 手にしない）が、**戻ってきたときに同じ見え方へ帰る**ために、
+   * そのノードで最後にどう見ていたかは覚えておく必要がある。
+   *
+   * 書き換える経路が増えるほど、書き戻しを忘れる場所が増える。解除の口は
+   * 3 つある（印の ✕ / Esc / 図の上で同じノードを押す）ので、全部ここを通す。
+   */
+  function applyNarrowing(next: boolean): void {
+    narrowedToSelection.value = next && selectedNodeId.value !== undefined
+
+    const current = history.value[historyIndex.value]
+    if (current === undefined || current.nodeId !== selectedNodeId.value) return
+    history.value = history.value.map((entry, index) =>
+      index === historyIndex.value ? { ...entry, narrowed: narrowedToSelection.value } : entry,
+    )
+  }
+
+  /**
+   * 選択に絞るかを切り替える（US-14）。**外へ出している口**。
    *
    * 選択が無ければ絞り込みは成立しないので、そのときは倒す。値を素で公開すると
    * 「何も選んでいないのに絞り込み ON」が作れ、描画側は選択とその隣接で絞って
@@ -253,7 +295,7 @@ export const useViewState = defineStore('view-state', () => {
   function setNarrowedToSelection(next: boolean): void {
     // 解除の出どころが「押下」以外に変わる
     releasedByClick = undefined
-    narrowedToSelection.value = next && selectedNodeId.value !== undefined
+    applyNarrowing(next)
   }
 
   /** 選択を外す。履歴は消さない（戻れば直前のノードへ帰れる） */
@@ -261,14 +303,38 @@ export const useViewState = defineStore('view-state', () => {
     applySelection(undefined)
   }
 
-  /** 履歴の 1 件へ戻す。そのとき見ていた粒度ごと復元する */
+  /**
+   * 履歴の 1 件へ戻す。そのとき見ていた見え方ごと復元する。
+   *
+   * 絞り込みは `setNarrowedToSelection` を通さずに戻す。通すと、いま復元した
+   * ばかりの履歴の 1 件を、その場で上書きしてしまう。
+   */
   function applyEntry(entry: HistoryEntry | undefined): void {
     if (!entry) return
     granularity.value = entry.granularity
     applySelection(entry.nodeId)
+    narrowedToSelection.value = entry.narrowed
   }
 
+  /**
+   * 1 つ前へ戻る（US-13）。
+   *
+   * **選択が外れているときは、いまの位置のノードへ帰る**。選択を外しても履歴は
+   * 残る（`clearSelection`）が、位置は動かないので、そのまま 1 つ手前へ進むと
+   * いま外したばかりのノードを飛ばすことになる。履歴が 1 件しか無ければ、
+   * 帰る手段が無くなる。
+   *
+   * 選択が外れる経路は 2 つある — 図の上での押下の 2 段目と、**粒度の切り替え**
+   * （ファイル → メソッドで読み替えられない選択は外れる）。後者のあとに戻ると、
+   * 履歴はそのとき見ていた粒度ごと復元する（UT-05 の決定）ので、粒度も一緒に
+   * 巻き戻る。切り替えの取り消しとして働くが、履歴の規則としては一貫している。
+   */
   function back(): void {
+    if (selectedNodeId.value === undefined && history.value[historyIndex.value]) {
+      applyEntry(history.value[historyIndex.value])
+      return
+    }
+
     if (!canGoBack.value) return
     historyIndex.value -= 1
     applyEntry(history.value[historyIndex.value])
