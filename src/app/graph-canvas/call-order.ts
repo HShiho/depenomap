@@ -50,8 +50,12 @@ const NONE: CallOrder = { applies: false, keyOf: () => undefined }
  * 2 段に分ける。
  *
  *   1. 選択そのもの — 自分の列の先頭に置く
- *   2. 依存先 — `dependenciesOf` が返した順（順序を持たないエッジの相手は、
- *      持つものの後ろ。IR の決定をそのまま使う）
+ *   2. **順序を持つ**依存先 — `dependenciesOf` が返した順
+ *
+ * 順序を持たないエッジ（`import` / `implements`）の相手には、キーを配らない。
+ * 配ると、その位置の根拠が「正本 JSON のエッジ配列の並び」になってしまい、
+ * 画面で断っている出現順とは別のものを出現順として見せることになる（C-7）。
+ * 既定の並びへ落として、パス順のまま後ろに置く。
  *
  * 同じノードへ複数のエッジが向いているときは、**先に来たほうを採る**。
  * `dependenciesOf` は出現順で並べて返すので、これは最も早い出現順にあたる。
@@ -61,20 +65,24 @@ export function callOrder(input: {
   granularity: Granularity
   selectedNodeId: string
 }): CallOrder {
-  const dependencies = input.viewModel.dependenciesOf(input.selectedNodeId, input.granularity)
-  const ordered = dependencies.filter(
-    (dependency) => sourceOrderOf(dependency.edge) !== undefined,
-  ).length
-  if (ordered < 2) return NONE
+  const ordered = input.viewModel
+    .dependenciesOf(input.selectedNodeId, input.granularity)
+    .filter((dependency) => sourceOrderOf(dependency.edge) !== undefined)
 
+  /*
+   * **数えるのはノードで、エッジではない。** 同じ相手を 2 箇所から呼ぶと
+   * エッジは 2 本だが、列に並ぶ依存先は 1 件しかない。並びようのないものを
+   * 「出現順に並んでいる」と説明しないため（C-7）、ここはノードで数える
+   */
   const keys = new Map<string, string>()
-  keys.set(input.selectedNodeId, '0')
-
-  dependencies.forEach((dependency, rank) => {
+  ordered.forEach((dependency, rank) => {
     const id = dependency.node.id
     if (keys.has(id)) return
     keys.set(id, `1:${String(rank).padStart(WIDTH, '0')}`)
   })
+  if (keys.size < 2) return NONE
+
+  keys.set(input.selectedNodeId, '0')
 
   return { applies: true, keyOf: (node) => keys.get(node.id) }
 }

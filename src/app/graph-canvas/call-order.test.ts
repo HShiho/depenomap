@@ -70,7 +70,7 @@ describe('呼び出し順の並び（US-05）', () => {
     expect(keyOf(dependent.node)).toBeUndefined()
   })
 
-  it('順序を持たないエッジの相手は、持つものの後ろへ置く', () => {
+  it('順序を持たないエッジの相手には、キーを配らない', () => {
     // `sourceOrder` は call / construct にしか無い。ここで順序を捏造しない
     const implementing = viewModel.nodes.method.find((n) =>
       viewModel.edges.method.some((edge) => edge.from === n.id && edge.kind === 'implements'),
@@ -100,8 +100,11 @@ describe('呼び出し順の並び（US-05）', () => {
       .dependenciesOf(implementing.id, 'method')
       .filter((dependency) => dependency.edge.kind === 'call')
 
+    // 順序を持つ相手にはキーが配られ、持たない相手には配られない。
+    // 位置の根拠が正本 JSON のエッジ配列の並びになるのを避ける
+    expect(keyOf(node(implemented))).toBeUndefined()
     for (const dependency of ordered) {
-      expect(keyOf(node(implemented))!.localeCompare(keyOf(dependency.node)!)).toBeGreaterThan(0)
+      expect(keyOf(dependency.node)).toBeDefined()
     }
   })
 
@@ -147,6 +150,30 @@ describe('呼び出し順の並び（US-05）', () => {
 
     expect(order.applies).toBe(false)
     expect(order.keyOf(single)).toBeUndefined()
+  })
+
+  it('同じ相手を 2 箇所から呼ぶだけなら、並びに口を出さない', () => {
+    // エッジは 2 本でも、列に並ぶ依存先は 1 件しかない。並びようがない
+    const target = viewModel.dependenciesOf(caller.id, 'method')[0]!.node.id
+    const model = vmOf((graph) => {
+      graph.edges = graph.edges.filter((edge) => edge.from !== caller.id)
+      ;[0, 1].forEach((sourceOrder) => {
+        graph.edges.push({
+          id: `probe:${sourceOrder}`,
+          from: caller.id,
+          to: target,
+          kind: 'call',
+          granularity: 'method',
+          resolution: 'static',
+          sourceOrder,
+        })
+      })
+    })
+    const order = orderFor(caller.id, 'method', model)
+
+    expect(model.dependenciesOf(caller.id, 'method')).toHaveLength(2)
+    expect(order.applies).toBe(false)
+    expect(order.keyOf(node(target))).toBeUndefined()
   })
 
   it('ファイル粒度では順序の材料が無いので、既定の並びのまま', () => {
