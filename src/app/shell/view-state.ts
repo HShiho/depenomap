@@ -261,14 +261,6 @@ export const useViewState = defineStore('view-state', () => {
   }
 
   /**
-   * 選択に絞るかを切り替える（US-14）。
-   *
-   * 選択が無ければ絞り込みは成立しないので、そのときは倒す。値を素で公開すると
-   * 「何も選んでいないのに絞り込み ON」が作れ、描画側は選択とその隣接で絞って
-   * 0 件になる。落とす側（`applySelection` / `applyLoadOutcome`）だけが守っていても、
-   * 立てる側が開いていれば同じ状態に行き着く。
-   */
-  /**
    * **外から絞り込みを変えるときの唯一の口**。
    *
    * 例外は 2 つだけで、どちらも履歴と食い違わない — 選択を外すとき
@@ -292,6 +284,14 @@ export const useViewState = defineStore('view-state', () => {
     )
   }
 
+  /**
+   * 選択に絞るかを切り替える（US-14）。**外へ出している口**。
+   *
+   * 選択が無ければ絞り込みは成立しないので、そのときは倒す。値を素で公開すると
+   * 「何も選んでいないのに絞り込み ON」が作れ、描画側は選択とその隣接で絞って
+   * 0 件になる。落とす側（`applySelection` / `applyLoadOutcome`）だけが守っていても、
+   * 立てる側が開いていれば同じ状態に行き着く。
+   */
   function setNarrowedToSelection(next: boolean): void {
     // 解除の出どころが「押下」以外に変わる
     releasedByClick = undefined
