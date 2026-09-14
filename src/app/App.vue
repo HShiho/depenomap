@@ -149,14 +149,21 @@ const showsOrderNote = computed(
 
         <div class="grow"></div>
 
-        <!-- 概要（US-11）。いつでも開ける。起動直後は図を出す（UT-13 の決定） -->
+        <!--
+          概要（US-11）。いつでも開ける。起動直後は図を出す（UT-13 の決定）。
+
+          **読めていないあいだは押せない。** 押しても何も出ない口を残すと、
+          押したことが効いたのかどうかが分からない。読み込み中に押せると、
+          読み終えた瞬間に勝手に開くことにもなる
+        -->
         <button
           type="button"
-          class="rounded-control px-6 py-4 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink"
+          class="rounded-control px-6 py-4 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink disabled:cursor-default disabled:text-line"
+          :disabled="state.status.kind !== 'ready'"
           :aria-pressed="overviewOpen"
-          aria-label="概要を開く"
+          :aria-label="overviewOpen ? '概要を閉じる' : '概要を開く'"
           title="概要"
-          @click="overviewOpen = true"
+          @click="overviewOpen = !overviewOpen"
         >
           ▤
         </button>

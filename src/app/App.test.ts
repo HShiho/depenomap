@@ -743,7 +743,7 @@ describe('概要の開閉（US-11 / UT-13）', () => {
     const { wrapper } = await setup()
     await open(wrapper)
 
-    await wrapper.find('[aria-label="概要を閉じる"]').trigger('click')
+    await sheet(wrapper).find('[aria-label="概要を閉じる"]').trigger('click')
 
     expect(sheet(wrapper).exists()).toBe(false)
   })
@@ -870,7 +870,7 @@ describe('概要の開閉（US-11 / UT-13）', () => {
   it('閉じると裏が戻る', async () => {
     const { wrapper } = await setup()
     await open(wrapper)
-    await wrapper.find('[aria-label="概要を閉じる"]').trigger('click')
+    await sheet(wrapper).find('[aria-label="概要を閉じる"]').trigger('click')
 
     expect(wrapper.find('main').attributes()).not.toHaveProperty('inert')
   })
@@ -884,9 +884,28 @@ describe('概要の開閉（US-11 / UT-13）', () => {
 
     expect(document.activeElement).toBe(wrapper.find('[role="dialog"]').element)
 
-    await wrapper.find('[aria-label="概要を閉じる"]').trigger('click')
+    await sheet(wrapper).find('[aria-label="概要を閉じる"]').trigger('click')
 
     expect(document.activeElement).toBe(button.element)
+  })
+
+  it('読めていないあいだは押せない', async () => {
+    // 押しても何も出ない口を残すと、押したことが効いたのかが分からない
+    const { state, wrapper } = await setup()
+    state.applyLoadOutcome({ kind: 'loading' })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[title="概要"]').attributes()).toHaveProperty('disabled')
+  })
+
+  it('開いているあいだは、同じ口が閉じる口になる', async () => {
+    // 押下状態だと読み上げる以上、その口で戻せる必要がある
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    const button = wrapper.find('[title="概要"]')
+    expect(button.attributes('aria-pressed')).toBe('true')
+    expect(button.attributes('aria-label')).toBe('概要を閉じる')
   })
 
   it('違反件数や指摘を出さない（N-1）', async () => {
