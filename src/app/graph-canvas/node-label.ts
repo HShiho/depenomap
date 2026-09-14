@@ -24,15 +24,24 @@ const OWNER_MIN = 1
  * 読めなくなる**。図は実寸を測れる場所ではない（SVG のテキストは描画後に
  * しか測れず、測ってから並べ直すと図が揺れる）ので、トークンの値から見積もる。
  */
-/** 印の 1 文字ぶん。`--text-flag` は 9px で、出すのは全角の語だけ */
-const FLAG_CHAR_WIDTH = 9
-/** 見出しの 1 文字ぶん。`--text-ui` 12px の等幅は 0.6em 送り */
-const NAME_CHAR_WIDTH = 7.2
-/** 見出しの左端と、印の右端（描画側と同じ値） */
-const NAME_X = 14
-const FLAG_RIGHT = NODE_WIDTH - 10
-/** 見出しと印のあいだに残す隙間 */
-const FLAG_GAP = 8
+/**
+ * 見積もりに使う寸法。**トークンの値の写しを含む**ので、ずれると重なりが
+ * 静かに戻る。`node-label.node.test.ts` が `tokens.css` と突き合わせている。
+ */
+export const LABEL_GEOMETRY = {
+  /** 印の 1 文字ぶん。`--text-flag` は 9px で、出すのは全角の語だけ */
+  FLAG_CHAR_WIDTH: 9,
+  /** 見出しの 1 文字ぶん。`--text-ui` 12px の等幅は 0.6em 送り */
+  NAME_CHAR_WIDTH: 7.2,
+  /** 見出しの左端（描画側と同じ値） */
+  NAME_X: 14,
+  /** 印の右端（描画側と同じ値） */
+  FLAG_RIGHT: NODE_WIDTH - 10,
+  /** 見出しと印のあいだに残す隙間 */
+  FLAG_GAP: 8,
+} as const
+
+const { FLAG_CHAR_WIDTH, NAME_CHAR_WIDTH, NAME_X, FLAG_RIGHT, FLAG_GAP } = LABEL_GEOMETRY
 /** 印があっても、見出しはこれ以下には縮めない */
 const NAME_MIN = 8
 

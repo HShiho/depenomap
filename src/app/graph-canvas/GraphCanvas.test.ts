@@ -11,7 +11,7 @@ import { useViewState } from '../shell/view-state'
 import * as columnAxis from './column-axis'
 import * as layoutModule from './layout'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
-import { NAME_LIMIT, nameLimitFor } from './node-label'
+import { LABEL_GEOMETRY, NAME_LIMIT } from './node-label'
 import GraphCanvas from './GraphCanvas.vue'
 
 import fixture from '../../../test-data/dependency-graph.complex.json'
@@ -1260,8 +1260,16 @@ describe('循環の印（US-06 / UT-10）', () => {
     const shown = nodeOf(wrapper, typeOnly).find('.name').text()
     const flag = nodeOf(wrapper, typeOnly).find('.flag').text()
     expect(flag).toBe('循環（型のみ）')
-    expect(shown.length).toBeLessThanOrEqual(nameLimitFor(flag))
     expect(shown.length).toBeLessThan(NAME_LIMIT)
+
+    /*
+     * 物差しは `nameLimitFor` ではなく幾何そのもの。上限の出し方を間違えても、
+     * それ自身を物差しにすると常に通る
+     */
+    const { NAME_X, NAME_CHAR_WIDTH, FLAG_GAP, FLAG_RIGHT, FLAG_CHAR_WIDTH } = LABEL_GEOMETRY
+    const nameRight = NAME_X + shown.length * NAME_CHAR_WIDTH
+    const flagLeft = FLAG_RIGHT - flag.length * FLAG_CHAR_WIDTH
+    expect(nameRight + FLAG_GAP).toBeLessThanOrEqual(flagLeft)
   })
 
   it('循環が 1 件も無くても図が壊れない', () => {
