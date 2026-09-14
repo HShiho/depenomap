@@ -80,7 +80,8 @@ describe('被依存数の多いファイル（US-11）', () => {
     expect(wrapper.emitted('move')).toEqual([[top.id]])
   })
 
-  it('ファイルが 8 件より少なくても破綻しない', () => {
+  it('ファイルが 8 件より少なくても、あるぶんを出す', () => {
+    // 上限だけを見ると、1 行も出なくなっても気付けない
     const { wrapper } = setup((g) => {
       const keep = g.nodes.filter((node) => node.kind === 'file').slice(0, 3)
       const ids = new Set(keep.map((node) => node.id))
@@ -90,7 +91,7 @@ describe('被依存数の多いファイル（US-11）', () => {
       g.unresolved = []
     })
 
-    expect(idsOf(wrapper).length).toBeLessThanOrEqual(3)
+    expect(idsOf(wrapper)).toHaveLength(3)
   })
 
   it('多いことを問題として扱わない（N-1）', () => {
