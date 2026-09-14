@@ -77,6 +77,12 @@ onBeforeUnmount(() => stopWatching())
         <slot name="toolbar" />
       </div>
     </main>
+
+    <!--
+      画面全体に重なるもの（概要 / UT-13）。列の中ではなくシェルの外に置く。
+      キャンバスの中に入れると、一覧の開閉で幅が変わるたびに中身が動く
+    -->
+    <slot name="sheet" />
   </div>
 </template>
 

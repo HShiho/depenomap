@@ -5,13 +5,14 @@
  * 各領域の中身は UT-06 以降が差し込む。いまレールと通知に入っているのは、
  * 器が動いていることを目で確かめるための**暫定表示**である。
  */
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 import { callOrder } from './graph-canvas/call-order'
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
 import NarrowingChip from './graph-canvas/NarrowingChip.vue'
 import { fullTitleOf } from './graph-canvas/node-label'
 import CycleBadge from './sidebar/CycleBadge.vue'
+import OverviewSheet from './overview/OverviewSheet.vue'
 import SidebarPanel from './sidebar/SidebarPanel.vue'
 import GranularityToggle from './graph-canvas/GranularityToggle.vue'
 import GraphCanvas from './graph-canvas/GraphCanvas.vue'
@@ -21,6 +22,15 @@ import { loadGraphInto } from './shell/graph-source'
 import { useViewState } from './shell/view-state'
 
 const state = useViewState()
+
+/**
+ * 概要を開いているか（UT-13）。
+ *
+ * **器（UT-05）には持たせない。** 図の見え方（粒度・選択・絞り込み）とは違って、
+ * 他の UT がこの状態を読む理由が無く、履歴にも積まない（UT-15 の決定と同じで、
+ * 積むのは移動だけ）。ここだけで閉じる。
+ */
+const overviewOpen = ref(false)
 
 onMounted(() => void loadGraphInto(state))
 
@@ -35,7 +45,18 @@ onMounted(() => void loadGraphInto(state))
  * 検索欄の Esc は検索語を消す（`SidebarPanel`）ので、そちらを妨げない。
  */
 function onKeydown(event: KeyboardEvent): void {
-  if (event.key !== 'Escape' || !state.narrowedToSelection) return
+  if (event.key !== 'Escape') return
+
+  /*
+   * 概要が開いていれば、そちらを先に閉じる（UT-13）。重なっている面から
+   * 順に閉じるのが Esc の筋で、下に隠れている図の絞り込みを先に解くと、
+   * 閉じたあとに図が変わっている
+   */
+  if (overviewOpen.value) {
+    overviewOpen.value = false
+    return
+  }
+  if (!state.narrowedToSelection) return
   const target = event.target
   if (target instanceof HTMLElement && target.closest('input, textarea, select')) return
 
@@ -128,6 +149,18 @@ const showsOrderNote = computed(
 
         <div class="grow"></div>
 
+        <!-- 概要（US-11）。いつでも開ける。起動直後は図を出す（UT-13 の決定） -->
+        <button
+          type="button"
+          class="rounded-control px-6 py-4 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink"
+          :aria-pressed="overviewOpen"
+          aria-label="概要を開く"
+          title="概要"
+          @click="overviewOpen = true"
+        >
+          ▤
+        </button>
+
         <button
           type="button"
           class="rounded-control px-6 py-4 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink"
@@ -153,6 +186,13 @@ const showsOrderNote = computed(
           <CycleBadge :node="node" />
         </template>
       </SidebarPanel>
+    </template>
+
+    <template #sheet>
+      <OverviewSheet
+        v-if="overviewOpen && state.status.kind === 'ready'"
+        @close="overviewOpen = false"
+      />
     </template>
 
     <template #notice>

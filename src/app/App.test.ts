@@ -715,3 +715,105 @@ describe('一覧に出る循環の印（US-06 / UT-10）', () => {
     }
   })
 })
+
+describe('概要の開閉（US-11 / UT-13）', () => {
+  const sheet = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+    wrapper.find('[role="dialog"]')
+
+  const open = async (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) => {
+    await wrapper.find('[aria-label="概要を開く"]').trigger('click')
+  }
+
+  it('起動直後は出ない。図が先に見える', async () => {
+    const { wrapper } = await setup()
+
+    expect(sheet(wrapper).exists()).toBe(false)
+    expect(wrapper.findAll('g.node').length).toBeGreaterThan(0)
+  })
+
+  it('レールのボタンで開く', async () => {
+    const { wrapper } = await setup()
+
+    await open(wrapper)
+
+    expect(sheet(wrapper).exists()).toBe(true)
+  })
+
+  it('✕ で閉じる', async () => {
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    await wrapper.find('[aria-label="概要を閉じる"]').trigger('click')
+
+    expect(sheet(wrapper).exists()).toBe(false)
+  })
+
+  it('外側を押すと閉じる', async () => {
+    // シートの外を押して閉じられないと、レールまで戻らないと閉じられない
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    await sheet(wrapper).element.parentElement!.dispatchEvent(
+      new MouseEvent('click', { bubbles: true }),
+    )
+    await wrapper.vm.$nextTick()
+
+    expect(sheet(wrapper).exists()).toBe(false)
+  })
+
+  it('中を押しても閉じない', async () => {
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    await sheet(wrapper).trigger('click')
+
+    expect(sheet(wrapper).exists()).toBe(true)
+  })
+
+  it('Esc で閉じる。絞り込みは解かない', async () => {
+    // 重なっている面から順に閉じる。先に絞り込みを解くと、閉じたあとに図が変わっている
+    const { state, wrapper } = await setup({ attach: true })
+    state.moveTo(state.viewModel!.nodes.file[2]!.id)
+    await wrapper.vm.$nextTick()
+    await open(wrapper)
+
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await wrapper.vm.$nextTick()
+
+    expect(sheet(wrapper).exists()).toBe(false)
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('このグラフの素性が読める', async () => {
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const meta = state.viewModel!.meta
+
+    const text = sheet(wrapper).text()
+    expect(text).toContain(meta.snapshot.label)
+    expect(text).toContain(meta.snapshot.branch)
+    // commit は全文。確かめにくる場所で切ると、確かめる先が無くなる
+    expect(text).toContain(meta.snapshot.commit)
+    expect(text).toContain(meta.tsconfig)
+    expect(text).toContain(meta.rootDir)
+  })
+
+  it('違反件数や指摘を出さない（N-1）', async () => {
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    for (const word of ['違反', '指摘', '警告', 'エラー', 'スコア', '健全']) {
+      expect(sheet(wrapper).text()).not.toContain(word)
+    }
+  })
+
+  it('書き出す口を持たない（N-5）', async () => {
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    for (const word of ['書き出', 'エクスポート', 'ダウンロード', 'PDF', '印刷']) {
+      expect(sheet(wrapper).text()).not.toContain(word)
+    }
+    expect(sheet(wrapper).findAll('a[download]')).toHaveLength(0)
+  })
+})
