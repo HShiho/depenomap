@@ -20,8 +20,13 @@ import type { ViewModel } from '@/core/ir/view-model'
 
 /** 型のみであることを添えた印 */
 const TYPE_ONLY = '循環（型のみ）'
-/** 添えない印。型のみかどうかを言わない */
-const PLAIN = '循環'
+/**
+ * 添えない印。型のみかどうかを言わない。
+ *
+ * 幅の狭い場所（一覧の行）はこちらだけを出すので、公開している。
+ * そちらで直書きすると、同じ行の中で表示と説明が食い違いうる。
+ */
+export const CYCLE_LABEL = '循環'
 
 /**
  * ノードに出す印。循環に含まれなければ `undefined`。
@@ -39,7 +44,7 @@ export function cycleMarkOf(viewModel: ViewModel, nodeId: string): string | unde
   const cycles = viewModel.cyclesOf(nodeId)
   if (cycles.length === 0) return undefined
 
-  return cycles.every((cycle) => typeOnlyStateOf(cycle) === 'type-only') ? TYPE_ONLY : PLAIN
+  return cycles.every((cycle) => typeOnlyStateOf(cycle) === 'type-only') ? TYPE_ONLY : CYCLE_LABEL
 }
 
 /** エッジが循環に含まれるか。線の描き分けに使う */

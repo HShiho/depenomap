@@ -8,11 +8,17 @@
  * 行に出すのは「循環」までで、**型のみかどうかは添えない**。一覧は識別子を
  * 読む場所で、行の幅は名前とパスが使う。型のみであることは図の印が出す
  * （UT-10 の決定）。読みたいときのために、印の説明には全文を入れてある。
+ *
+ * **ファイル行に出るのは、そのファイル自身が循環に含まれるときだけ。**
+ * 中のメソッドだけが循環している場合は出さない。畳んだ行に「中に何かある」
+ * と出すには、正本 JSON が言っていない対応（メソッドの循環をファイルの
+ * 事実として読み替えること）をこちらで作ることになる（N-1 / スキーマ §4）。
+ * メソッド粒度の循環は、その粒度の行と図で出す。
  */
 import { computed } from 'vue'
 
 import type { GraphNode } from '@/core/graph/schema'
-import { cycleMarkOf } from '../shell/cycle-mark'
+import { CYCLE_LABEL, cycleMarkOf } from '../shell/cycle-mark'
 import { useViewState } from '../shell/view-state'
 
 const props = defineProps<{ node: GraphNode }>()
@@ -30,6 +36,6 @@ const mark = computed(() =>
     class="shrink-0 rounded-round bg-warn-soft px-6 py-1 text-kicker text-warn"
     :title="mark"
   >
-    循環
+    {{ CYCLE_LABEL }}
   </span>
 </template>

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { loadGraphFromValue } from '@/core/graph/loader'
 import App from './App.vue'
+import { CYCLE_LABEL } from './shell/cycle-mark'
 import { useViewState } from './shell/view-state'
 
 import fixture from '../../test-data/dependency-graph.complex.json'
@@ -691,6 +692,16 @@ describe('一覧に出る循環の印（US-06 / UT-10）', () => {
     expect(rowOf(wrapper, typeOnly).text()).toContain('循環')
     expect(rowOf(wrapper, typeOnly).text()).not.toContain('型のみ')
     expect(rowOf(wrapper, typeOnly).titles()).toContain('循環（型のみ）')
+  })
+
+  it('行の文言は、図と同じ 1 箇所から来る', async () => {
+    // 行だけ別に持つと、同じ行の中で表示と説明が食い違いうる
+    const { state, wrapper } = await setup()
+    const inCycle = state.viewModel!.nodes.file.find(
+      (node) => state.viewModel!.cyclesOf(node.id).length > 0,
+    )!
+
+    expect(rowOf(wrapper, inCycle.id).text()).toContain(CYCLE_LABEL)
   })
 
   it('是正の示唆や深刻度を出さない（N-1）', async () => {
