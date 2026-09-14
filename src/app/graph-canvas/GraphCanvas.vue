@@ -634,10 +634,16 @@ watch(
 /*
  * 循環している依存（UT-10 / US-06）。
  *
- * **経由・実装の別より後に置く。** 循環は形の別とは違う軸で、両方に当たる線は
- * 循環のほうを出す。どの辺をたどると戻ってくるのかが図から読めなくなるため
+ * **経由・実装の別より循環を優先する。** 循環は形の別とは違う軸で、両方に
+ * 当たる線は循環のほうを出す。どの辺をたどると戻ってくるのかが図から
+ * 読めなくなるため。
+ *
+ * 強弱は**詳細度で決める**。書いた順に頼ると、規則を並べ替えただけで
+ * 見た目が静かに入れ替わる。
  */
-.edge.cyclic {
+.edge.cyclic,
+.edge.via.cyclic,
+.edge.implements.cyclic {
   stroke: var(--color-warn);
   stroke-width: var(--edge-stroke-cyclic);
   stroke-dasharray: var(--edge-dash-cyclic);
@@ -667,6 +673,9 @@ watch(
  *
  * **選択のほうを強くする。** 選択は操作の状態で、いま何を選んでいるかが
  * 読めないと操作が続かない。破線は残るので、選択中でも循環だとは分かる。
+ *
+ * 強弱は**詳細度で決める**。書いた順に頼ると、規則を並べ替えただけで
+ * 見た目が静かに入れ替わる。
  */
 .node.in-cycle .box {
   stroke: var(--color-warn);
@@ -674,7 +683,8 @@ watch(
   stroke-dasharray: var(--node-dash-cyclic);
 }
 
-.node.selected .box {
+.node.selected .box,
+.node.selected.in-cycle .box {
   stroke: var(--color-accent);
   stroke-width: var(--node-stroke-selected);
 }

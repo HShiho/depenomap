@@ -1275,8 +1275,10 @@ describe('循環の印（US-06 / UT-10）', () => {
     expect(wrapper.findAll('path.cyclic')).toHaveLength(0)
   })
 
-  it('選ばれていても循環だと分かる', async () => {
-    // 選択の色が勝つが、破線は残るので、選択中でも循環だとは分かる
+  it('選ばれても循環の印は外れない', async () => {
+    // 見た目の強弱（選択の色が勝ち、破線は残る）は詳細度で決めており、
+    // その形は `GraphCanvas.style.node.test.ts` が見ている。ここで見るのは
+    // 選択しても循環の別が付いたままであること
     const { state, wrapper } = setup()
     state.select(plain)
     await wrapper.vm.$nextTick()
