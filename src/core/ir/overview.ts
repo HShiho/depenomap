@@ -42,20 +42,35 @@ export function buildLayerFlows(
   edges: readonly GraphEdge[],
   layerOf: (nodeId: string) => LayerKey,
 ): readonly LayerFlow[] {
-  const flows = new Map<string, { flow: LayerFlow; index: number }>()
+  /*
+   * 入れ子の Map で持つ。組を 1 つの文字列に潰すと、層 ID に区切り文字が
+   * 入っていたときに別の組と同じキーになり、本数が合算される。層 ID の書式は
+   * 正本 JSON の自由（スキーマは `string` としか言わない）で、ビューアは
+   * その中身を検査しない（N-1）。
+   */
+  const flows = new Map<LayerKey, Map<LayerKey, { flow: LayerFlow; index: number }>>()
+  let order = 0
 
   for (const edge of edges) {
     const from = layerOf(edge.from)
     const to = layerOf(edge.to)
     if (from === to) continue
 
-    const key = `${String(from)} ${String(to)}`
-    const found = flows.get(key)
+    let row = flows.get(from)
+    if (row === undefined) {
+      row = new Map()
+      flows.set(from, row)
+    }
+    const found = row.get(to)
     if (found) found.flow.count += 1
-    else flows.set(key, { flow: { from, to, count: 1 }, index: flows.size })
+    else {
+      row.set(to, { flow: { from, to, count: 1 }, index: order })
+      order += 1
+    }
   }
 
   return [...flows.values()]
+    .flatMap((row) => [...row.values()])
     .sort((a, b) => b.flow.count - a.flow.count || a.index - b.index)
     .map((entry) => entry.flow)
 }

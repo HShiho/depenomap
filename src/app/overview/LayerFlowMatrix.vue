@@ -47,14 +47,24 @@ const matrix = computed<Matrix>(() => {
   }))
 
   const flows = viewModel.layerFlows('file')
-  const counts = new Map(
-    flows.map((flow) => [`${String(flow.from)} ${String(flow.to)}`, flow.count]),
-  )
+  /*
+   * 組を 1 つの文字列に潰さない。層 ID に区切り文字が入っていると別の組と
+   * 同じキーになり、本数が混ざる（IR 側と同じ理由）。
+   */
+  const counts = new Map<LayerKey, Map<LayerKey, number>>()
+  for (const flow of flows) {
+    let row = counts.get(flow.from)
+    if (row === undefined) {
+      row = new Map()
+      counts.set(flow.from, row)
+    }
+    row.set(flow.to, flow.count)
+  }
   const max = flows.reduce((top, flow) => Math.max(top, flow.count), 1)
 
   return {
     layers,
-    countOf: (from: LayerKey, to: LayerKey) => counts.get(`${String(from)} ${String(to)}`) ?? 0,
+    countOf: (from: LayerKey, to: LayerKey) => counts.get(from)?.get(to) ?? 0,
     max,
   }
 })

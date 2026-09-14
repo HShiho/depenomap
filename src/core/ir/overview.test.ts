@@ -91,6 +91,50 @@ describe('層をまたぐ依存の流れ（US-11）', () => {
     expect(vmOf().layerFlows('method').length).toBeGreaterThan(0)
   })
 
+  it('層 ID に区切り文字が入っていても、別の組と混ざらない', () => {
+    // 層 ID の書式は正本 JSON の自由。ビューアはその中身を検査しない（N-1）
+    const vm = vmOf((g) => {
+      g.layers = [
+        { id: 'a b', name: 'A B', match: [] },
+        { id: 'c', name: 'C', match: [] },
+        { id: 'a', name: 'A', match: [] },
+        { id: 'b c', name: 'B C', match: [] },
+      ]
+      const files = g.nodes.filter((node) => node.kind === 'file').slice(0, 4)
+      files[0]!.layer = 'a b'
+      files[1]!.layer = 'c'
+      files[2]!.layer = 'a'
+      files[3]!.layer = 'b c'
+      g.edges = [
+        {
+          id: 'x1',
+          kind: 'import',
+          granularity: 'file',
+          from: files[0]!.id,
+          to: files[1]!.id,
+          importKind: 'value',
+          specifier: './x',
+        },
+        {
+          id: 'x2',
+          kind: 'import',
+          granularity: 'file',
+          from: files[2]!.id,
+          to: files[3]!.id,
+          importKind: 'value',
+          specifier: './y',
+        },
+      ]
+      g.cycles = []
+      g.unresolved = []
+    })
+
+    const flows = vm.layerFlows('file')
+    // 「a b → c」と「a → b c」。潰すとどちらも "a b c" になって合算される
+    expect(flows).toHaveLength(2)
+    expect(flows.every((flow) => flow.count === 1)).toBe(true)
+  })
+
   it('依存が 1 本も無くても壊れない', () => {
     const vm = vmOf((g) => {
       g.edges = []
