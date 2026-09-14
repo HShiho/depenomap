@@ -81,11 +81,17 @@ export function buildLayerFlows(
  * **数え方は `fanInOf` と揃える**（ノード数。同じ 2 ノード間に何本エッジが
  * あっても 1）。揃えないと、内訳の合計が被依存数と一致せず、同じ画面に
  * 食い違う 2 つの数が出る。
+ *
+ * **並びは層の並び（`layerKeys`）に揃える。** 出現順のままだと、行ごとに同じ層が
+ * 違う位置に出て、行どうしを見比べられない。並びの規則は誰が書いても同じ答えに
+ * なるので、ここで決める。
  */
 export function buildFanInByLayer(
   edges: readonly GraphEdge[],
   layerOf: (nodeId: string) => LayerKey,
+  layerKeys: readonly LayerKey[],
 ): ReadonlyMap<string, ReadonlyMap<LayerKey, number>> {
+  const order = new Map(layerKeys.map((key, index) => [key, index]))
   // 数え方は `fanInOf` と同じ素から取る。写すとずれる
   const dependents = buildDependentNodes(edges)
 
@@ -96,7 +102,14 @@ export function buildFanInByLayer(
       const key = layerOf(dependent)
       counts.set(key, (counts.get(key) ?? 0) + 1)
     }
-    byLayer.set(id, counts)
+    byLayer.set(
+      id,
+      new Map(
+        [...counts].sort(
+          ([a], [b]) => (order.get(a) ?? layerKeys.length) - (order.get(b) ?? layerKeys.length),
+        ),
+      ),
+    )
   }
   return byLayer
 }

@@ -168,6 +168,54 @@ describe('被依存の層別内訳（US-11）', () => {
     expect([...after.entries()]).toEqual([...before.entries()])
   })
 
+  it('内訳の並びが、層の並びと同じ', () => {
+    /*
+     * 出現順のままだと、行ごとに同じ層が違う位置に出て、行どうしを見比べられない。
+     *
+     * **正本 JSON の並びが層の並びと逆になる形を作る。** フィクスチャのままでは
+     * 両者が偶然一致していて、並べ替えを外しても通ってしまう
+     */
+    const vm = vmOf((g) => {
+      const files = g.nodes.filter((node) => node.kind === 'file')
+      const used = files[0]!
+      const last = files[1]!
+      const first = files[2]!
+      last.layer = g.layers.at(-1)!.id
+      first.layer = g.layers[0]!.id
+      // 後ろの層から先に依存させる
+      g.edges = [
+        {
+          id: 'x1',
+          kind: 'import',
+          granularity: 'file',
+          from: last.id,
+          to: used.id,
+          importKind: 'value',
+          specifier: './x',
+        },
+        {
+          id: 'x2',
+          kind: 'import',
+          granularity: 'file',
+          from: first.id,
+          to: used.id,
+          importKind: 'value',
+          specifier: './y',
+        },
+      ]
+      g.cycles = []
+      g.unresolved = []
+    })
+    const order = new Map(vm.layerKeys.map((key, index) => [key, index]))
+
+    for (const node of vm.nodes.file) {
+      const keys = [...vm.fanInByLayerOf(node.id, 'file').keys()]
+      const ranks = keys.map((key) => order.get(key) ?? -1)
+      expect(ranks).toEqual([...ranks].sort((a, b) => a - b))
+    }
+    expect([...vm.fanInByLayerOf(vm.nodes.file[0]!.id, 'file')]).toHaveLength(2)
+  })
+
   it('使われていないノードは空', () => {
     const vm = vmOf()
     const unused = vm.nodes.file.find((node) => vm.fanInOf(node.id, 'file') === 0)!

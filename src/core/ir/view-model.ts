@@ -278,8 +278,8 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
     method: buildLayerFlows(edges.method, layerKeyOf),
   } as const
   const fanInByLayer = {
-    file: buildFanInByLayer(edges.file, layerKeyOf),
-    method: buildFanInByLayer(edges.method, layerKeyOf),
+    file: buildFanInByLayer(edges.file, layerKeyOf, layerKeys),
+    method: buildFanInByLayer(edges.method, layerKeyOf, layerKeys),
   } as const
 
   // 粒度の指定が無ければ全ノードを見る（ADR-003 の運用上の注意）。
