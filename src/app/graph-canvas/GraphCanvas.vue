@@ -16,7 +16,7 @@ import type { Granularity, ViewModel } from '@/core/ir/view-model'
 import { useViewState, type ColumnAxis } from '../shell/view-state'
 import { layerColours } from '../shell/layer-colour'
 import { callOrder } from './call-order'
-import { cycleMarkOf } from './cycle-mark'
+import { cycleMarkOf, isCycleEdge } from './cycle-mark'
 import { buildColumnPlan } from './column-axis'
 import { narrowedNodeIds } from './narrowing'
 import { edgeMidpoint, edgePath } from './edge-path'
@@ -176,8 +176,18 @@ function variantOf(edge: GraphEdge): EdgeVariant {
   return 'plain'
 }
 
-const edges = computed(() =>
-  shownEdges.value.flatMap((edge) => {
+/**
+ * 矢尻。**線と同じ色にする**（UT-04）。色の違う線に灰色の矢尻が付くと、
+ * 線と矢尻が別のものに見える。
+ */
+function markerOf(edge: { variant: EdgeVariant; inCycle: boolean }): string {
+  if (edge.inCycle) return 'url(#arrow-cyclic)'
+  return edge.variant === 'via' ? 'url(#arrow-via)' : 'url(#arrow)'
+}
+
+const edges = computed(() => {
+  const viewModel = state.viewModel
+  return shownEdges.value.flatMap((edge) => {
     const from = positions.value.get(edge.from)
     const to = positions.value.get(edge.to)
     // 位置が引けないエッジは描かない。参照整合性は UT-01 が保証済みで、
@@ -190,13 +200,18 @@ const edges = computed(() =>
       {
         id: edge.id,
         variant,
+        /*
+         * 循環かどうかは**形の別（`variant`）とは別の軸**（UT-10）。同じ 1 本が
+         * 経由の呼び出しでも実装の対応でもありうるので、置き換えずに重ねる
+         */
+        inCycle: viewModel === undefined ? false : isCycleEdge(viewModel, edge.id),
         d: edgePath(from, to, options),
         // 経由の印は曲線上に置く。端点の中間だと線から離れて浮く
         midpoint: variant === 'via' ? edgeMidpoint(from, to, options) : undefined,
       },
     ]
-  }),
-)
+  })
+})
 
 /**
  * 列見出し。**中身は軸で変わる**ので、文言と色は `columnPlan.headOf` に委ねる
@@ -462,6 +477,19 @@ watch(
         <path d="M0,1 L10,5 L0,9 z" fill="var(--color-ink-3)" />
       </marker>
 
+      <!-- 循環している依存。線と同じ色にする（UT-10） -->
+      <marker
+        id="arrow-cyclic"
+        viewBox="0 0 10 10"
+        refX="9"
+        refY="5"
+        markerWidth="7"
+        markerHeight="7"
+        orient="auto-start-reverse"
+      >
+        <path d="M0,1 L10,5 L0,9 z" fill="var(--color-warn)" />
+      </marker>
+
       <!-- 経由の呼び出し。線と同じ色にする -->
       <marker
         id="arrow-via"
@@ -494,8 +522,8 @@ watch(
             :data-edge-id="edge.id"
             :d="edge.d"
             class="edge"
-            :class="edge.variant"
-            :marker-end="edge.variant === 'via' ? 'url(#arrow-via)' : 'url(#arrow)'"
+            :class="[edge.variant, { cyclic: edge.inCycle }]"
+            :marker-end="markerOf(edge)"
           />
           <!-- 経由であることの印。インターフェース宛であることを線の上で示す -->
           <!--
@@ -599,6 +627,19 @@ watch(
   stroke: var(--color-accent);
   stroke-width: var(--edge-stroke-via);
   opacity: var(--edge-opacity-via);
+}
+
+/*
+ * 循環している依存（UT-10 / US-06）。
+ *
+ * **経由・実装の別より後に置く。** 循環は形の別とは違う軸で、両方に当たる線は
+ * 循環のほうを出す。どの辺をたどると戻ってくるのかが図から読めなくなるため
+ */
+.edge.cyclic {
+  stroke: var(--color-warn);
+  stroke-width: var(--edge-stroke-cyclic);
+  stroke-dasharray: var(--edge-dash-cyclic);
+  opacity: 1;
 }
 
 .via-dot {

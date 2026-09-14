@@ -1221,6 +1221,30 @@ describe('循環の印（US-06 / UT-10）', () => {
     expect(nodeOf(wrapper, inCycle.id).find('.flag').text()).toBe('循環')
   })
 
+  it('循環に含まれる辺が線でも分かる', () => {
+    // ノードの印だけだと、どの辺をたどると戻ってくるのかが読めない
+    const { wrapper } = setup()
+    const cycle = viewModel.cyclesOf(plain)[0]!
+
+    for (const edgeId of cycle.edges) {
+      const path = wrapper.find(`[data-edge-id="${edgeId}"]`)
+      expect(path.classes()).toContain('cyclic')
+      expect(path.attributes('marker-end')).toBe('url(#arrow-cyclic)')
+    }
+  })
+
+  it('循環に含まれない辺は、これまでどおり', () => {
+    const { wrapper } = setup()
+    const inCycle = new Set(
+      viewModel.nodes.file.flatMap((node) => viewModel.cyclesOf(node.id)).flatMap((c) => c.edges),
+    )
+    const outside = viewModel.edges.file.find((edge) => !inCycle.has(edge.id))!
+    const path = wrapper.find(`[data-edge-id="${outside.id}"]`)
+
+    expect(path.classes()).not.toContain('cyclic')
+    expect(path.attributes('marker-end')).toBe('url(#arrow)')
+  })
+
   it('循環が 1 件も無くても図が壊れない', () => {
     const { wrapper } = setup({
       viewModel: buildViewModel({ ...result.graph, cycles: [] }),
@@ -1228,6 +1252,8 @@ describe('循環の印（US-06 / UT-10）', () => {
 
     expect(wrapper.findAll('g.node').length).toBeGreaterThan(0)
     expect(wrapper.findAll('.flag')).toHaveLength(0)
+    expect(wrapper.findAll('path.edge').length).toBeGreaterThan(0)
+    expect(wrapper.findAll('path.cyclic')).toHaveLength(0)
   })
 
   it('選ばれていても循環だと分かる', async () => {
