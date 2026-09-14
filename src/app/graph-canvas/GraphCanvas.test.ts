@@ -11,6 +11,7 @@ import { useViewState } from '../shell/view-state'
 import * as columnAxis from './column-axis'
 import * as layoutModule from './layout'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
+import { NAME_LIMIT, nameLimitFor } from './node-label'
 import GraphCanvas from './GraphCanvas.vue'
 
 import fixture from '../../../test-data/dependency-graph.complex.json'
@@ -1243,6 +1244,24 @@ describe('循環の印（US-06 / UT-10）', () => {
 
     expect(path.classes()).not.toContain('cyclic')
     expect(path.attributes('marker-end')).toBe('url(#arrow)')
+  })
+
+  it('長い名前でも、印と重ならない幅に収まる', () => {
+    // 印は見出しと同じ行の右端に出る。上限を据え置くと文字が重なる
+    const long = `${'A'.repeat(40)}.ts`
+    const model = buildViewModel({
+      ...result.graph,
+      nodes: result.graph.nodes.map((node) =>
+        node.id === typeOnly ? { ...node, name: long } : node,
+      ),
+    })
+    const { wrapper } = setup({ viewModel: model })
+
+    const shown = nodeOf(wrapper, typeOnly).find('.name').text()
+    const flag = nodeOf(wrapper, typeOnly).find('.flag').text()
+    expect(flag).toBe('循環（型のみ）')
+    expect(shown.length).toBeLessThanOrEqual(nameLimitFor(flag))
+    expect(shown.length).toBeLessThan(NAME_LIMIT)
   })
 
   it('循環が 1 件も無くても図が壊れない', () => {

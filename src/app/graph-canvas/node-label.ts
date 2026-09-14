@@ -6,6 +6,7 @@
  */
 
 import type { GraphNode } from '@/core/graph/schema'
+import { NODE_WIDTH } from './layout'
 
 /** ノード内に入る識別子の長さ（参照仕様） */
 export const NAME_LIMIT = 22
@@ -15,6 +16,39 @@ export const PATH_LIMIT = 24
 
 /** 切り詰めても必ず残す `owner` の文字数。ここが 0 になると所属の手がかりが消える */
 const OWNER_MIN = 1
+
+/*
+ * 見出しの右隣に印が出るとき（UT-10 の循環など）の幅の勘定。
+ *
+ * 印は同じ行の右端に置かれるので、**上限を据え置くと文字が重なって両方
+ * 読めなくなる**。図は実寸を測れる場所ではない（SVG のテキストは描画後に
+ * しか測れず、測ってから並べ直すと図が揺れる）ので、トークンの値から見積もる。
+ */
+/** 印の 1 文字ぶん。`--text-flag` は 9px で、出すのは全角の語だけ */
+const FLAG_CHAR_WIDTH = 9
+/** 見出しの 1 文字ぶん。`--text-ui` 12px の等幅は 0.6em 送り */
+const NAME_CHAR_WIDTH = 7.2
+/** 見出しの左端と、印の右端（描画側と同じ値） */
+const NAME_X = 14
+const FLAG_RIGHT = NODE_WIDTH - 10
+/** 見出しと印のあいだに残す隙間 */
+const FLAG_GAP = 8
+/** 印があっても、見出しはこれ以下には縮めない */
+const NAME_MIN = 8
+
+/**
+ * 印が並ぶときの見出しの上限。
+ *
+ * 印が無ければ据え置き（`NAME_LIMIT`）。印が長いほど見出しは短くなるが、
+ * **見出しを潰し切らない** — 名前が消えると、どのノードなのかが読めなくなり、
+ * 印だけが残る。全文は `tooltipOf` が持つ。
+ */
+export function nameLimitFor(flag: string | undefined): number {
+  if (flag === undefined) return NAME_LIMIT
+
+  const room = FLAG_RIGHT - flag.length * FLAG_CHAR_WIDTH - FLAG_GAP - NAME_X
+  return Math.max(NAME_MIN, Math.min(NAME_LIMIT, Math.floor(room / NAME_CHAR_WIDTH)))
+}
 
 /**
  * 見出し。メソッドは `owner.name`（例 `TodoController.post`）にする。
@@ -30,18 +64,21 @@ const OWNER_MIN = 1
  * 削って上限に収める。
  *
  * 上限が 22 文字である以上、これでも一意にはならない。全文は `tooltipOf` が持つ。
+ *
+ * 上限は呼ぶ側が縮められる。同じ行に印が出るときは、その幅ぶん狭くなる
+ * （`nameLimitFor`）。
  */
-export function titleOf(node: GraphNode): string {
-  if (node.kind === 'file') return truncate(node.name, NAME_LIMIT)
-  if (node.owner === null) return truncate(node.name, NAME_LIMIT)
+export function titleOf(node: GraphNode, limit: number = NAME_LIMIT): string {
+  if (node.kind === 'file') return truncate(node.name, limit)
+  if (node.owner === null) return truncate(node.name, limit)
 
   const full = `${node.owner}.${node.name}`
-  if (full.length <= NAME_LIMIT) return full
+  if (full.length <= limit) return full
 
   // `….` の 2 文字を差し引いた残りを、owner とメソッド名で分け合う
-  const room = NAME_LIMIT - node.name.length - 2
+  const room = limit - node.name.length - 2
   if (room >= OWNER_MIN) return `${node.owner.slice(0, room)}….${node.name}`
-  return `${node.owner.slice(0, OWNER_MIN)}….${truncate(node.name, NAME_LIMIT - OWNER_MIN - 2)}`
+  return `${node.owner.slice(0, OWNER_MIN)}….${truncate(node.name, limit - OWNER_MIN - 2)}`
 }
 
 /**

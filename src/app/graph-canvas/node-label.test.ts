@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { GraphNode } from '@/core/graph/schema'
-import { NAME_LIMIT, subtitleOf, titleOf, tooltipOf } from './node-label'
+import { NAME_LIMIT, nameLimitFor, subtitleOf, titleOf, tooltipOf } from './node-label'
 
 function method(owner: string | null, name: string): GraphNode {
   return {
@@ -113,5 +113,37 @@ describe('2 行目', () => {
 
     expect(subtitle.startsWith('…')).toBe(true)
     expect(subtitle.endsWith('Module.ts')).toBe(true)
+  })
+})
+
+describe('印が並ぶときの上限（UT-10）', () => {
+  it('印が無ければ据え置き', () => {
+    expect(nameLimitFor(undefined)).toBe(NAME_LIMIT)
+  })
+
+  it('印が長いほど、見出しは短くなる', () => {
+    expect(nameLimitFor('循環（型のみ）')).toBeLessThan(nameLimitFor('循環'))
+  })
+
+  it('短い印なら、据え置きのまま', () => {
+    // 「循環」だけなら見出しの右端まで届かない
+    expect(nameLimitFor('循環')).toBe(NAME_LIMIT)
+  })
+
+  it('印がどれだけ長くても、見出しを潰し切らない', () => {
+    // 名前が消えると、どのノードなのかが読めなくなり、印だけが残る
+    expect(nameLimitFor('循環'.repeat(20))).toBeGreaterThan(0)
+  })
+
+  it('上限を渡すと、見出しがそこまで縮む', () => {
+    const node = {
+      kind: 'file',
+      id: 'file:a',
+      name: 'VeryLongFileNameHere.ts',
+      path: 'src/a.ts',
+    } as const
+
+    expect(titleOf(node).length).toBeLessThanOrEqual(NAME_LIMIT)
+    expect(titleOf(node, 10).length).toBeLessThanOrEqual(10)
   })
 })

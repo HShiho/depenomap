@@ -20,7 +20,7 @@ import { cycleMarkOf, isCycleEdge } from '../shell/cycle-mark'
 import { buildColumnPlan } from './column-axis'
 import { narrowedNodeIds } from './narrowing'
 import { edgeMidpoint, edgePath } from './edge-path'
-import { subtitleOf, titleOf, tooltipOf } from './node-label'
+import { nameLimitFor, subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import { centreOn, fit, transformOf, type Viewport } from './viewport'
 
@@ -287,13 +287,15 @@ const nodeVisuals = computed(() => {
 
   for (const placed of layout.value.nodes) {
     const node = placed.node
+    // 印は見出しと同じ行の右端に出る。見出しの上限はその幅ぶん狭くなる
+    const cycle = cycleMarkOf(viewModel, node.id)
     visuals.set(node.id, {
-      name: titleOf(node),
+      name: titleOf(node, nameLimitFor(cycle)),
       path: subtitleOf(node, (id) => viewModel.fileOfMethod(id)?.path),
       tooltip: tooltipOf(node, (id) => viewModel.fileOfMethod(id)?.path),
       stat: statsOf(node),
       colour: layerColour.value(viewModel.layerOf(node.id).key),
-      cycle: cycleMarkOf(viewModel, node.id),
+      cycle,
     })
   }
   return visuals
