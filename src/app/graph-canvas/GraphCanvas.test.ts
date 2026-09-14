@@ -1264,11 +1264,19 @@ describe('循環の印（US-06 / UT-10）', () => {
 
     /*
      * 物差しは `nameLimitFor` ではなく幾何そのもの。上限の出し方を間違えても、
-     * それ自身を物差しにすると常に通る
+     * それ自身を物差しにすると常に通る。
+     *
+     * **端の位置は描画結果から取る。** 見積もりに使った値を両側に使うと、
+     * テンプレートが動いたときに気付けない
      */
-    const { NAME_X, NAME_CHAR_WIDTH, FLAG_GAP, FLAG_RIGHT, FLAG_CHAR_WIDTH } = LABEL_GEOMETRY
-    const nameRight = NAME_X + shown.length * NAME_CHAR_WIDTH
-    const flagLeft = FLAG_RIGHT - flag.length * FLAG_CHAR_WIDTH
+    const { NAME_CHAR_WIDTH, FLAG_GAP, FLAG_CHAR_WIDTH } = LABEL_GEOMETRY
+    const nameElement = nodeOf(wrapper, typeOnly).find('.name')
+    const flagElement = nodeOf(wrapper, typeOnly).find('.flag')
+
+    // 印は右端から左へ伸びる。左揃えだと見出しの上に重なる
+    expect(flagElement.attributes('text-anchor')).toBe('end')
+    const nameRight = Number(nameElement.attributes('x')) + shown.length * NAME_CHAR_WIDTH
+    const flagLeft = Number(flagElement.attributes('x')) - flag.length * FLAG_CHAR_WIDTH
     expect(nameRight + FLAG_GAP).toBeLessThanOrEqual(flagLeft)
   })
 
