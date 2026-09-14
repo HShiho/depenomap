@@ -20,13 +20,26 @@ import type { Granularity } from './view-model'
  * 粒度ごとに独立して数える。
  */
 export function buildFanIn(edges: readonly GraphEdge[]): ReadonlyMap<string, number> {
+  return new Map([...buildDependentNodes(edges)].map(([id, from]) => [id, from.size]))
+}
+
+/**
+ * 「使っている側のノード」の引き当て。被依存の数え方の**素**にあたる。
+ *
+ * 数え方（ノード数で数える）を変えるとき、直す場所が 1 つで済むように切り出して
+ * ある。同じ組み立てを写すと、被依存数とその内訳（`buildFanInByLayer`）で
+ * 数え方がずれ、合計が一致しなくなる。
+ */
+export function buildDependentNodes(
+  edges: readonly GraphEdge[],
+): ReadonlyMap<string, ReadonlySet<string>> {
   const dependents = new Map<string, Set<string>>()
   for (const edge of edges) {
     const bucket = dependents.get(edge.to)
     if (bucket) bucket.add(edge.from)
     else dependents.set(edge.to, new Set([edge.from]))
   }
-  return new Map([...dependents].map(([id, from]) => [id, from.size]))
+  return dependents
 }
 
 /**

@@ -11,6 +11,7 @@
  */
 
 import type { GraphEdge } from '../graph/schema'
+import { buildDependentNodes } from './indices'
 import type { LayerKey } from './view-model'
 
 /** 層から層への依存の流れ。同じ層の中は数えない（「またぐ」ものだけ） */
@@ -70,12 +71,8 @@ export function buildFanInByLayer(
   edges: readonly GraphEdge[],
   layerOf: (nodeId: string) => LayerKey,
 ): ReadonlyMap<string, ReadonlyMap<LayerKey, number>> {
-  const dependents = new Map<string, Set<string>>()
-  for (const edge of edges) {
-    const bucket = dependents.get(edge.to)
-    if (bucket) bucket.add(edge.from)
-    else dependents.set(edge.to, new Set([edge.from]))
-  }
+  // 数え方は `fanInOf` と同じ素から取る。写すとずれる
+  const dependents = buildDependentNodes(edges)
 
   const byLayer = new Map<string, Map<LayerKey, number>>()
   for (const [id, from] of dependents) {
