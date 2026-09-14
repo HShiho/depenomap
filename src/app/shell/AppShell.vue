@@ -23,6 +23,19 @@ import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue'
 import { defaultSizeObserverFactory, watchElementSize } from './canvas-size'
 import { useViewState } from './view-state'
 
+/**
+ * 画面全体に重なるものが出ているか（UT-13）。
+ *
+ * **`inert` は真偽値で渡さない。** Vue は `inert` を真偽属性として知らないので、
+ * `false` を渡すと `inert="false"` と出る。HTML の `inert` は**値に関わらず、
+ * 属性があれば無効化する**。`undefined` にして属性ごと消す。
+ *
+ * 出ているあいだ、3 領域を `inert` にする。**覆いは見た目だけで、裏は生きている** —
+ * Tab で裏の入力欄へ抜けられ、そこで押した Esc は裏の側が先に受け取る。
+ * 一覧の折りたたみ（`sidebarOpen`）が同じやり方で裏を殺しているので、それに揃える。
+ */
+defineProps<{ sheetOpen?: boolean }>()
+
 const state = useViewState()
 const canvas = useTemplateRef<HTMLElement>('canvas')
 
@@ -45,7 +58,11 @@ onBeforeUnmount(() => stopWatching())
     -->
     <h1 class="sr-only">depenomap</h1>
 
-    <nav class="shell-rail border-r border-line bg-surface" aria-label="表示の切り替え">
+    <nav
+      class="shell-rail border-r border-line bg-surface"
+      :inert="sheetOpen || undefined"
+      aria-label="表示の切り替え"
+    >
       <slot name="rail" />
     </nav>
 
@@ -55,13 +72,18 @@ onBeforeUnmount(() => stopWatching())
     -->
     <aside
       class="shell-panel border-r border-line bg-surface"
-      :inert="!state.sidebarOpen"
+      :inert="!state.sidebarOpen || sheetOpen || undefined"
       aria-label="ファイル / メソッドの一覧"
     >
       <slot name="sidebar" />
     </aside>
 
-    <main ref="canvas" class="shell-canvas bg-ground" aria-label="ノードマップ">
+    <main
+      ref="canvas"
+      class="shell-canvas bg-ground"
+      :inert="sheetOpen || undefined"
+      aria-label="ノードマップ"
+    >
       <slot name="canvas" />
 
       <div class="shell-overlay">

@@ -14,7 +14,7 @@
  * 起動直後ではなく**いつでも開けるシート**にしてある（UT-13 の決定）。読み込んだ
  * 直後に図が見えることを優先し、概要は必要なときに重ねる。参照仕様も同じ形。
  */
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, useTemplateRef } from 'vue'
 
 import GraphIdentity from './GraphIdentity.vue'
 import LayerComposition from './LayerComposition.vue'
@@ -27,6 +27,24 @@ import { useViewState } from '../shell/view-state'
 const emit = defineEmits<{ close: [] }>()
 
 const state = useViewState()
+
+/*
+ * 焦点をシートへ引き取り、閉じたら開いた口へ返す。
+ *
+ * 覆いを出しただけでは、焦点は裏に残る。裏は `inert`（`AppShell`）なので、
+ * そのままだと**焦点がどこにも無い状態**になり、Tab が文書の先頭へ飛ぶ。
+ */
+const sheet = useTemplateRef<HTMLElement>('sheet')
+let opener: Element | null = null
+
+onMounted(() => {
+  opener = document.activeElement
+  sheet.value?.focus()
+})
+
+onBeforeUnmount(() => {
+  if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
+})
 
 const meta = computed(() => state.viewModel?.meta)
 
@@ -61,7 +79,9 @@ const subtitle = computed(() => {
     @click.self="emit('close')"
   >
     <section
-      class="flex max-h-full w-full max-w-[900px] flex-col overflow-hidden rounded-panel border border-line bg-surface shadow-float"
+      ref="sheet"
+      class="flex max-h-full w-full max-w-[900px] flex-col overflow-hidden rounded-panel border border-line bg-surface shadow-float focus:outline-none"
+      tabindex="-1"
       role="dialog"
       aria-modal="true"
       aria-label="依存関係の概要"

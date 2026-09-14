@@ -857,6 +857,38 @@ describe('概要の開閉（US-11 / UT-13）', () => {
     expect(sheet(wrapper).exists()).toBe(false)
   })
 
+  it('開いているあいだ、裏は触れない', async () => {
+    // 覆いは見た目だけで裏が生きていると、Tab で裏の入力欄へ抜けられる
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    for (const selector of ['nav', 'aside', 'main']) {
+      expect(wrapper.find(selector).attributes()).toHaveProperty('inert')
+    }
+  })
+
+  it('閉じると裏が戻る', async () => {
+    const { wrapper } = await setup()
+    await open(wrapper)
+    await wrapper.find('[aria-label="概要を閉じる"]').trigger('click')
+
+    expect(wrapper.find('main').attributes()).not.toHaveProperty('inert')
+  })
+
+  it('開くと焦点がシートへ移り、閉じると開いた口へ戻る', async () => {
+    // 裏を `inert` にするので、焦点が裏に残ると行き場が無くなる
+    const { wrapper } = await setup({ attach: true })
+    const button = wrapper.find('[aria-label="概要を開く"]')
+    ;(button.element as HTMLElement).focus()
+    await open(wrapper)
+
+    expect(document.activeElement).toBe(wrapper.find('[role="dialog"]').element)
+
+    await wrapper.find('[aria-label="概要を閉じる"]').trigger('click')
+
+    expect(document.activeElement).toBe(button.element)
+  })
+
   it('違反件数や指摘を出さない（N-1）', async () => {
     const { wrapper } = await setup()
     await open(wrapper)

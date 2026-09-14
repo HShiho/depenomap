@@ -112,3 +112,29 @@ describe('キャンバスの実寸', () => {
     expect(() => mount(AppShell)).not.toThrow()
   })
 })
+
+describe('`inert` の出し方（UT-13 で判明）', () => {
+  /**
+   * Vue は `inert` を真偽属性として知らないため、`false` を渡すと
+   * `inert="false"` と出る。HTML の `inert` は**値に関わらず、属性があれば
+   * 無効化する**ので、開いている一覧が操作できなくなる。jsdom は `inert` を
+   * 実装していないので、押せるかどうかでは確かめられない。**属性の有無で見る**。
+   */
+  it('触れる領域には属性を出さない', () => {
+    const state = useViewState()
+    state.sidebarOpen = true
+    const wrapper = mount(AppShell)
+
+    for (const selector of ['nav', 'aside', 'main']) {
+      expect(wrapper.find(selector).attributes()).not.toHaveProperty('inert')
+    }
+  })
+
+  it('畳んだ一覧には属性を出す', () => {
+    const state = useViewState()
+    state.sidebarOpen = false
+    const wrapper = mount(AppShell)
+
+    expect(wrapper.find('aside').attributes()).toHaveProperty('inert')
+  })
+})

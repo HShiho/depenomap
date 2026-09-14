@@ -98,7 +98,7 @@ const showsOrderNote = computed(
 </script>
 
 <template>
-  <AppShell>
+  <AppShell :sheet-open="overviewOpen">
     <template #canvas>
       <GraphCanvas />
     </template>
