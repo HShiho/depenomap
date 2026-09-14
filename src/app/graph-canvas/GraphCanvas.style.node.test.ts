@@ -17,27 +17,28 @@ import { describe, expect, it } from 'vitest'
 const source = readFileSync(fileURLToPath(new URL('./GraphCanvas.vue', import.meta.url)), 'utf8')
 const style = source.slice(source.indexOf('<style'))
 
-/** セレクタの詳細度（クラスの数だけ数えれば足りる） */
-function classCount(selector: string): number {
-  return selector.split('.').length - 1
-}
-
-/** そのセレクタを持つ規則の本文 */
+/**
+ * そのセレクタを持つ規則の本文。
+ *
+ * **セレクタは必ずソースから取る。** テストの中に書いた文字列どうしを比べても、
+ * 実装が何を書いているかは分からない。
+ */
 function ruleFor(selector: string): string {
   const at = style.indexOf(selector)
   expect(at, `規則が無い: ${selector}`).toBeGreaterThan(-1)
   return style.slice(at, style.indexOf('}', at))
 }
 
+/** その規則より弱い（クラスの少ない）セレクタが、あとから同じ指定を上書きしていないか */
+function laterRulesFor(selector: string): string {
+  return style.slice(style.indexOf(selector))
+}
+
 describe('重なったときの強弱（UT-10）', () => {
   it('選択と循環が重なるノードは、選択の色で描く', () => {
-    // 選択は操作の状態で、いま何を選んでいるかが読めないと操作が続かない
-    const rule = ruleFor('.node.selected.in-cycle .box')
-
-    expect(rule).toContain('var(--color-accent)')
-    expect(classCount('.node.selected.in-cycle .box')).toBeGreaterThan(
-      classCount('.node.in-cycle .box'),
-    )
+    // 選択は操作の状態で、いま何を選んでいるかが読めないと操作が続かない。
+    // 複合セレクタで書いてあること自体が、並べ替えに耐える根拠になる
+    expect(ruleFor('.node.selected.in-cycle .box')).toContain('var(--color-accent)')
   })
 
   it('選択中でも破線は残る', () => {
@@ -45,16 +46,18 @@ describe('重なったときの強弱（UT-10）', () => {
     expect(ruleFor('.node.selected.in-cycle .box')).not.toContain('stroke-dasharray')
   })
 
+  it('循環の色を、あとから弱いセレクタが上書きしていない', () => {
+    // 複合セレクタで勝っていても、そのあとに同じ詳細度以上の規則が来れば覆る
+    expect(laterRulesFor('.edge.via.cyclic')).not.toContain('.edge.via {')
+    expect(laterRulesFor('.node.selected.in-cycle .box')).not.toContain('.node.in-cycle .box {')
+  })
+
   it('経由と循環が重なる辺は、循環の色で描く', () => {
     // どの辺をたどると戻ってくるのかが読めなくなるため
-    const rule = ruleFor('.edge.via.cyclic')
-
-    expect(rule).toContain('var(--color-warn)')
-    expect(classCount('.edge.via.cyclic')).toBeGreaterThan(classCount('.edge.via'))
+    expect(ruleFor('.edge.via.cyclic')).toContain('var(--color-warn)')
   })
 
   it('実装の対応と循環が重なる辺も、循環の色で描く', () => {
     expect(ruleFor('.edge.implements.cyclic')).toContain('var(--color-warn)')
-    expect(classCount('.edge.implements.cyclic')).toBeGreaterThan(classCount('.edge.implements'))
   })
 })
