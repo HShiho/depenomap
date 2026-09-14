@@ -30,6 +30,8 @@ const composition = computed(() => {
   const colourOf = layerColours(viewModel)
   const total = viewModel.nodes.file.length
   const parts = viewModel.layerKeys.map((key) => {
+    // `nodesByLayer` は粒度で分けない（UT-02 の決定）。絞りたい側が `kind` で
+    // 絞る、と決まっているので、ここで数え直しているわけではない
     const count = (viewModel.nodesByLayer.get(key) ?? []).filter(
       (node) => node.kind === 'file',
     ).length
