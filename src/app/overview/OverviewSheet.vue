@@ -18,6 +18,7 @@ import { computed } from 'vue'
 
 import GraphIdentity from './GraphIdentity.vue'
 import LayerComposition from './LayerComposition.vue'
+import LayerFlowMatrix from './LayerFlowMatrix.vue'
 import ScaleCards from './ScaleCards.vue'
 import { shortCommit, formatGeneratedAt } from './overview-format'
 import { useViewState } from '../shell/view-state'
@@ -80,6 +81,11 @@ const subtitle = computed(() => {
         <section>
           <h3 class="mb-8 text-overline text-ink-3 uppercase">層の構成</h3>
           <LayerComposition />
+        </section>
+
+        <section>
+          <h3 class="mb-8 text-overline text-ink-3 uppercase">層をまたぐ依存の流れ</h3>
+          <LayerFlowMatrix />
         </section>
 
         <section v-if="meta !== undefined">
