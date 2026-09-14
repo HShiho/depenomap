@@ -20,6 +20,7 @@ import GraphIdentity from './GraphIdentity.vue'
 import LayerComposition from './LayerComposition.vue'
 import LayerFlowMatrix from './LayerFlowMatrix.vue'
 import ScaleCards from './ScaleCards.vue'
+import TopDependedFiles from './TopDependedFiles.vue'
 import { shortCommit, formatGeneratedAt } from './overview-format'
 import { useViewState } from '../shell/view-state'
 
@@ -28,6 +29,18 @@ const emit = defineEmits<{ close: [] }>()
 const state = useViewState()
 
 const meta = computed(() => state.viewModel?.meta)
+
+/**
+ * 概要から図へ移る（UT-13 は導線を差し込むだけ）。
+ *
+ * **移動そのものは UT-14 の経路を通す。** ここに別の経路を作ると、概要から
+ * 選んだときだけ絞り込みが立たない、履歴に積まれない、といった食い違いができる。
+ * 移ったあとはシートを閉じる。閉じないと、移った先の図が覆われたままになる。
+ */
+function moveTo(nodeId: string): void {
+  state.moveTo(nodeId)
+  emit('close')
+}
 
 /** 見出しに出す 1 行。素性のうち、どの断面かが分かるだけを短く */
 const subtitle = computed(() => {
@@ -86,6 +99,11 @@ const subtitle = computed(() => {
         <section>
           <h3 class="mb-8 text-overline text-ink-3 uppercase">層をまたぐ依存の流れ</h3>
           <LayerFlowMatrix />
+        </section>
+
+        <section>
+          <h3 class="mb-8 text-overline text-ink-3 uppercase">影響範囲の大きいファイル</h3>
+          <TopDependedFiles @move="moveTo" />
         </section>
 
         <section v-if="meta !== undefined">

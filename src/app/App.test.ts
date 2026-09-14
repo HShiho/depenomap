@@ -832,6 +832,31 @@ describe('概要の開閉（US-11 / UT-13）', () => {
     expect(counts.reduce((sum, count) => sum + count, 0)).toBe(state.viewModel!.nodes.file.length)
   })
 
+  it('影響範囲の大きいファイルから、図へ移れる', async () => {
+    // 移動は UT-14 の経路を通す。概要から選んだときだけ絞り込みが立たない、
+    // 履歴に積まれない、といった食い違いを作らない
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const top = state.viewModel!.nodesByFanInDesc('file')[0]!
+
+    await sheet(wrapper).find(`[data-node-id="${top.id}"]`).trigger('click')
+
+    expect(state.selectedNodeId).toBe(top.id)
+    expect(state.narrowedToSelection).toBe(true)
+    expect(state.history.at(-1)?.nodeId).toBe(top.id)
+  })
+
+  it('移ったらシートを閉じる', async () => {
+    // 閉じないと、移った先の図が覆われたままになる
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const top = state.viewModel!.nodesByFanInDesc('file')[0]!
+
+    await sheet(wrapper).find(`[data-node-id="${top.id}"]`).trigger('click')
+
+    expect(sheet(wrapper).exists()).toBe(false)
+  })
+
   it('違反件数や指摘を出さない（N-1）', async () => {
     const { wrapper } = await setup()
     await open(wrapper)
