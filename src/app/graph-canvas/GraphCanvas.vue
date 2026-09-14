@@ -16,6 +16,7 @@ import type { Granularity, ViewModel } from '@/core/ir/view-model'
 import { useViewState, type ColumnAxis } from '../shell/view-state'
 import { layerColours } from '../shell/layer-colour'
 import { callOrder } from './call-order'
+import { cycleMarkOf } from './cycle-mark'
 import { buildColumnPlan } from './column-axis'
 import { narrowedNodeIds } from './narrowing'
 import { edgeMidpoint, edgePath } from './edge-path'
@@ -256,7 +257,15 @@ function statsOf(node: GraphNode): string {
 const nodeVisuals = computed(() => {
   const visuals = new Map<
     string,
-    { name: string; path: string; stat: string; colour: string; tooltip: string }
+    {
+      name: string
+      path: string
+      stat: string
+      colour: string
+      tooltip: string
+      /** 循環の印（UT-10）。含まれなければ `undefined` */
+      cycle: string | undefined
+    }
   >()
   const viewModel = state.viewModel
   if (!viewModel) return visuals
@@ -269,6 +278,7 @@ const nodeVisuals = computed(() => {
       tooltip: tooltipOf(node, (id) => viewModel.fileOfMethod(id)?.path),
       stat: statsOf(node),
       colour: layerColour.value(viewModel.layerOf(node.id).key),
+      cycle: cycleMarkOf(viewModel, node.id),
     })
   }
   return visuals
@@ -507,7 +517,10 @@ watch(
         :key="placed.node.id"
         :data-node-id="placed.node.id"
         class="node"
-        :class="{ selected: placed.node.id === state.selectedNodeId }"
+        :class="{
+          selected: placed.node.id === state.selectedNodeId,
+          'in-cycle': nodeVisuals.get(placed.node.id)?.cycle !== undefined,
+        }"
         :style="{ '--lc': nodeVisuals.get(placed.node.id)?.colour }"
         :transform="`translate(${placed.x},${placed.y})`"
         @click.stop="onNodeClick(placed.node)"
@@ -527,6 +540,19 @@ watch(
         <text x="14" y="38" class="path">{{ nodeVisuals.get(placed.node.id)?.path }}</text>
         <text :x="NODE_WIDTH - 10" y="38" class="stat" text-anchor="end">
           {{ nodeVisuals.get(placed.node.id)?.stat }}
+        </text>
+        <!--
+          循環の印（UT-10 / US-06）。**事実の提示であって判定ではない**（N-1）。
+          名前と同じ行の右端に置く。下の行は被依存・依存の数が使っている
+        -->
+        <text
+          v-if="nodeVisuals.get(placed.node.id)?.cycle !== undefined"
+          :x="NODE_WIDTH - 10"
+          y="19"
+          class="flag"
+          text-anchor="end"
+        >
+          {{ nodeVisuals.get(placed.node.id)?.cycle }}
         </text>
       </g>
     </g>
@@ -593,9 +619,28 @@ watch(
   stroke-width: var(--node-stroke);
 }
 
+/*
+ * 循環しているノード（UT-10 / US-06）。
+ *
+ * **選択のほうを強くする。** 選択は操作の状態で、いま何を選んでいるかが
+ * 読めないと操作が続かない。破線は残るので、選択中でも循環だとは分かる。
+ */
+.node.in-cycle .box {
+  stroke: var(--color-warn);
+  stroke-width: var(--node-stroke-cyclic);
+  stroke-dasharray: var(--node-dash-cyclic);
+}
+
 .node.selected .box {
   stroke: var(--color-accent);
   stroke-width: var(--node-stroke-selected);
+}
+
+.node .flag {
+  font-family: var(--font-sans);
+  font-size: var(--text-flag);
+  font-weight: var(--text-flag--font-weight);
+  fill: var(--color-warn);
 }
 
 .node .bar {

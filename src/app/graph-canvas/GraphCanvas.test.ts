@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FileNode } from '@/core/graph/schema'
 import { loadGraphFromValue } from '@/core/graph/loader'
-import { buildViewModel, type Granularity } from '@/core/ir/view-model'
+import { buildViewModel, type Granularity, type ViewModel } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
 import * as columnAxis from './column-axis'
 import * as layoutModule from './layout'
@@ -27,10 +27,16 @@ const viewModel = buildViewModel(result.graph)
 /** 検査で使うキャンバスの実寸。画面に収まるかの判定でも同じ値を使う */
 const CANVAS = { width: 1200, height: 800 }
 
-function setup(options: { withGraph?: boolean; granularity?: Granularity } = {}) {
+function setup(
+  options: { withGraph?: boolean; granularity?: Granularity; viewModel?: ViewModel } = {},
+) {
   const state = useViewState()
   if (options.withGraph !== false) {
-    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    state.applyLoadOutcome({
+      kind: 'ready',
+      viewModel: options.viewModel ?? viewModel,
+      warnings: [],
+    })
   }
   state.setCanvasSize(CANVAS.width, CANVAS.height)
   if (options.granularity) state.setGranularity(options.granularity)
@@ -1174,5 +1180,63 @@ describe('呼び出し順の並び（US-05 / UT-09）', () => {
     expect(wrapper.findAll('g.node').map((node) => node.attributes('data-node-id')!)).toEqual(
       before,
     )
+  })
+})
+
+describe('循環の印（US-06 / UT-10）', () => {
+  /** 型のみの循環（`c_0001`）に含まれるファイル */
+  const typeOnly = 'file:src/domain/Todo.ts'
+  /** 型のみでない循環（`c_0003`）に含まれるファイル */
+  const plain = 'file:src/usecase/ListTodos.ts'
+
+  const nodeOf = (wrapper: ReturnType<typeof setup>['wrapper'], id: string) =>
+    wrapper.find(`[data-node-id="${id}"]`)
+
+  it('循環に含まれるノードに印が出る', () => {
+    const { wrapper } = setup()
+
+    expect(nodeOf(wrapper, plain).find('.flag').text()).toBe('循環')
+    expect(nodeOf(wrapper, plain).classes()).toContain('in-cycle')
+  })
+
+  it('型のみの循環は、そのことが読める', () => {
+    const { wrapper } = setup()
+
+    expect(nodeOf(wrapper, typeOnly).find('.flag').text()).toBe('循環（型のみ）')
+  })
+
+  it('循環に含まれないノードには印が出ない', () => {
+    const { wrapper } = setup()
+    const outside = viewModel.nodes.file.find((node) => viewModel.cyclesOf(node.id).length === 0)!
+
+    expect(nodeOf(wrapper, outside.id).find('.flag').exists()).toBe(false)
+    expect(nodeOf(wrapper, outside.id).classes()).not.toContain('in-cycle')
+  })
+
+  it('メソッド粒度でも印が出る', async () => {
+    const { wrapper } = setup({ granularity: 'method' })
+    await wrapper.vm.$nextTick()
+    const inCycle = viewModel.nodes.method.find((node) => viewModel.cyclesOf(node.id).length > 0)!
+
+    expect(nodeOf(wrapper, inCycle.id).find('.flag').text()).toBe('循環')
+  })
+
+  it('循環が 1 件も無くても図が壊れない', () => {
+    const { wrapper } = setup({
+      viewModel: buildViewModel({ ...result.graph, cycles: [] }),
+    })
+
+    expect(wrapper.findAll('g.node').length).toBeGreaterThan(0)
+    expect(wrapper.findAll('.flag')).toHaveLength(0)
+  })
+
+  it('選ばれていても循環だと分かる', async () => {
+    // 選択の色が勝つが、破線は残るので、選択中でも循環だとは分かる
+    const { state, wrapper } = setup()
+    state.select(plain)
+    await wrapper.vm.$nextTick()
+
+    expect(nodeOf(wrapper, plain).classes()).toContain('selected')
+    expect(nodeOf(wrapper, plain).classes()).toContain('in-cycle')
   })
 })
