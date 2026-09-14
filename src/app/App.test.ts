@@ -798,6 +798,40 @@ describe('概要の開閉（US-11 / UT-13）', () => {
     expect(text).toContain(meta.rootDir)
   })
 
+  it('規模が読める', async () => {
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+
+    const text = sheet(wrapper).text()
+    expect(text).toContain(String(state.viewModel!.nodes.file.length))
+    expect(text).toContain(String(state.viewModel!.nodes.method.length))
+    expect(text).toContain('ファイル')
+    expect(text).toContain('メソッド')
+  })
+
+  it('層ごとの構成比が読める', async () => {
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+
+    const band = sheet(wrapper).find('[aria-label="層ごとの構成比"]')
+    expect(band.exists()).toBe(true)
+    // 区画は層の数だけ。並びは図の列（UT-08）と同じ `layerKeys` の順
+    expect(band.findAll('i')).toHaveLength(state.viewModel!.layerKeys.length)
+  })
+
+  it('構成比の合計がファイル数と合う', async () => {
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+
+    const band = sheet(wrapper).find('[aria-label="層ごとの構成比"]')
+    const counts = band.findAll('i').map((part) => {
+      const title = part.attributes('title') ?? ''
+      return Number(/ (\d+) ファイル/.exec(title)?.[1] ?? 0)
+    })
+
+    expect(counts.reduce((sum, count) => sum + count, 0)).toBe(state.viewModel!.nodes.file.length)
+  })
+
   it('違反件数や指摘を出さない（N-1）', async () => {
     const { wrapper } = await setup()
     await open(wrapper)

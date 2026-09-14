@@ -17,6 +17,8 @@
 import { computed } from 'vue'
 
 import GraphIdentity from './GraphIdentity.vue'
+import LayerComposition from './LayerComposition.vue'
+import ScaleCards from './ScaleCards.vue'
 import { shortCommit, formatGeneratedAt } from './overview-format'
 import { useViewState } from '../shell/view-state'
 
@@ -69,7 +71,17 @@ const subtitle = computed(() => {
         </button>
       </header>
 
-      <div class="min-h-0 grow overflow-y-auto px-16 py-14">
+      <div class="flex min-h-0 grow flex-col gap-18 overflow-y-auto px-16 py-14">
+        <section>
+          <h3 class="mb-8 text-overline text-ink-3 uppercase">規模</h3>
+          <ScaleCards />
+        </section>
+
+        <section>
+          <h3 class="mb-8 text-overline text-ink-3 uppercase">層の構成</h3>
+          <LayerComposition />
+        </section>
+
         <section v-if="meta !== undefined">
           <h3 class="mb-8 text-overline text-ink-3 uppercase">このグラフの素性</h3>
           <GraphIdentity :meta="meta" />
