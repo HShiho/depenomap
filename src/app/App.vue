@@ -11,6 +11,7 @@ import { callOrder } from './graph-canvas/call-order'
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
 import NarrowingChip from './graph-canvas/NarrowingChip.vue'
 import { fullTitleOf } from './graph-canvas/node-label'
+import CycleBadge from './sidebar/CycleBadge.vue'
 import SidebarPanel from './sidebar/SidebarPanel.vue'
 import GranularityToggle from './graph-canvas/GranularityToggle.vue'
 import GraphCanvas from './graph-canvas/GraphCanvas.vue'
@@ -140,7 +141,18 @@ const showsOrderNote = computed(
     </template>
 
     <template #sidebar>
-      <SidebarPanel />
+      <!--
+        一覧の行に出す印は外から渡す（UT-12 が空けた差し込み口）。循環は
+        ファイルにもメソッドにもあるので、両方へ同じものを入れる（UT-10）
+      -->
+      <SidebarPanel>
+        <template #file-badges="{ node }">
+          <CycleBadge :node="node" />
+        </template>
+        <template #method-badges="{ node }">
+          <CycleBadge :node="node" />
+        </template>
+      </SidebarPanel>
     </template>
 
     <template #notice>

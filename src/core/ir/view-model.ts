@@ -9,6 +9,7 @@ import type {
   Unresolved,
 } from '../graph/schema'
 import {
+  buildCyclesByEdge,
   buildCyclesByNode,
   buildFanInByGranularity,
   buildUnresolvedIndex,
@@ -111,6 +112,8 @@ export interface ViewModel {
   fanInOf: (nodeId: string, granularity: Granularity) => number
   /** ノードが含まれる循環。複数の循環に属しうるため配列 */
   cyclesOf: (nodeId: string) => readonly Cycle[]
+  /** エッジが含まれる循環。ノードと同じく複数に属しうる */
+  cyclesOfEdge: (edgeId: string) => readonly Cycle[]
   /** このノードで追跡が止まった、という未解決依存 */
   unresolvedFrom: (nodeId: string) => readonly Unresolved[]
   /** このノードが候補として推測されている、という未解決依存 */
@@ -234,6 +237,7 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
 
   const fanIn = buildFanInByGranularity(graph)
   const cyclesByNode = buildCyclesByNode(graph.cycles)
+  const cyclesByEdge = buildCyclesByEdge(graph.cycles)
   const unresolved = buildUnresolvedIndex(graph.unresolved)
   const searchKeys = buildSearchKeys(graph.nodes, (id) => {
     const file = nodeById.get(id)
@@ -278,6 +282,7 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
     },
     fanInOf: (nodeId, granularity) => fanIn[granularity].get(nodeId) ?? 0,
     cyclesOf: (nodeId) => cyclesByNode.get(nodeId) ?? [],
+    cyclesOfEdge: (edgeId) => cyclesByEdge.get(edgeId) ?? [],
     unresolvedFrom: (nodeId) => unresolved.byOrigin.get(nodeId) ?? [],
     unresolvedCandidatesFor: (nodeId) => unresolved.byCandidate.get(nodeId) ?? [],
     searchKeyOf: (nodeId) => searchKeys.get(nodeId),

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { loadGraphFromValue } from '@/core/graph/loader'
 import App from './App.vue'
+import { CYCLE_LABEL } from './shell/cycle-mark'
 import { useViewState } from './shell/view-state'
 
 import fixture from '../../test-data/dependency-graph.complex.json'
@@ -634,5 +635,83 @@ describe('戻る・進むが持たないもの（UT-15）', () => {
     }
 
     expect(state.selectedNodeId).toBe(second.id)
+  })
+})
+
+describe('一覧に出る循環の印（US-06 / UT-10）', () => {
+  /** 型のみの循環（`c_0001`）に含まれるファイル */
+  const typeOnly = 'file:src/domain/Todo.ts'
+
+  /*
+   * 行は「選ぶボタン」と「印の並び」の 2 つでできている（UT-12）。`data-node-id`
+   * が付くのはボタンのほうなので、印を見るには行そのものを取る
+   */
+  const rowOf = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], id: string) => {
+    const row = wrapper.find(`[data-node-id="${id}"]`).element.parentElement
+    if (row === null) throw new Error(`行が無い: ${id}`)
+    return {
+      text: () => row.textContent ?? '',
+      titles: () => [...row.querySelectorAll('[title]')].map((el) => el.getAttribute('title')),
+    }
+  }
+
+  it('循環に含まれるファイルの行に印が出る', async () => {
+    const { state, wrapper } = await setup()
+    const inCycle = state.viewModel!.nodes.file.find(
+      (node) => state.viewModel!.cyclesOf(node.id).length > 0,
+    )!
+
+    expect(rowOf(wrapper, inCycle.id).text()).toContain('循環')
+  })
+
+  it('循環に含まれないファイルの行には出ない', async () => {
+    const { state, wrapper } = await setup()
+    const outside = state.viewModel!.nodes.file.find(
+      (node) => state.viewModel!.cyclesOf(node.id).length === 0,
+    )!
+
+    expect(rowOf(wrapper, outside.id).text()).not.toContain('循環')
+  })
+
+  it('メソッドの行にも出る', async () => {
+    const { state, wrapper } = await setup()
+    const method = state.viewModel!.nodes.method.find(
+      (node) => state.viewModel!.cyclesOf(node.id).length > 0,
+    )!
+    // メソッドは所属ファイルを開かないと出ない
+    state.select(method.id)
+    await wrapper.vm.$nextTick()
+
+    expect(rowOf(wrapper, method.id).text()).toContain('循環')
+  })
+
+  it('行では型のみかどうかまで言わない。説明では読める', async () => {
+    // 行の幅は名前とパスが使う。型のみであることは図の印が出す
+    const { wrapper } = await setup()
+
+    expect(rowOf(wrapper, typeOnly).text()).toContain('循環')
+    expect(rowOf(wrapper, typeOnly).text()).not.toContain('型のみ')
+    expect(rowOf(wrapper, typeOnly).titles()).toContain('循環（型のみ）')
+  })
+
+  it('行の文言は、図と同じ 1 箇所から来る', async () => {
+    // 行だけ別に持つと、同じ行の中で表示と説明が食い違いうる
+    const { state, wrapper } = await setup()
+    const inCycle = state.viewModel!.nodes.file.find(
+      (node) => state.viewModel!.cyclesOf(node.id).length > 0,
+    )!
+
+    expect(rowOf(wrapper, inCycle.id).text()).toContain(CYCLE_LABEL)
+  })
+
+  it('是正の示唆や深刻度を出さない（N-1）', async () => {
+    const { state, wrapper } = await setup()
+    const inCycle = state.viewModel!.nodes.file.find(
+      (node) => state.viewModel!.cyclesOf(node.id).length > 0,
+    )!
+
+    for (const word of ['警告', 'エラー', '違反', '重大', '修正']) {
+      expect(rowOf(wrapper, inCycle.id).text()).not.toContain(word)
+    }
   })
 })

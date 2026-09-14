@@ -16,10 +16,11 @@ import type { Granularity, ViewModel } from '@/core/ir/view-model'
 import { useViewState, type ColumnAxis } from '../shell/view-state'
 import { layerColours } from '../shell/layer-colour'
 import { callOrder } from './call-order'
+import { cycleMarkOf, isCycleEdge } from '../shell/cycle-mark'
 import { buildColumnPlan } from './column-axis'
 import { narrowedNodeIds } from './narrowing'
 import { edgeMidpoint, edgePath } from './edge-path'
-import { subtitleOf, titleOf, tooltipOf } from './node-label'
+import { nameLimitFor, subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import { centreOn, fit, transformOf, type Viewport } from './viewport'
 
@@ -175,8 +176,18 @@ function variantOf(edge: GraphEdge): EdgeVariant {
   return 'plain'
 }
 
-const edges = computed(() =>
-  shownEdges.value.flatMap((edge) => {
+/**
+ * 矢尻。**線と同じ色にする**（UT-04）。色の違う線に灰色の矢尻が付くと、
+ * 線と矢尻が別のものに見える。
+ */
+function markerOf(edge: { variant: EdgeVariant; inCycle: boolean }): string {
+  if (edge.inCycle) return 'url(#arrow-cyclic)'
+  return edge.variant === 'via' ? 'url(#arrow-via)' : 'url(#arrow)'
+}
+
+const edges = computed(() => {
+  const viewModel = state.viewModel
+  return shownEdges.value.flatMap((edge) => {
     const from = positions.value.get(edge.from)
     const to = positions.value.get(edge.to)
     // 位置が引けないエッジは描かない。参照整合性は UT-01 が保証済みで、
@@ -189,13 +200,18 @@ const edges = computed(() =>
       {
         id: edge.id,
         variant,
+        /*
+         * 循環かどうかは**形の別（`variant`）とは別の軸**（UT-10）。同じ 1 本が
+         * 経由の呼び出しでも実装の対応でもありうるので、置き換えずに重ねる
+         */
+        inCycle: viewModel === undefined ? false : isCycleEdge(viewModel, edge.id),
         d: edgePath(from, to, options),
         // 経由の印は曲線上に置く。端点の中間だと線から離れて浮く
         midpoint: variant === 'via' ? edgeMidpoint(from, to, options) : undefined,
       },
     ]
-  }),
-)
+  })
+})
 
 /**
  * 列見出し。**中身は軸で変わる**ので、文言と色は `columnPlan.headOf` に委ねる
@@ -256,19 +272,30 @@ function statsOf(node: GraphNode): string {
 const nodeVisuals = computed(() => {
   const visuals = new Map<
     string,
-    { name: string; path: string; stat: string; colour: string; tooltip: string }
+    {
+      name: string
+      path: string
+      stat: string
+      colour: string
+      tooltip: string
+      /** 循環の印（UT-10）。含まれなければ `undefined` */
+      cycle: string | undefined
+    }
   >()
   const viewModel = state.viewModel
   if (!viewModel) return visuals
 
   for (const placed of layout.value.nodes) {
     const node = placed.node
+    // 印は見出しと同じ行の右端に出る。見出しの上限はその幅ぶん狭くなる
+    const cycle = cycleMarkOf(viewModel, node.id)
     visuals.set(node.id, {
-      name: titleOf(node),
+      name: titleOf(node, nameLimitFor(cycle)),
       path: subtitleOf(node, (id) => viewModel.fileOfMethod(id)?.path),
       tooltip: tooltipOf(node, (id) => viewModel.fileOfMethod(id)?.path),
       stat: statsOf(node),
       colour: layerColour.value(viewModel.layerOf(node.id).key),
+      cycle,
     })
   }
   return visuals
@@ -452,6 +479,19 @@ watch(
         <path d="M0,1 L10,5 L0,9 z" fill="var(--color-ink-3)" />
       </marker>
 
+      <!-- 循環している依存。線と同じ色にする（UT-10） -->
+      <marker
+        id="arrow-cyclic"
+        viewBox="0 0 10 10"
+        refX="9"
+        refY="5"
+        markerWidth="7"
+        markerHeight="7"
+        orient="auto-start-reverse"
+      >
+        <path d="M0,1 L10,5 L0,9 z" fill="var(--color-warn)" />
+      </marker>
+
       <!-- 経由の呼び出し。線と同じ色にする -->
       <marker
         id="arrow-via"
@@ -484,8 +524,8 @@ watch(
             :data-edge-id="edge.id"
             :d="edge.d"
             class="edge"
-            :class="edge.variant"
-            :marker-end="edge.variant === 'via' ? 'url(#arrow-via)' : 'url(#arrow)'"
+            :class="[edge.variant, { cyclic: edge.inCycle }]"
+            :marker-end="markerOf(edge)"
           />
           <!-- 経由であることの印。インターフェース宛であることを線の上で示す -->
           <!--
@@ -507,7 +547,10 @@ watch(
         :key="placed.node.id"
         :data-node-id="placed.node.id"
         class="node"
-        :class="{ selected: placed.node.id === state.selectedNodeId }"
+        :class="{
+          selected: placed.node.id === state.selectedNodeId,
+          'in-cycle': nodeVisuals.get(placed.node.id)?.cycle !== undefined,
+        }"
         :style="{ '--lc': nodeVisuals.get(placed.node.id)?.colour }"
         :transform="`translate(${placed.x},${placed.y})`"
         @click.stop="onNodeClick(placed.node)"
@@ -527,6 +570,19 @@ watch(
         <text x="14" y="38" class="path">{{ nodeVisuals.get(placed.node.id)?.path }}</text>
         <text :x="NODE_WIDTH - 10" y="38" class="stat" text-anchor="end">
           {{ nodeVisuals.get(placed.node.id)?.stat }}
+        </text>
+        <!--
+          循環の印（UT-10 / US-06）。**事実の提示であって判定ではない**（N-1）。
+          名前と同じ行の右端に置く。下の行は被依存・依存の数が使っている
+        -->
+        <text
+          v-if="nodeVisuals.get(placed.node.id)?.cycle !== undefined"
+          :x="NODE_WIDTH - 10"
+          y="19"
+          class="flag"
+          text-anchor="end"
+        >
+          {{ nodeVisuals.get(placed.node.id)?.cycle }}
         </text>
       </g>
     </g>
@@ -575,6 +631,25 @@ watch(
   opacity: var(--edge-opacity-via);
 }
 
+/*
+ * 循環している依存（UT-10 / US-06）。
+ *
+ * **経由・実装の別より循環を優先する。** 循環は形の別とは違う軸で、両方に
+ * 当たる線は循環のほうを出す。どの辺をたどると戻ってくるのかが図から
+ * 読めなくなるため。
+ *
+ * 強弱は**詳細度で決める**。書いた順に頼ると、規則を並べ替えただけで
+ * 見た目が静かに入れ替わる。
+ */
+.edge.cyclic,
+.edge.via.cyclic,
+.edge.implements.cyclic {
+  stroke: var(--color-warn);
+  stroke-width: var(--edge-stroke-cyclic);
+  stroke-dasharray: var(--edge-dash-cyclic);
+  opacity: 1;
+}
+
 .via-dot {
   fill: var(--color-surface);
   stroke: var(--color-accent);
@@ -593,9 +668,32 @@ watch(
   stroke-width: var(--node-stroke);
 }
 
-.node.selected .box {
+/*
+ * 循環しているノード（UT-10 / US-06）。
+ *
+ * **選択のほうを強くする。** 選択は操作の状態で、いま何を選んでいるかが
+ * 読めないと操作が続かない。破線は残るので、選択中でも循環だとは分かる。
+ *
+ * 強弱は**詳細度で決める**。書いた順に頼ると、規則を並べ替えただけで
+ * 見た目が静かに入れ替わる。
+ */
+.node.in-cycle .box {
+  stroke: var(--color-warn);
+  stroke-width: var(--node-stroke-cyclic);
+  stroke-dasharray: var(--node-dash-cyclic);
+}
+
+.node.selected .box,
+.node.selected.in-cycle .box {
   stroke: var(--color-accent);
   stroke-width: var(--node-stroke-selected);
+}
+
+.node .flag {
+  font-family: var(--font-sans);
+  font-size: var(--text-flag);
+  font-weight: var(--text-flag--font-weight);
+  fill: var(--color-warn);
 }
 
 .node .bar {

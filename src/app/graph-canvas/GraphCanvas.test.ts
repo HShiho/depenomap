@@ -6,11 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FileNode } from '@/core/graph/schema'
 import { loadGraphFromValue } from '@/core/graph/loader'
-import { buildViewModel, type Granularity } from '@/core/ir/view-model'
+import { buildViewModel, type Granularity, type ViewModel } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
 import * as columnAxis from './column-axis'
 import * as layoutModule from './layout'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
+import { LABEL_GEOMETRY, NAME_LIMIT } from './node-label'
 import GraphCanvas from './GraphCanvas.vue'
 
 import fixture from '../../../test-data/dependency-graph.complex.json'
@@ -27,10 +28,16 @@ const viewModel = buildViewModel(result.graph)
 /** 検査で使うキャンバスの実寸。画面に収まるかの判定でも同じ値を使う */
 const CANVAS = { width: 1200, height: 800 }
 
-function setup(options: { withGraph?: boolean; granularity?: Granularity } = {}) {
+function setup(
+  options: { withGraph?: boolean; granularity?: Granularity; viewModel?: ViewModel } = {},
+) {
   const state = useViewState()
   if (options.withGraph !== false) {
-    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    state.applyLoadOutcome({
+      kind: 'ready',
+      viewModel: options.viewModel ?? viewModel,
+      warnings: [],
+    })
   }
   state.setCanvasSize(CANVAS.width, CANVAS.height)
   if (options.granularity) state.setGranularity(options.granularity)
@@ -1174,5 +1181,125 @@ describe('呼び出し順の並び（US-05 / UT-09）', () => {
     expect(wrapper.findAll('g.node').map((node) => node.attributes('data-node-id')!)).toEqual(
       before,
     )
+  })
+})
+
+describe('循環の印（US-06 / UT-10）', () => {
+  /** 型のみの循環（`c_0001`）に含まれるファイル */
+  const typeOnly = 'file:src/domain/Todo.ts'
+  /** 型のみでない循環（`c_0003`）に含まれるファイル */
+  const plain = 'file:src/usecase/ListTodos.ts'
+
+  const nodeOf = (wrapper: ReturnType<typeof setup>['wrapper'], id: string) =>
+    wrapper.find(`[data-node-id="${id}"]`)
+
+  it('循環に含まれるノードに印が出る', () => {
+    const { wrapper } = setup()
+
+    expect(nodeOf(wrapper, plain).find('.flag').text()).toBe('循環')
+    expect(nodeOf(wrapper, plain).classes()).toContain('in-cycle')
+  })
+
+  it('型のみの循環は、そのことが読める', () => {
+    const { wrapper } = setup()
+
+    expect(nodeOf(wrapper, typeOnly).find('.flag').text()).toBe('循環（型のみ）')
+  })
+
+  it('循環に含まれないノードには印が出ない', () => {
+    const { wrapper } = setup()
+    const outside = viewModel.nodes.file.find((node) => viewModel.cyclesOf(node.id).length === 0)!
+
+    expect(nodeOf(wrapper, outside.id).find('.flag').exists()).toBe(false)
+    expect(nodeOf(wrapper, outside.id).classes()).not.toContain('in-cycle')
+  })
+
+  it('メソッド粒度でも印が出る', async () => {
+    const { wrapper } = setup({ granularity: 'method' })
+    await wrapper.vm.$nextTick()
+    const inCycle = viewModel.nodes.method.find((node) => viewModel.cyclesOf(node.id).length > 0)!
+
+    expect(nodeOf(wrapper, inCycle.id).find('.flag').text()).toBe('循環')
+  })
+
+  it('循環に含まれる辺が線でも分かる', () => {
+    // ノードの印だけだと、どの辺をたどると戻ってくるのかが読めない
+    const { wrapper } = setup()
+    const cycle = viewModel.cyclesOf(plain)[0]!
+
+    for (const edgeId of cycle.edges) {
+      const path = wrapper.find(`[data-edge-id="${edgeId}"]`)
+      expect(path.classes()).toContain('cyclic')
+      expect(path.attributes('marker-end')).toBe('url(#arrow-cyclic)')
+    }
+  })
+
+  it('循環に含まれない辺は、これまでどおり', () => {
+    const { wrapper } = setup()
+    const inCycle = new Set(
+      viewModel.nodes.file.flatMap((node) => viewModel.cyclesOf(node.id)).flatMap((c) => c.edges),
+    )
+    const outside = viewModel.edges.file.find((edge) => !inCycle.has(edge.id))!
+    const path = wrapper.find(`[data-edge-id="${outside.id}"]`)
+
+    expect(path.classes()).not.toContain('cyclic')
+    expect(path.attributes('marker-end')).toBe('url(#arrow)')
+  })
+
+  it('長い名前でも、印と重ならない幅に収まる', () => {
+    // 印は見出しと同じ行の右端に出る。上限を据え置くと文字が重なる
+    const long = `${'A'.repeat(40)}.ts`
+    const model = buildViewModel({
+      ...result.graph,
+      nodes: result.graph.nodes.map((node) =>
+        node.id === typeOnly ? { ...node, name: long } : node,
+      ),
+    })
+    const { wrapper } = setup({ viewModel: model })
+
+    const shown = nodeOf(wrapper, typeOnly).find('.name').text()
+    const flag = nodeOf(wrapper, typeOnly).find('.flag').text()
+    expect(flag).toBe('循環（型のみ）')
+    expect(shown.length).toBeLessThan(NAME_LIMIT)
+
+    /*
+     * 物差しは `nameLimitFor` ではなく幾何そのもの。上限の出し方を間違えても、
+     * それ自身を物差しにすると常に通る。
+     *
+     * **端の位置は描画結果から取る。** 見積もりに使った値を両側に使うと、
+     * テンプレートが動いたときに気付けない
+     */
+    const { NAME_CHAR_WIDTH, FLAG_GAP, FLAG_CHAR_WIDTH } = LABEL_GEOMETRY
+    const nameElement = nodeOf(wrapper, typeOnly).find('.name')
+    const flagElement = nodeOf(wrapper, typeOnly).find('.flag')
+
+    // 印は右端から左へ伸びる。左揃えだと見出しの上に重なる
+    expect(flagElement.attributes('text-anchor')).toBe('end')
+    const nameRight = Number(nameElement.attributes('x')) + shown.length * NAME_CHAR_WIDTH
+    const flagLeft = Number(flagElement.attributes('x')) - flag.length * FLAG_CHAR_WIDTH
+    expect(nameRight + FLAG_GAP).toBeLessThanOrEqual(flagLeft)
+  })
+
+  it('循環が 1 件も無くても図が壊れない', () => {
+    const { wrapper } = setup({
+      viewModel: buildViewModel({ ...result.graph, cycles: [] }),
+    })
+
+    expect(wrapper.findAll('g.node').length).toBeGreaterThan(0)
+    expect(wrapper.findAll('.flag')).toHaveLength(0)
+    expect(wrapper.findAll('path.edge').length).toBeGreaterThan(0)
+    expect(wrapper.findAll('path.cyclic')).toHaveLength(0)
+  })
+
+  it('選ばれても循環の印は外れない', async () => {
+    // 見た目の強弱（選択の色が勝ち、破線は残る）は詳細度で決めており、
+    // その形は `GraphCanvas.style.node.test.ts` が見ている。ここで見るのは
+    // 選択しても循環の別が付いたままであること
+    const { state, wrapper } = setup()
+    state.select(plain)
+    await wrapper.vm.$nextTick()
+
+    expect(nodeOf(wrapper, plain).classes()).toContain('selected')
+    expect(nodeOf(wrapper, plain).classes()).toContain('in-cycle')
   })
 })
