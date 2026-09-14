@@ -9,6 +9,7 @@
  */
 import { computed } from 'vue'
 
+import { NO_LAYER } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
 
 const state = useViewState()
@@ -20,7 +21,13 @@ const cards = computed(() => {
     { label: 'ファイル', count: viewModel.nodes.file.length },
     { label: 'メソッド', count: viewModel.nodes.method.length },
     { label: 'ファイル間の依存', count: viewModel.edges.file.length },
-    { label: '層', count: viewModel.layerKeys.length },
+    /*
+     * **正本 JSON が定義した層だけを数える。** `layerKeys` は、層が未設定の
+     * ノードが 1 件でもあれば末尾に「層なし」を足す。それはビューアが受け皿と
+     * して作った分類であって、定義された層ではない（ADR-002）。ここで足すと、
+     * 6 層と書いてある JSON に対して「層 7」と出る
+     */
+    { label: '層', count: viewModel.layerKeys.filter((key) => key !== NO_LAYER).length },
   ]
 })
 </script>
