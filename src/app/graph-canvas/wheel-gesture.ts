@@ -28,9 +28,12 @@ export interface WheelInput {
    * 量の単位（`WheelEvent.deltaMode`）。0 が px、1 が行、2 がページ。
    *
    * **px とは限らない。** Firefox + 物理ホイールは行単位（`deltaY = ±3`）で
-   * 送ってくる。px として扱うと 1 ノッチが 3px になり、実質動かない
+   * 送ってくる。px として扱うと 1 ノッチが 3px になり、実質動かない。
+   *
+   * **省略可にしない。** 省けるようにすると、渡し忘れても型が通り、黙って
+   * px 扱いに戻る
    */
-  deltaMode?: number
+  deltaMode: number
   shiftKey: boolean
   /** ピンチもここに立つ（ブラウザがそう変換する） */
   ctrlKey: boolean
@@ -87,9 +90,10 @@ export function applyWheel(viewport: Viewport, input: WheelInput): Viewport {
    *
    * **縦と横のどちらで届くかは環境で変わる。** ブラウザによっては Shift +
    * ホイールを自分で横（`deltaX`）へ振り替えて送ってくるので、縦だけを見ると
-   * その環境で動かなくなる。両方を足して 1 つの横移動にする
+   * その環境で動かなくなる。**動きの大きいほうを採る** — 足すと、斜めの
+   * 2 本指スクロールで両軸が逆向きに届いたときに打ち消し合って止まる
    */
-  if (input.shiftKey) return panBy(viewport, -(dx + dy), 0)
+  if (input.shiftKey) return panBy(viewport, -(Math.abs(dx) >= Math.abs(dy) ? dx : dy), 0)
 
   return panBy(viewport, -dx, -dy)
 }

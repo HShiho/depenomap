@@ -1397,7 +1397,7 @@ describe('ホイールとトラックパッド（US-16 / UT-16）', () => {
      */
     const { wrapper } = setup()
     const box = { left: 120, top: 60, width: CANVAS.width, height: CANVAS.height }
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+    const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
       ...box,
       right: box.left + box.width,
       bottom: box.top + box.height,
@@ -1406,15 +1406,30 @@ describe('ホイールとトラックパッド（US-16 / UT-16）', () => {
       toJSON: () => ({}),
     })
 
-    const pointer = { clientX: 500, clientY: 300 }
-    const inCanvas = { x: pointer.clientX - box.left, y: pointer.clientY - box.top }
-    const before = toWorld(viewportOf(wrapper), inCanvas)
+    try {
+      const pointer = { clientX: 500, clientY: 300 }
+      const inCanvas = { x: pointer.clientX - box.left, y: pointer.clientY - box.top }
+      const before = toWorld(viewportOf(wrapper), inCanvas)
 
-    await spin(wrapper, { deltaY: -120, ctrlKey: true, ...pointer })
+      await spin(wrapper, { deltaY: -120, ctrlKey: true, ...pointer })
 
-    const after = toWorld(viewportOf(wrapper), inCanvas)
-    expect(after.x).toBeCloseTo(before.x, 6)
-    expect(after.y).toBeCloseTo(before.y, 6)
+      const after = toWorld(viewportOf(wrapper), inCanvas)
+      expect(after.x).toBeCloseTo(before.x, 6)
+      expect(after.y).toBeCloseTo(before.y, 6)
+    } finally {
+      // 差し替えたまま残すと、以降のテストが全部この矩形を見る
+      rect.mockRestore()
+    }
+  })
+
+  it('行単位で届く環境でも、キャンバスまで単位が伝わる', async () => {
+    // 受け渡しを 1 つ落とすと、px 扱いに戻って実質動かなくなる
+    const { wrapper } = setup()
+    const before = { ...viewportOf(wrapper) }
+
+    await spin(wrapper, { deltaY: 3, deltaMode: 1 })
+
+    expect(before.y - viewportOf(wrapper).y).toBe(48)
   })
 
   it('続けて回すと、前の位置から積み上がる', async () => {

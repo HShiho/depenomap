@@ -46,6 +46,21 @@ describe('移動（US-16）', () => {
     expect(after).toEqual({ x: 60, y: 50, scale: 1 })
   })
 
+  it('Shift 付きで両軸が逆向きに届いても、止まらない', () => {
+    // 足すと打ち消し合う。斜めの 2 本指スクロールで起きる
+    const after = applyWheel(START, wheel({ deltaX: -20, deltaY: 20, shiftKey: true }))
+
+    expect(after.x).not.toBe(START.x)
+  })
+
+  it('Shift 付きでは、動きの大きいほうを採る', () => {
+    const across = applyWheel(START, wheel({ deltaX: 40, deltaY: 5, shiftKey: true }))
+    const down = applyWheel(START, wheel({ deltaX: 5, deltaY: 40, shiftKey: true }))
+
+    expect(START.x - across.x).toBe(40)
+    expect(START.x - down.x).toBe(40)
+  })
+
   it('行単位で届く環境でも、px と同じ桁で動く', () => {
     // Firefox + 物理ホイールは `deltaY = ±3` を行単位で送る
     const line = applyWheel(START, wheel({ deltaY: 3, deltaMode: 1 }))
