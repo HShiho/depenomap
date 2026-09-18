@@ -953,3 +953,46 @@ describe('概要の開閉（US-11 / UT-13）', () => {
     expect(sheet(wrapper).findAll('a[download]')).toHaveLength(0)
   })
 })
+
+describe('図の見ている位置の口（US-16 / UT-16）', () => {
+  const spin = async (
+    wrapper: Awaited<ReturnType<typeof setup>>['wrapper'],
+    init: Partial<WheelEventInit> = {},
+  ) => {
+    wrapper
+      .find('svg.canvas')
+      .element.dispatchEvent(new WheelEvent('wheel', { cancelable: true, bubbles: true, ...init }))
+    await wrapper.vm.$nextTick()
+  }
+
+  const zoomLabel = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+    wrapper.find('[role="status"][aria-label^="拡大率"]')
+
+  it('拡大率が読める', async () => {
+    // 出さないと、上下限に当たったのか操作が効いていないのかが区別できない
+    const { wrapper } = await setup()
+
+    expect(zoomLabel(wrapper).text()).toMatch(/^\d+%$/)
+  })
+
+  it('ピンチすると、拡大率の表示も動く', async () => {
+    const { wrapper } = await setup()
+    const before = zoomLabel(wrapper).text()
+
+    await spin(wrapper, { deltaY: -200, ctrlKey: true })
+
+    expect(zoomLabel(wrapper).text()).not.toBe(before)
+  })
+
+  it('全体表示で、動かしたぶんが戻る', async () => {
+    // 手で動かして迷子になったときに戻れる口
+    const { wrapper } = await setup()
+    const fitted = zoomLabel(wrapper).text()
+    await spin(wrapper, { deltaY: -200, ctrlKey: true })
+    expect(zoomLabel(wrapper).text()).not.toBe(fitted)
+
+    await wrapper.find('[aria-label="全体を表示"]').trigger('click')
+
+    expect(zoomLabel(wrapper).text()).toBe(fitted)
+  })
+})
