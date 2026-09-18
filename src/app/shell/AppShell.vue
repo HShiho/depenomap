@@ -26,9 +26,12 @@ import { useViewState } from './view-state'
 /**
  * 画面全体に重なるものが出ているか（UT-13）。
  *
- * **`inert` は真偽値で渡さない。** Vue は `inert` を真偽属性として知らないので、
- * `false` を渡すと `inert="false"` と出る。HTML の `inert` は**値に関わらず、
- * 属性があれば無効化する**。`undefined` にして属性ごと消す。
+ * **`inert` は `undefined` に落として渡す。** Vue は `key in el` で属性か
+ * プロパティかを決める（`shouldSetAsProp`）。`inert` を持つブラウザでは
+ * `el.inert = false` になるので属性は出ないが、**`inert` を実装していない
+ * jsdom では `inert="false"` という属性が出る**。HTML の `inert` は値に
+ * 関わらず属性があれば効くので、その形のままだと「触れるかどうか」を
+ * 属性で見る検査が書けない。`undefined` なら、どちらでも属性が消える。
  *
  * 出ているあいだ、3 領域を `inert` にする。**覆いは見た目だけで、裏は生きている** —
  * Tab で裏の入力欄へ抜けられ、そこで押した Esc は裏の側が先に受け取る。
