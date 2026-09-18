@@ -965,18 +965,43 @@ describe('図の見ている位置の口（US-16 / UT-16）', () => {
     await wrapper.vm.$nextTick()
   }
 
+  const viewportOf = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+    JSON.parse(
+      JSON.stringify(
+        (
+          wrapper.findComponent({ name: 'GraphCanvas' }).vm as unknown as {
+            viewport: { x: number; y: number; scale: number }
+          }
+        ).viewport,
+      ),
+    ) as { x: number; y: number; scale: number }
+
   const zoomLabel = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
     wrapper.find('[role="status"][aria-label^="拡大率"]')
 
+  /**
+   * 実寸を入れてから測る。
+   *
+   * jsdom に `ResizeObserver` が無いため、`App` 経由では実寸が 0×0 のまま
+   * 入らない。0×0 では全体表示が等倍を返すので、**何を呼んでも 100% になり**
+   * 「戻った」ことを見たつもりの検査が素通りする。
+   */
+  const sized = async () => {
+    const found = await setup()
+    found.state.setCanvasSize(1200, 800)
+    await found.wrapper.vm.$nextTick()
+    return found
+  }
+
   it('拡大率が読める', async () => {
     // 出さないと、上下限に当たったのか操作が効いていないのかが区別できない
-    const { wrapper } = await setup()
+    const { wrapper } = await sized()
 
     expect(zoomLabel(wrapper).text()).toMatch(/^\d+%$/)
   })
 
   it('ピンチすると、拡大率の表示も動く', async () => {
-    const { wrapper } = await setup()
+    const { wrapper } = await sized()
     const before = zoomLabel(wrapper).text()
 
     await spin(wrapper, { deltaY: -200, ctrlKey: true })
@@ -986,13 +1011,18 @@ describe('図の見ている位置の口（US-16 / UT-16）', () => {
 
   it('全体表示で、動かしたぶんが戻る', async () => {
     // 手で動かして迷子になったときに戻れる口
-    const { wrapper } = await setup()
-    const fitted = zoomLabel(wrapper).text()
+    const { wrapper } = await sized()
+    const fitted = { ...viewportOf(wrapper) }
+    // 全体表示は等倍とは限らない。等倍だと「何をしても 100%」と区別が付かない
+    expect(fitted.scale).not.toBe(1)
+
     await spin(wrapper, { deltaY: -200, ctrlKey: true })
-    expect(zoomLabel(wrapper).text()).not.toBe(fitted)
+    await spin(wrapper, { deltaX: 120, deltaY: 90 })
+    expect(viewportOf(wrapper)).not.toEqual(fitted)
 
     await wrapper.find('[aria-label="全体を表示"]').trigger('click')
 
-    expect(zoomLabel(wrapper).text()).toBe(fitted)
+    // 倍率だけでなく、動かした位置も戻る
+    expect(viewportOf(wrapper)).toEqual(fitted)
   })
 })

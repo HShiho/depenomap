@@ -12,7 +12,7 @@ import * as columnAxis from './column-axis'
 import * as layoutModule from './layout'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import { LABEL_GEOMETRY, NAME_LIMIT } from './node-label'
-import { MAX_SCALE, MIN_SCALE } from './viewport'
+import { MAX_SCALE, MIN_SCALE, toWorld } from './viewport'
 import GraphCanvas from './GraphCanvas.vue'
 
 import fixture from '../../../test-data/dependency-graph.complex.json'
@@ -1383,6 +1383,34 @@ describe('ホイールとトラックパッド（US-16 / UT-16）', () => {
     await wrapper.vm.$nextTick()
 
     expect(viewportOf(wrapper).scale).toBeGreaterThan(narrow)
+  })
+
+  it('ポインタの下にあるものが動かない（画面の座標から数える）', async () => {
+    /*
+     * ここで見るのは `clientX/Y` からキャンバスの座標への換算。x と y の
+     * 取り違えや、要素の左上を引き忘れても、純粋関数側の検査は通る。
+     * jsdom は実寸を持たないので、矩形を差し込んで測れる状態を作る
+     */
+    const { wrapper } = setup()
+    const box = { left: 120, top: 60, width: CANVAS.width, height: CANVAS.height }
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      ...box,
+      right: box.left + box.width,
+      bottom: box.top + box.height,
+      x: box.left,
+      y: box.top,
+      toJSON: () => ({}),
+    })
+
+    const pointer = { clientX: 500, clientY: 300 }
+    const inCanvas = { x: pointer.clientX - box.left, y: pointer.clientY - box.top }
+    const before = toWorld(viewportOf(wrapper), inCanvas)
+
+    await spin(wrapper, { deltaY: -120, ctrlKey: true, ...pointer })
+
+    const after = toWorld(viewportOf(wrapper), inCanvas)
+    expect(after.x).toBeCloseTo(before.x, 6)
+    expect(after.y).toBeCloseTo(before.y, 6)
   })
 
   it('続けて回すと、前の位置から積み上がる', async () => {
