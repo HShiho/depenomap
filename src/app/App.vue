@@ -5,7 +5,7 @@
  * 各領域の中身は UT-06 以降が差し込む。いまレールと通知に入っているのは、
  * 器が動いていることを目で確かめるための**暫定表示**である。
  */
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { callOrder } from './graph-canvas/call-order'
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
@@ -92,6 +92,20 @@ function closeOverview(): void {
   // 裏の `inert` が外れてから戻す。外れる前は焦点を受け取れない
   void nextTick(() => button?.focus())
 }
+
+/*
+ * 読めなくなったら閉じる。**「出ていない」と「開いている」を食い違わせない。**
+ *
+ * 出す条件（`overviewShown`）だけで隠すと、`overviewOpen` は立ったまま残る。
+ * Esc も出ていないあいだは効かないので倒せず、読み直して `ready` に戻った
+ * 瞬間にシートが独りでに開く。
+ */
+watch(
+  () => state.status.kind,
+  (kind) => {
+    if (kind !== 'ready') closeOverview()
+  },
+)
 
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))

@@ -921,6 +921,19 @@ describe('概要の開閉（US-11 / UT-13）', () => {
     expect(wrapper.find('main').attributes()).not.toHaveProperty('inert')
   })
 
+  it('読み直しても、概要が独りでに開かない', async () => {
+    // 隠すだけだと「開いている」が残り、読めた瞬間に立ち上がる
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    state.applyLoadOutcome({ kind: 'unreachable', message: '読めない' })
+    await wrapper.vm.$nextTick()
+
+    state.applyLoadOutcome({ kind: 'ready', viewModel: state.viewModel!, warnings: [] })
+    await wrapper.vm.$nextTick()
+
+    expect(sheet(wrapper).exists()).toBe(false)
+  })
+
   it('違反件数や指摘を出さない（N-1）', async () => {
     const { wrapper } = await setup()
     await open(wrapper)
