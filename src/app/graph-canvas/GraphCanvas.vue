@@ -23,6 +23,7 @@ import { edgeMidpoint, edgePath } from './edge-path'
 import { nameLimitFor, subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import { centreOn, fit, transformOf, type Viewport } from './viewport'
+import { applyWheel } from './wheel-gesture'
 
 const state = useViewState()
 
@@ -338,6 +339,29 @@ function fitToContent(): void {
   viewport.value = fit({ width: layout.value.width, height: layout.value.height }, view.value)
 }
 
+/**
+ * ホイール／トラックパッド（UT-16 / US-16）。
+ *
+ * **既定の動きは止める。** 止めないと、⌘ + ホイールがブラウザ全体の拡大に、
+ * 横方向のスクロールが「前のページへ戻る」に吸われる。図の上でだけ止めるので、
+ * 一覧や概要の側のスクロールは残る。
+ *
+ * どの入力がどの動きになるかは `wheel-gesture.ts` が持つ。ここは位置を渡して
+ * 結果を受け取るだけ。
+ */
+function onWheel(event: WheelEvent): void {
+  event.preventDefault()
+  const box = (event.currentTarget as Element).getBoundingClientRect()
+  viewport.value = applyWheel(viewport.value, {
+    deltaX: event.deltaX,
+    deltaY: event.deltaY,
+    shiftKey: event.shiftKey,
+    ctrlKey: event.ctrlKey,
+    metaKey: event.metaKey,
+    point: { x: event.clientX - box.left, y: event.clientY - box.top },
+  })
+}
+
 function focusNode(nodeId: string): void {
   const placed = positions.value.get(nodeId)
   if (placed) viewport.value = centreOn(viewport.value, placed, view.value)
@@ -464,6 +488,7 @@ watch(
     :width="state.canvasWidth || '100%'"
     :height="state.canvasHeight || '100%'"
     @click="onBackgroundClick"
+    @wheel="onWheel"
   >
     <defs>
       <!-- 矢尻。線と同じ色トークンを使う（UT-04） -->
@@ -592,6 +617,12 @@ watch(
 <style scoped>
 .canvas {
   display: block;
+  /*
+   * ブラウザにジェスチャーを渡さない。渡すと、ピンチがページ全体の拡大に、
+   * 横のスワイプが履歴の移動に吸われる（完了条件）。`@wheel` の
+   * `preventDefault` と両輪で、タッチ由来の経路もここで止める
+   */
+  touch-action: none;
 }
 
 /* 列見出し */

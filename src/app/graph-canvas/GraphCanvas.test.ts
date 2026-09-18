@@ -12,6 +12,7 @@ import * as columnAxis from './column-axis'
 import * as layoutModule from './layout'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import { LABEL_GEOMETRY, NAME_LIMIT } from './node-label'
+import { MAX_SCALE, MIN_SCALE } from './viewport'
 import GraphCanvas from './GraphCanvas.vue'
 
 import fixture from '../../../test-data/dependency-graph.complex.json'
@@ -1301,5 +1302,73 @@ describe('循環の印（US-06 / UT-10）', () => {
 
     expect(nodeOf(wrapper, plain).classes()).toContain('selected')
     expect(nodeOf(wrapper, plain).classes()).toContain('in-cycle')
+  })
+})
+
+describe('ホイールとトラックパッド（US-16 / UT-16）', () => {
+  /** キャンバスへホイールを 1 回送る。実寸は jsdom では 0 なので原点として扱われる */
+  const spin = async (
+    wrapper: ReturnType<typeof setup>['wrapper'],
+    init: Partial<WheelEventInit> & { deltaX?: number; deltaY?: number } = {},
+  ) => {
+    const event = new WheelEvent('wheel', { cancelable: true, bubbles: true, ...init })
+    wrapper.find('svg.canvas').element.dispatchEvent(event)
+    await wrapper.vm.$nextTick()
+    return event
+  }
+
+  it('2 本指スクロールで図が動く', async () => {
+    const { wrapper } = setup()
+    const before = { ...viewportOf(wrapper) }
+
+    await spin(wrapper, { deltaX: 30, deltaY: 20 })
+
+    const after = viewportOf(wrapper)
+    expect(after.x).toBe(before.x - 30)
+    expect(after.y).toBe(before.y - 20)
+    expect(after.scale).toBe(before.scale)
+  })
+
+  it('ピンチで倍率が変わる', async () => {
+    const { wrapper } = setup()
+    const before = viewportOf(wrapper).scale
+
+    await spin(wrapper, { deltaY: -60, ctrlKey: true })
+
+    expect(viewportOf(wrapper).scale).toBeGreaterThan(before)
+  })
+
+  it('ブラウザの既定を止める', async () => {
+    // 止めないと、⌘ + ホイールがページ全体の拡大に、横スクロールが履歴に吸われる
+    const { wrapper } = setup()
+
+    const pan = await spin(wrapper, { deltaX: 10 })
+    const zoom = await spin(wrapper, { deltaY: -10, ctrlKey: true })
+
+    expect(pan.defaultPrevented).toBe(true)
+    expect(zoom.defaultPrevented).toBe(true)
+  })
+
+  it('倍率の上下限を超えない', async () => {
+    const { wrapper } = setup()
+
+    for (let i = 0; i < 40; i += 1) await spin(wrapper, { deltaY: -200, ctrlKey: true })
+    expect(viewportOf(wrapper).scale).toBe(MAX_SCALE)
+
+    for (let i = 0; i < 80; i += 1) await spin(wrapper, { deltaY: 200, ctrlKey: true })
+    expect(viewportOf(wrapper).scale).toBe(MIN_SCALE)
+  })
+
+  it('続けて回すと、前の位置から積み上がる', async () => {
+    // 1 回ごとに全体表示へ戻ると、寄って見ることができない
+    const { wrapper } = setup()
+    const before = { ...viewportOf(wrapper) }
+
+    await spin(wrapper, { deltaX: 30, deltaY: 20 })
+    await spin(wrapper, { deltaX: 30, deltaY: 20 })
+
+    const after = viewportOf(wrapper)
+    expect(after.x).toBe(before.x - 60)
+    expect(after.y).toBe(before.y - 40)
   })
 })
