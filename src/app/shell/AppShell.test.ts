@@ -112,3 +112,32 @@ describe('キャンバスの実寸', () => {
     expect(() => mount(AppShell)).not.toThrow()
   })
 })
+
+describe('`inert` の出し方（UT-13 で判明）', () => {
+  /**
+   * `inert` を実装していない jsdom では、`false` を渡すと `inert="false"` と
+   * いう属性が出る（Vue は `key in el` で属性かプロパティかを決めるため）。
+   * HTML の `inert` は値に関わらず属性があれば効くので、その形のままだと
+   * 「触れるかどうか」を属性で見られない。`undefined` に落として属性ごと消す。
+   *
+   * jsdom は `inert` を実装していないため、押せるかどうかでは確かめられない。
+   * **属性の有無で見る**。
+   */
+  it('触れる領域には属性を出さない', () => {
+    const state = useViewState()
+    state.sidebarOpen = true
+    const wrapper = mount(AppShell)
+
+    for (const selector of ['nav', 'aside', 'main']) {
+      expect(wrapper.find(selector).attributes()).not.toHaveProperty('inert')
+    }
+  })
+
+  it('畳んだ一覧には属性を出す', () => {
+    const state = useViewState()
+    state.sidebarOpen = false
+    const wrapper = mount(AppShell)
+
+    expect(wrapper.find('aside').attributes()).toHaveProperty('inert')
+  })
+})

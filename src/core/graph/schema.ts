@@ -176,5 +176,6 @@ export type FileNode = v.InferOutput<typeof FileNodeSchema>
 export type MethodNode = v.InferOutput<typeof MethodNodeSchema>
 export type GraphEdge = v.InferOutput<typeof EdgeSchema>
 export type Layer = v.InferOutput<typeof LayerSchema>
+export type Meta = v.InferOutput<typeof MetaSchema>
 export type Unresolved = v.InferOutput<typeof UnresolvedSchema>
 export type Cycle = v.InferOutput<typeof CycleSchema>

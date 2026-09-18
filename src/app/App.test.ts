@@ -715,3 +715,241 @@ describe('一覧に出る循環の印（US-06 / UT-10）', () => {
     }
   })
 })
+
+describe('概要の開閉（US-11 / UT-13）', () => {
+  const sheet = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+    wrapper.find('[role="dialog"]')
+
+  const open = async (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) => {
+    await wrapper.find('[aria-label="概要を開く"]').trigger('click')
+  }
+
+  it('起動直後は出ない。図が先に見える', async () => {
+    const { wrapper } = await setup()
+
+    expect(sheet(wrapper).exists()).toBe(false)
+    expect(wrapper.findAll('g.node').length).toBeGreaterThan(0)
+  })
+
+  it('レールのボタンで開く', async () => {
+    const { wrapper } = await setup()
+
+    await open(wrapper)
+
+    expect(sheet(wrapper).exists()).toBe(true)
+  })
+
+  it('✕ で閉じる', async () => {
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    await sheet(wrapper).find('[aria-label="概要を閉じる"]').trigger('click')
+
+    expect(sheet(wrapper).exists()).toBe(false)
+  })
+
+  it('外側を押すと閉じる', async () => {
+    // シートの外を押して閉じられないと、レールまで戻らないと閉じられない
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    await sheet(wrapper).element.parentElement!.dispatchEvent(
+      new MouseEvent('click', { bubbles: true }),
+    )
+    await wrapper.vm.$nextTick()
+
+    expect(sheet(wrapper).exists()).toBe(false)
+  })
+
+  it('中を押しても閉じない', async () => {
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    await sheet(wrapper).trigger('click')
+
+    expect(sheet(wrapper).exists()).toBe(true)
+  })
+
+  it('Esc で閉じる。絞り込みは解かない', async () => {
+    // 重なっている面から順に閉じる。先に絞り込みを解くと、閉じたあとに図が変わっている
+    const { state, wrapper } = await setup({ attach: true })
+    state.moveTo(state.viewModel!.nodes.file[2]!.id)
+    await wrapper.vm.$nextTick()
+    await open(wrapper)
+
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await wrapper.vm.$nextTick()
+
+    expect(sheet(wrapper).exists()).toBe(false)
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('このグラフの素性が読める', async () => {
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const meta = state.viewModel!.meta
+
+    const text = sheet(wrapper).text()
+    expect(text).toContain(meta.snapshot.label)
+    expect(text).toContain(meta.snapshot.branch)
+    // commit は全文。確かめにくる場所で切ると、確かめる先が無くなる
+    expect(text).toContain(meta.snapshot.commit)
+    expect(text).toContain(meta.tsconfig)
+    expect(text).toContain(meta.rootDir)
+  })
+
+  it('規模が読める', async () => {
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+
+    const text = sheet(wrapper).text()
+    expect(text).toContain(String(state.viewModel!.nodes.file.length))
+    expect(text).toContain(String(state.viewModel!.nodes.method.length))
+    expect(text).toContain('ファイル')
+    expect(text).toContain('メソッド')
+  })
+
+  it('層ごとの構成比が読める', async () => {
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+
+    const band = sheet(wrapper).find('[aria-label="層ごとの構成比"]')
+    expect(band.exists()).toBe(true)
+    // 区画は層の数だけ。並びは図の列（UT-08）と同じ `layerKeys` の順
+    expect(band.findAll('i')).toHaveLength(state.viewModel!.layerKeys.length)
+  })
+
+  it('構成比の合計がファイル数と合う', async () => {
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+
+    const band = sheet(wrapper).find('[aria-label="層ごとの構成比"]')
+    const counts = band.findAll('i').map((part) => {
+      const title = part.attributes('title') ?? ''
+      return Number(/ (\d+) ファイル/.exec(title)?.[1] ?? 0)
+    })
+
+    expect(counts.reduce((sum, count) => sum + count, 0)).toBe(state.viewModel!.nodes.file.length)
+  })
+
+  it('影響範囲の大きいファイルから、図へ移れる', async () => {
+    // 移動は UT-14 の経路を通す。概要から選んだときだけ絞り込みが立たない、
+    // 履歴に積まれない、といった食い違いを作らない
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const top = state.viewModel!.nodesByFanInDesc('file')[0]!
+
+    await sheet(wrapper).find(`[data-node-id="${top.id}"]`).trigger('click')
+
+    expect(state.selectedNodeId).toBe(top.id)
+    expect(state.narrowedToSelection).toBe(true)
+    expect(state.history.at(-1)?.nodeId).toBe(top.id)
+  })
+
+  it('移ったらシートを閉じる', async () => {
+    // 閉じないと、移った先の図が覆われたままになる
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const top = state.viewModel!.nodesByFanInDesc('file')[0]!
+
+    await sheet(wrapper).find(`[data-node-id="${top.id}"]`).trigger('click')
+
+    expect(sheet(wrapper).exists()).toBe(false)
+  })
+
+  it('開いているあいだ、裏は触れない', async () => {
+    // 覆いは見た目だけで裏が生きていると、Tab で裏の入力欄へ抜けられる
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    for (const selector of ['nav', 'aside', 'main']) {
+      expect(wrapper.find(selector).attributes()).toHaveProperty('inert')
+    }
+  })
+
+  it('閉じると裏が戻る', async () => {
+    const { wrapper } = await setup()
+    await open(wrapper)
+    await sheet(wrapper).find('[aria-label="概要を閉じる"]').trigger('click')
+
+    expect(wrapper.find('main').attributes()).not.toHaveProperty('inert')
+  })
+
+  it('開くと焦点がシートへ移り、閉じると開いた口へ戻る', async () => {
+    // 裏を `inert` にするので、焦点が裏に残ると行き場が無くなる
+    const { wrapper } = await setup({ attach: true })
+    const button = wrapper.find('[aria-label="概要を開く"]')
+    ;(button.element as HTMLElement).focus()
+    await open(wrapper)
+
+    expect(document.activeElement).toBe(wrapper.find('[role="dialog"]').element)
+
+    await sheet(wrapper).find('[aria-label="概要を閉じる"]').trigger('click')
+
+    expect(document.activeElement).toBe(button.element)
+  })
+
+  it('読めていないあいだは押せない', async () => {
+    // 押しても何も出ない口を残すと、押したことが効いたのかが分からない
+    const { state, wrapper } = await setup()
+    state.applyLoadOutcome({ kind: 'loading' })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[title="概要"]').attributes()).toHaveProperty('disabled')
+  })
+
+  it('レールの口は開く専用。押下状態としては読み上げない', async () => {
+    // 開いているあいだレールは `inert` で、そこへは戻ってこられない。
+    // 押下状態だと読み上げると、その口で閉じられるように見えてしまう
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    const button = wrapper.find('[title="概要"]')
+    expect(button.attributes()).not.toHaveProperty('aria-pressed')
+    expect(button.attributes('aria-label')).toBe('概要を開く')
+  })
+
+  it('読み込み結果が ready を外れたら、裏も戻す', async () => {
+    // シートだけ消えて裏が `inert` のまま残ると、画面全体が触れなくなる
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+
+    state.applyLoadOutcome({ kind: 'unreachable', message: '読めない' })
+    await wrapper.vm.$nextTick()
+
+    expect(sheet(wrapper).exists()).toBe(false)
+    expect(wrapper.find('main').attributes()).not.toHaveProperty('inert')
+  })
+
+  it('読み直しても、概要が独りでに開かない', async () => {
+    // 隠すだけだと「開いている」が残り、読めた瞬間に立ち上がる
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    state.applyLoadOutcome({ kind: 'unreachable', message: '読めない' })
+    await wrapper.vm.$nextTick()
+
+    state.applyLoadOutcome({ kind: 'ready', viewModel: state.viewModel!, warnings: [] })
+    await wrapper.vm.$nextTick()
+
+    expect(sheet(wrapper).exists()).toBe(false)
+  })
+
+  it('違反件数や指摘を出さない（N-1）', async () => {
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    for (const word of ['違反', '指摘', '警告', 'エラー', 'スコア', '健全']) {
+      expect(sheet(wrapper).text()).not.toContain(word)
+    }
+  })
+
+  it('書き出す口を持たない（N-5）', async () => {
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    for (const word of ['書き出', 'エクスポート', 'ダウンロード', 'PDF', '印刷']) {
+      expect(sheet(wrapper).text()).not.toContain(word)
+    }
+    expect(sheet(wrapper).findAll('a[download]')).toHaveLength(0)
+  })
+})

@@ -1,0 +1,136 @@
+<script setup lang="ts">
+/**
+ * 概要（UT-13 / US-11）。
+ *
+ * 個々のノードを追う前に、規模と大まかな構成を掴む場所。**出すのは事実の
+ * 集計だけ**で、違反件数・指摘・ルール別の内訳は持たない（N-1）。層をまたぐ
+ * 依存も「どれだけ流れているか」を示すだけで、向きの正誤は判定しない。
+ *
+ * **書き出す口は持たない**（N-5）。画面上で把握するもの。
+ *
+ * 集計は IR から取る（完了条件）。ここで数え直すと、同じ値がサイドバーや図と
+ * 食い違いうる。
+ *
+ * **未解決依存（追えなかった依存）の件数はここに出さない**（UT-13 の決定）。
+ * 件数だけを概要に置くと、そこから先（どこで追跡が止まったのか、候補は何か）を
+ * 出す場所が別に要る。未解決依存は UT-19 が一括して持つ。
+ *
+ * 起動直後ではなく**いつでも開けるシート**にしてある（UT-13 の決定）。読み込んだ
+ * 直後に図が見えることを優先し、概要は必要なときに重ねる。参照仕様も同じ形。
+ */
+import { computed, onMounted, useTemplateRef } from 'vue'
+
+import GraphIdentity from './GraphIdentity.vue'
+import LayerComposition from './LayerComposition.vue'
+import LayerFlowMatrix from './LayerFlowMatrix.vue'
+import ScaleCards from './ScaleCards.vue'
+import TopDependedFiles from './TopDependedFiles.vue'
+import { shortCommit, formatGeneratedAt } from './overview-format'
+import { useViewState } from '../shell/view-state'
+
+const emit = defineEmits<{ close: [] }>()
+
+const state = useViewState()
+
+/*
+ * 焦点をシートへ引き取る。
+ *
+ * 覆いを出しただけでは、焦点は裏に残る。裏は `inert`（`AppShell`）なので、
+ * そのままだと**焦点がどこにも無い状態**になり、Tab が文書の先頭へ飛ぶ。
+ *
+ * **返す先はここで覚えない。** この時点で裏は既に `inert` で、ブラウザが
+ * 焦点を外したあとの `document.activeElement` を読みうる。押した口を
+ * 覚えるのは、開く手続きを持つ側（`App`）の仕事。
+ */
+const sheet = useTemplateRef<HTMLElement>('sheet')
+
+onMounted(() => sheet.value?.focus())
+
+const meta = computed(() => state.viewModel?.meta)
+
+/**
+ * 概要から図へ移る（UT-13 は導線を差し込むだけ）。
+ *
+ * **移動そのものは UT-14 の経路を通す。** ここに別の経路を作ると、概要から
+ * 選んだときだけ絞り込みが立たない、履歴に積まれない、といった食い違いができる。
+ * 移ったあとはシートを閉じる。閉じないと、移った先の図が覆われたままになる。
+ */
+function moveTo(nodeId: string): void {
+  state.moveTo(nodeId)
+  emit('close')
+}
+
+/** 見出しに出す 1 行。素性のうち、どの断面かが分かるだけを短く */
+const subtitle = computed(() => {
+  const found = meta.value
+  if (found === undefined) return ''
+  const at = formatGeneratedAt(found.generatedAt)
+  return `${found.snapshot.label} ・ ${shortCommit(found.snapshot.commit)} ・ ${at}`
+})
+</script>
+
+<template>
+  <!--
+    背景の覆い。押すと閉じる。シートの外側を押して閉じられないと、
+    レールのボタンまで戻らないと閉じられなくなる
+  -->
+  <div
+    class="fixed inset-0 z-10 flex justify-center bg-ground/70 p-24 backdrop-blur-[2px]"
+    @click.self="emit('close')"
+  >
+    <section
+      ref="sheet"
+      class="flex max-h-full w-full max-w-[900px] flex-col overflow-hidden rounded-panel border border-line bg-surface shadow-float focus:outline-none"
+      tabindex="-1"
+      role="dialog"
+      aria-modal="true"
+      aria-label="依存関係の概要"
+    >
+      <header class="flex shrink-0 items-start gap-9 border-b border-line px-16 py-12">
+        <div class="min-w-0">
+          <h2 class="text-title text-ink">依存関係の概要</h2>
+          <p class="mt-2 truncate font-mono text-caption text-ink-3">{{ subtitle }}</p>
+        </div>
+
+        <div class="grow"></div>
+
+        <button
+          type="button"
+          class="rounded-control px-6 py-2 leading-none text-ink-3 hover:bg-surface-2 hover:text-ink"
+          aria-label="概要を閉じる"
+          title="概要を閉じる"
+          @click="emit('close')"
+        >
+          ✕
+        </button>
+      </header>
+
+      <div class="flex min-h-0 grow flex-col gap-18 overflow-y-auto px-16 py-14">
+        <section>
+          <h3 class="mb-8 text-overline text-ink-3 uppercase">規模</h3>
+          <ScaleCards />
+        </section>
+
+        <section>
+          <h3 class="mb-8 text-overline text-ink-3 uppercase">層の構成</h3>
+          <LayerComposition />
+        </section>
+
+        <section>
+          <h3 class="mb-8 text-overline text-ink-3 uppercase">層をまたぐ依存の流れ</h3>
+          <LayerFlowMatrix />
+        </section>
+
+        <section>
+          <h3 class="mb-8 text-overline text-ink-3 uppercase">影響範囲の大きいファイル</h3>
+          <TopDependedFiles @move="moveTo" />
+        </section>
+
+        <section v-if="meta !== undefined">
+          <h3 class="mb-8 text-overline text-ink-3 uppercase">このグラフの素性</h3>
+          <GraphIdentity :meta="meta" />
+        </section>
+      </div>
+    </section>
+  </div>
+</template>

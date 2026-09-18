@@ -23,6 +23,22 @@ import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue'
 import { defaultSizeObserverFactory, watchElementSize } from './canvas-size'
 import { useViewState } from './view-state'
 
+/**
+ * 画面全体に重なるものが出ているか（UT-13）。
+ *
+ * **`inert` は `undefined` に落として渡す。** Vue は `key in el` で属性か
+ * プロパティかを決める（`shouldSetAsProp`）。`inert` を持つブラウザでは
+ * `el.inert = false` になるので属性は出ないが、**`inert` を実装していない
+ * jsdom では `inert="false"` という属性が出る**。HTML の `inert` は値に
+ * 関わらず属性があれば効くので、その形のままだと「触れるかどうか」を
+ * 属性で見る検査が書けない。`undefined` なら、どちらでも属性が消える。
+ *
+ * 出ているあいだ、3 領域を `inert` にする。**覆いは見た目だけで、裏は生きている** —
+ * Tab で裏の入力欄へ抜けられ、そこで押した Esc は裏の側が先に受け取る。
+ * 一覧の折りたたみ（`sidebarOpen`）が同じやり方で裏を殺しているので、それに揃える。
+ */
+defineProps<{ sheetOpen?: boolean }>()
+
 const state = useViewState()
 const canvas = useTemplateRef<HTMLElement>('canvas')
 
@@ -45,7 +61,11 @@ onBeforeUnmount(() => stopWatching())
     -->
     <h1 class="sr-only">depenomap</h1>
 
-    <nav class="shell-rail border-r border-line bg-surface" aria-label="表示の切り替え">
+    <nav
+      class="shell-rail border-r border-line bg-surface"
+      :inert="sheetOpen || undefined"
+      aria-label="表示の切り替え"
+    >
       <slot name="rail" />
     </nav>
 
@@ -55,13 +75,18 @@ onBeforeUnmount(() => stopWatching())
     -->
     <aside
       class="shell-panel border-r border-line bg-surface"
-      :inert="!state.sidebarOpen"
+      :inert="!state.sidebarOpen || sheetOpen || undefined"
       aria-label="ファイル / メソッドの一覧"
     >
       <slot name="sidebar" />
     </aside>
 
-    <main ref="canvas" class="shell-canvas bg-ground" aria-label="ノードマップ">
+    <main
+      ref="canvas"
+      class="shell-canvas bg-ground"
+      :inert="sheetOpen || undefined"
+      aria-label="ノードマップ"
+    >
       <slot name="canvas" />
 
       <div class="shell-overlay">
@@ -77,6 +102,12 @@ onBeforeUnmount(() => stopWatching())
         <slot name="toolbar" />
       </div>
     </main>
+
+    <!--
+      画面全体に重なるもの（概要 / UT-13）。列の中ではなくシェルの外に置く。
+      キャンバスの中に入れると、一覧の開閉で幅が変わるたびに中身が動く
+    -->
+    <slot name="sheet" />
   </div>
 </template>
 

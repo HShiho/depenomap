@@ -5,6 +5,7 @@ import type {
   GraphEdge,
   GraphNode,
   Layer,
+  Meta,
   MethodNode,
   Unresolved,
 } from '../graph/schema'
@@ -16,6 +17,7 @@ import {
   sortByFanInDesc,
 } from './indices'
 import { buildSearchKeys, matches, type SearchKey } from './search'
+import { buildFanInByLayer, buildLayerFlows, type LayerFlow } from './overview'
 import { buildTraversal, type Dependency, type TraversalOptions } from './traversal'
 
 /**
@@ -52,6 +54,13 @@ export interface LayerBinding {
 }
 
 export interface ViewModel {
+  /**
+   * このグラフの素性（US-11）。正本 JSON の `meta` をそのまま持つ。
+   *
+   * 加工しない。生成日時の書式や commit の短縮は、読ませ方の判断であって
+   * IR の仕事ではない
+   */
+  meta: Meta
   /** 粒度ごとのノード集合。配列の順序は正本 JSON の並びを保つ */
   nodes: { readonly file: readonly FileNode[]; readonly method: readonly MethodNode[] }
   /** 粒度ごとのエッジ集合 */
@@ -159,6 +168,20 @@ export interface ViewModel {
     options?: TraversalOptions,
   ) => readonly Dependency[]
   /**
+   * 層をまたぐ依存の流れ（US-11）。同じ層の中は数えない。
+   *
+   * **本数（エッジ）で数える**。被依存数（ノード数）とは数え方が違うのは、
+   * ここで知りたいのが層のあいだに渡っている依存の量だからで、同じ 2 ファイルを
+   * つなぐ 2 本を 1 本に畳むとその量が見えなくなる。向きの正誤は判定しない（N-1）
+   */
+  layerFlows: (granularity: Granularity) => readonly LayerFlow[]
+  /**
+   * 被依存を、使っている側の層ごとに数えた内訳（US-11）。
+   *
+   * **数え方は `fanInOf` と揃える**（ノード数）。合計が被依存数に一致する
+   */
+  fanInByLayerOf: (nodeId: string, granularity: Granularity) => ReadonlyMap<LayerKey, number>
+  /**
    * 依存元。「このノードを使っているのは誰か」（US-14）。via は依存先と対称。
    *
    * **エッジ 1 本につき 1 件返す。** `fanInOf`（ノード数で数える）とは数え方が
@@ -246,6 +269,19 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
 
   const traversal = buildTraversal(edges, nodeById)
 
+  const layerKeyOf = (nodeId: string): LayerKey => {
+    const node = nodeById.get(nodeId)
+    return node ? bindingOf(node).key : NO_LAYER
+  }
+  const layerFlows = {
+    file: buildLayerFlows(edges.file, layerKeyOf),
+    method: buildLayerFlows(edges.method, layerKeyOf),
+  } as const
+  const fanInByLayer = {
+    file: buildFanInByLayer(edges.file, layerKeyOf, layerKeys),
+    method: buildFanInByLayer(edges.method, layerKeyOf, layerKeys),
+  } as const
+
   // 粒度の指定が無ければ全ノードを見る（ADR-003 の運用上の注意）。
   // 返る型は粒度で変わるため、宣言はオーバーロード（`ViewModel`）が持つ
   const findByQuery = ((query: string, granularity?: Granularity) =>
@@ -262,6 +298,7 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
     )) as ViewModel['nodesByFanInDesc']
 
   return {
+    meta: graph.meta,
     nodes,
     edges,
     nodeById,
@@ -291,5 +328,7 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
     dependenciesOf: traversal.dependenciesOf,
     dependentsOf: traversal.dependentsOf,
     dependentNodesOf: traversal.dependentNodesOf,
+    layerFlows: (granularity) => layerFlows[granularity],
+    fanInByLayerOf: (nodeId, granularity) => fanInByLayer[granularity].get(nodeId) ?? new Map(),
   }
 }

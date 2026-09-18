@@ -5,13 +5,14 @@
  * 各領域の中身は UT-06 以降が差し込む。いまレールと通知に入っているのは、
  * 器が動いていることを目で確かめるための**暫定表示**である。
  */
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { callOrder } from './graph-canvas/call-order'
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
 import NarrowingChip from './graph-canvas/NarrowingChip.vue'
 import { fullTitleOf } from './graph-canvas/node-label'
 import CycleBadge from './sidebar/CycleBadge.vue'
+import OverviewSheet from './overview/OverviewSheet.vue'
 import SidebarPanel from './sidebar/SidebarPanel.vue'
 import GranularityToggle from './graph-canvas/GranularityToggle.vue'
 import GraphCanvas from './graph-canvas/GraphCanvas.vue'
@@ -21,6 +22,36 @@ import { loadGraphInto } from './shell/graph-source'
 import { useViewState } from './shell/view-state'
 
 const state = useViewState()
+
+/**
+ * 概要を開いているか（UT-13）。
+ *
+ * **器（UT-05）には持たせない。** 図の見え方（粒度・選択・絞り込み）とは違って、
+ * 他の UT がこの状態を読む理由が無く、履歴にも積まない（UT-15 の決定と同じで、
+ * 積むのは移動だけ）。ここだけで閉じる。
+ */
+const overviewOpen = ref(false)
+
+/**
+ * 概要が画面に出ているか。**開閉の状態と、出す条件を 1 つの式にする。**
+ *
+ * 裏を `inert` にするかどうかと、シートを描くかどうかが別々の条件だと、
+ * 読み込み結果が `ready` を外れたときにシートだけ消えて、画面全体が
+ * `inert` のまま残る。
+ */
+const overviewShown = computed(() => overviewOpen.value && state.status.kind === 'ready')
+
+/** 概要を開く。閉じたときに焦点を返す先を、状態を倒す前に捕まえておく */
+const opener = ref<HTMLElement | null>(null)
+
+function openOverview(event: MouseEvent): void {
+  /*
+   * **押した口はここで捕まえる。** シート側の `onMounted` で読むと、その時点で
+   * 裏は `inert` になっており、ブラウザが焦点を外したあとの値を読みうる。
+   */
+  opener.value = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  overviewOpen.value = true
+}
 
 onMounted(() => void loadGraphInto(state))
 
@@ -35,12 +66,46 @@ onMounted(() => void loadGraphInto(state))
  * 検索欄の Esc は検索語を消す（`SidebarPanel`）ので、そちらを妨げない。
  */
 function onKeydown(event: KeyboardEvent): void {
-  if (event.key !== 'Escape' || !state.narrowedToSelection) return
+  if (event.key !== 'Escape') return
+
+  /*
+   * 概要が開いていれば、そちらを先に閉じる（UT-13）。重なっている面から
+   * 順に閉じるのが Esc の筋で、下に隠れている図の絞り込みを先に解くと、
+   * 閉じたあとに図が変わっている
+   */
+  if (overviewShown.value) {
+    closeOverview()
+    return
+  }
+  if (!state.narrowedToSelection) return
   const target = event.target
   if (target instanceof HTMLElement && target.closest('input, textarea, select')) return
 
   state.setNarrowedToSelection(false)
 }
+
+/** 概要を閉じ、開いた口へ焦点を返す */
+function closeOverview(): void {
+  overviewOpen.value = false
+  const button = opener.value
+  opener.value = null
+  // 裏の `inert` が外れてから戻す。外れる前は焦点を受け取れない
+  void nextTick(() => button?.focus())
+}
+
+/*
+ * 読めなくなったら閉じる。**「出ていない」と「開いている」を食い違わせない。**
+ *
+ * 出す条件（`overviewShown`）だけで隠すと、`overviewOpen` は立ったまま残る。
+ * Esc も出ていないあいだは効かないので倒せず、読み直して `ready` に戻った
+ * 瞬間にシートが独りでに開く。
+ */
+watch(
+  () => state.status.kind,
+  (kind) => {
+    if (kind !== 'ready') closeOverview()
+  },
+)
 
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
@@ -77,7 +142,7 @@ const showsOrderNote = computed(
 </script>
 
 <template>
-  <AppShell>
+  <AppShell :sheet-open="overviewShown">
     <template #canvas>
       <GraphCanvas />
     </template>
@@ -128,6 +193,28 @@ const showsOrderNote = computed(
 
         <div class="grow"></div>
 
+        <!--
+          概要（US-11）。いつでも開ける。起動直後は図を出す（UT-13 の決定）。
+
+          **読めていないあいだは押せない。** 押しても何も出ない口を残すと、
+          押したことが効いたのかどうかが分からない。読み込み中に押せると、
+          読み終えた瞬間に勝手に開くことにもなる。
+
+          **開く専用の口**にしてある。開いているあいだレールは `inert` で、
+          ここへは戻ってこられない。押下状態として読み上げても、その口では
+          閉じられない。閉じる口は ✕・覆い・Esc の 3 つが持つ
+        -->
+        <button
+          type="button"
+          class="rounded-control px-6 py-4 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink disabled:cursor-default disabled:text-line"
+          :disabled="state.status.kind !== 'ready'"
+          aria-label="概要を開く"
+          title="概要"
+          @click="openOverview"
+        >
+          ▤
+        </button>
+
         <button
           type="button"
           class="rounded-control px-6 py-4 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink"
@@ -153,6 +240,10 @@ const showsOrderNote = computed(
           <CycleBadge :node="node" />
         </template>
       </SidebarPanel>
+    </template>
+
+    <template #sheet>
+      <OverviewSheet v-if="overviewShown" @close="closeOverview" />
     </template>
 
     <template #notice>
