@@ -24,6 +24,13 @@ import { panBy, zoomAround, type Point, type Viewport } from './viewport'
 export interface WheelInput {
   deltaX: number
   deltaY: number
+  /**
+   * 量の単位（`WheelEvent.deltaMode`）。0 が px、1 が行、2 がページ。
+   *
+   * **px とは限らない。** Firefox + 物理ホイールは行単位（`deltaY = ±3`）で
+   * 送ってくる。px として扱うと 1 ノッチが 3px になり、実質動かない
+   */
+  deltaMode?: number
   shiftKey: boolean
   /** ピンチもここに立つ（ブラウザがそう変換する） */
   ctrlKey: boolean
@@ -38,6 +45,22 @@ export interface WheelInput {
  */
 const ZOOM_SENSITIVITY = 0.0022
 
+/**
+ * 単位ごとの px 換算。
+ *
+ * 行の高さも画面の高さも環境で変わるが、**ここで実測しない** — 測るには
+ * 描画を触ることになり、この層が持てる情報ではない。行はノードの 1 行ぶん、
+ * ページは画面 1 枚ぶんとして、桁を合わせるだけの目安を置く。
+ */
+const LINE_HEIGHT = 16
+const PAGE_HEIGHT = 800
+
+function toPixels(amount: number, mode: number | undefined): number {
+  if (mode === 1) return amount * LINE_HEIGHT
+  if (mode === 2) return amount * PAGE_HEIGHT
+  return amount
+}
+
 /** この入力が拡大縮小か。偽なら移動 */
 export function isZoomGesture(input: Pick<WheelInput, 'ctrlKey' | 'metaKey'>): boolean {
   return input.ctrlKey || input.metaKey
@@ -50,16 +73,23 @@ export function isZoomGesture(input: Pick<WheelInput, 'ctrlKey' | 'metaKey'>): b
  * スクロールの向きに合わせる（図を動かすのではなく、図の上を移動している）。
  */
 export function applyWheel(viewport: Viewport, input: WheelInput): Viewport {
+  const dx = toPixels(input.deltaX, input.deltaMode)
+  const dy = toPixels(input.deltaY, input.deltaMode)
+
   if (isZoomGesture(input)) {
-    const factor = Math.exp(-input.deltaY * ZOOM_SENSITIVITY)
+    const factor = Math.exp(-dy * ZOOM_SENSITIVITY)
     return zoomAround(viewport, input.point, viewport.scale * factor)
   }
 
   /*
-   * Shift を押しているあいだは、縦の回転量を横の移動に読み替える。
-   * ホイールしか持たない環境で横へ動かす唯一の手段になる（スプレッドシートと同じ）。
+   * Shift を押しているあいだは横へ動かす。ホイールしか持たない環境で横へ
+   * 動かす唯一の手段になる（スプレッドシートと同じ）。
+   *
+   * **縦と横のどちらで届くかは環境で変わる。** ブラウザによっては Shift +
+   * ホイールを自分で横（`deltaX`）へ振り替えて送ってくるので、縦だけを見ると
+   * その環境で動かなくなる。両方を足して 1 つの横移動にする
    */
-  if (input.shiftKey) return panBy(viewport, -input.deltaY, 0)
+  if (input.shiftKey) return panBy(viewport, -(dx + dy), 0)
 
-  return panBy(viewport, -input.deltaX, -input.deltaY)
+  return panBy(viewport, -dx, -dy)
 }

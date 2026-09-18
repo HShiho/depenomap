@@ -355,6 +355,7 @@ function onWheel(event: WheelEvent): void {
   viewport.value = applyWheel(viewport.value, {
     deltaX: event.deltaX,
     deltaY: event.deltaY,
+    deltaMode: event.deltaMode,
     shiftKey: event.shiftKey,
     ctrlKey: event.ctrlKey,
     metaKey: event.metaKey,

@@ -12,6 +12,7 @@ function wheel(input: Partial<WheelInput> = {}): WheelInput {
     shiftKey: false,
     ctrlKey: false,
     metaKey: false,
+    deltaMode: 0,
     point: { x: 400, y: 300 },
     ...input,
   }
@@ -36,6 +37,27 @@ describe('移動（US-16）', () => {
     const after = applyWheel(START, wheel({ deltaY: 40, shiftKey: true }))
 
     expect(after).toEqual({ x: 60, y: 50, scale: 1 })
+  })
+
+  it('Shift 付きで横だけ届いても、横へ動く', () => {
+    // ブラウザによっては Shift + ホイールを自分で横へ振り替えて送ってくる
+    const after = applyWheel(START, wheel({ deltaX: 40, deltaY: 0, shiftKey: true }))
+
+    expect(after).toEqual({ x: 60, y: 50, scale: 1 })
+  })
+
+  it('行単位で届く環境でも、px と同じ桁で動く', () => {
+    // Firefox + 物理ホイールは `deltaY = ±3` を行単位で送る
+    const line = applyWheel(START, wheel({ deltaY: 3, deltaMode: 1 }))
+    const pixel = applyWheel(START, wheel({ deltaY: 3 }))
+
+    expect(START.y - line.y).toBeGreaterThan((START.y - pixel.y) * 10)
+  })
+
+  it('ページ単位で届く環境でも、px と同じ桁で動く', () => {
+    const page = applyWheel(START, wheel({ deltaY: 1, deltaMode: 2 }))
+
+    expect(START.y - page.y).toBeGreaterThan(100)
   })
 
   it('移動では倍率が変わらない', () => {
@@ -74,6 +96,13 @@ describe('拡大縮小（US-16）', () => {
     const moved = toWorld(after, point)
     expect(moved.x).toBeCloseTo(before.x, 6)
     expect(moved.y).toBeCloseTo(before.y, 6)
+  })
+
+  it('行単位で届く拡大縮小も、px と同じ桁で効く', () => {
+    const line = applyWheel(START, wheel({ deltaY: -3, deltaMode: 1, ctrlKey: true }))
+    const pixel = applyWheel(START, wheel({ deltaY: -3, ctrlKey: true }))
+
+    expect(line.scale - START.scale).toBeGreaterThan((pixel.scale - START.scale) * 10)
   })
 
   it('効きが、いまの倍率に比例する', () => {
