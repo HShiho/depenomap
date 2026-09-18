@@ -18,7 +18,7 @@
  * 起動直後ではなく**いつでも開けるシート**にしてある（UT-13 の決定）。読み込んだ
  * 直後に図が見えることを優先し、概要は必要なときに重ねる。参照仕様も同じ形。
  */
-import { computed, onBeforeUnmount, onMounted, useTemplateRef } from 'vue'
+import { computed, onMounted, useTemplateRef } from 'vue'
 
 import GraphIdentity from './GraphIdentity.vue'
 import LayerComposition from './LayerComposition.vue'
@@ -33,22 +33,18 @@ const emit = defineEmits<{ close: [] }>()
 const state = useViewState()
 
 /*
- * 焦点をシートへ引き取り、閉じたら開いた口へ返す。
+ * 焦点をシートへ引き取る。
  *
  * 覆いを出しただけでは、焦点は裏に残る。裏は `inert`（`AppShell`）なので、
  * そのままだと**焦点がどこにも無い状態**になり、Tab が文書の先頭へ飛ぶ。
+ *
+ * **返す先はここで覚えない。** この時点で裏は既に `inert` で、ブラウザが
+ * 焦点を外したあとの `document.activeElement` を読みうる。押した口を
+ * 覚えるのは、開く手続きを持つ側（`App`）の仕事。
  */
 const sheet = useTemplateRef<HTMLElement>('sheet')
-let opener: Element | null = null
 
-onMounted(() => {
-  opener = document.activeElement
-  sheet.value?.focus()
-})
-
-onBeforeUnmount(() => {
-  if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
-})
+onMounted(() => sheet.value?.focus())
 
 const meta = computed(() => state.viewModel?.meta)
 

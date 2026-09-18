@@ -5,7 +5,7 @@
  * 各領域の中身は UT-06 以降が差し込む。いまレールと通知に入っているのは、
  * 器が動いていることを目で確かめるための**暫定表示**である。
  */
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 
 import { callOrder } from './graph-canvas/call-order'
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
@@ -32,6 +32,27 @@ const state = useViewState()
  */
 const overviewOpen = ref(false)
 
+/**
+ * 概要が画面に出ているか。**開閉の状態と、出す条件を 1 つの式にする。**
+ *
+ * 裏を `inert` にするかどうかと、シートを描くかどうかが別々の条件だと、
+ * 読み込み結果が `ready` を外れたときにシートだけ消えて、画面全体が
+ * `inert` のまま残る。
+ */
+const overviewShown = computed(() => overviewOpen.value && state.status.kind === 'ready')
+
+/** 概要を開く。閉じたときに焦点を返す先を、状態を倒す前に捕まえておく */
+const opener = ref<HTMLElement | null>(null)
+
+function openOverview(event: MouseEvent): void {
+  /*
+   * **押した口はここで捕まえる。** シート側の `onMounted` で読むと、その時点で
+   * 裏は `inert` になっており、ブラウザが焦点を外したあとの値を読みうる。
+   */
+  opener.value = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  overviewOpen.value = true
+}
+
 onMounted(() => void loadGraphInto(state))
 
 /**
@@ -52,8 +73,8 @@ function onKeydown(event: KeyboardEvent): void {
    * 順に閉じるのが Esc の筋で、下に隠れている図の絞り込みを先に解くと、
    * 閉じたあとに図が変わっている
    */
-  if (overviewOpen.value) {
-    overviewOpen.value = false
+  if (overviewShown.value) {
+    closeOverview()
     return
   }
   if (!state.narrowedToSelection) return
@@ -61,6 +82,15 @@ function onKeydown(event: KeyboardEvent): void {
   if (target instanceof HTMLElement && target.closest('input, textarea, select')) return
 
   state.setNarrowedToSelection(false)
+}
+
+/** 概要を閉じ、開いた口へ焦点を返す */
+function closeOverview(): void {
+  overviewOpen.value = false
+  const button = opener.value
+  opener.value = null
+  // 裏の `inert` が外れてから戻す。外れる前は焦点を受け取れない
+  void nextTick(() => button?.focus())
 }
 
 onMounted(() => window.addEventListener('keydown', onKeydown))
@@ -98,7 +128,7 @@ const showsOrderNote = computed(
 </script>
 
 <template>
-  <AppShell :sheet-open="overviewOpen">
+  <AppShell :sheet-open="overviewShown">
     <template #canvas>
       <GraphCanvas />
     </template>
@@ -154,16 +184,19 @@ const showsOrderNote = computed(
 
           **読めていないあいだは押せない。** 押しても何も出ない口を残すと、
           押したことが効いたのかどうかが分からない。読み込み中に押せると、
-          読み終えた瞬間に勝手に開くことにもなる
+          読み終えた瞬間に勝手に開くことにもなる。
+
+          **開く専用の口**にしてある。開いているあいだレールは `inert` で、
+          ここへは戻ってこられない。押下状態として読み上げても、その口では
+          閉じられない。閉じる口は ✕・覆い・Esc の 3 つが持つ
         -->
         <button
           type="button"
           class="rounded-control px-6 py-4 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink disabled:cursor-default disabled:text-line"
           :disabled="state.status.kind !== 'ready'"
-          :aria-pressed="overviewOpen"
-          :aria-label="overviewOpen ? '概要を閉じる' : '概要を開く'"
+          aria-label="概要を開く"
           title="概要"
-          @click="overviewOpen = !overviewOpen"
+          @click="openOverview"
         >
           ▤
         </button>
@@ -196,10 +229,7 @@ const showsOrderNote = computed(
     </template>
 
     <template #sheet>
-      <OverviewSheet
-        v-if="overviewOpen && state.status.kind === 'ready'"
-        @close="overviewOpen = false"
-      />
+      <OverviewSheet v-if="overviewShown" @close="closeOverview" />
     </template>
 
     <template #notice>

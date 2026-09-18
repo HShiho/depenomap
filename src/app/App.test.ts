@@ -898,14 +898,27 @@ describe('概要の開閉（US-11 / UT-13）', () => {
     expect(wrapper.find('[title="概要"]').attributes()).toHaveProperty('disabled')
   })
 
-  it('開いているあいだは、同じ口が閉じる口になる', async () => {
-    // 押下状態だと読み上げる以上、その口で戻せる必要がある
+  it('レールの口は開く専用。押下状態としては読み上げない', async () => {
+    // 開いているあいだレールは `inert` で、そこへは戻ってこられない。
+    // 押下状態だと読み上げると、その口で閉じられるように見えてしまう
     const { wrapper } = await setup()
     await open(wrapper)
 
     const button = wrapper.find('[title="概要"]')
-    expect(button.attributes('aria-pressed')).toBe('true')
-    expect(button.attributes('aria-label')).toBe('概要を閉じる')
+    expect(button.attributes()).not.toHaveProperty('aria-pressed')
+    expect(button.attributes('aria-label')).toBe('概要を開く')
+  })
+
+  it('読み込み結果が ready を外れたら、裏も戻す', async () => {
+    // シートだけ消えて裏が `inert` のまま残ると、画面全体が触れなくなる
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+
+    state.applyLoadOutcome({ kind: 'unreachable', message: '読めない' })
+    await wrapper.vm.$nextTick()
+
+    expect(sheet(wrapper).exists()).toBe(false)
+    expect(wrapper.find('main').attributes()).not.toHaveProperty('inert')
   })
 
   it('違反件数や指摘を出さない（N-1）', async () => {
