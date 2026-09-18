@@ -5,6 +5,10 @@
  * **上下限に当たったことが読めるように、倍率を出す。** 出さないと、ピンチが
  * 効かなくなったときに「操作が効いていない」のか「限界なのか」が区別できない。
  *
+ * **読み上げの通知にはしない。** ホイール 1 目盛りごとに変わる値なので、
+ * ライブリージョンにすると連続操作のあいだ通知が積み上がり、他の知らせが
+ * 埋もれる。倍率は数として見えていれば足りる。
+ *
  * 全体表示は、手で動かして迷子になったときに戻れる口。図が組み換わったときは
  * 自動で合わせ直す（`GraphCanvas`）ので、ここは**人が呼ぶときのため**にある。
  *
@@ -18,12 +22,8 @@ defineEmits<{ fit: [] }>()
 
 <template>
   <div class="flex items-center gap-7">
-    <span
-      class="w-[44px] text-right font-mono text-caption text-ink-3 tabular-nums"
-      role="status"
-      :aria-label="`拡大率 ${Math.round(scale * 100)}%`"
-    >
-      {{ Math.round(scale * 100) }}%
+    <span class="w-44 text-right font-mono text-caption text-ink-3 tabular-nums">
+      <span class="sr-only">拡大率</span>{{ Math.round(scale * 100) }}%
     </span>
 
     <button

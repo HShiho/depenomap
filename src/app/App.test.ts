@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { loadGraphFromValue } from '@/core/graph/loader'
 import App from './App.vue'
 import { CYCLE_LABEL } from './shell/cycle-mark'
+import ViewportControls from './graph-canvas/ViewportControls.vue'
 import { useViewState } from './shell/view-state'
 
 import fixture from '../../test-data/dependency-graph.complex.json'
@@ -976,8 +977,9 @@ describe('図の見ている位置の口（US-16 / UT-16）', () => {
       ),
     ) as { x: number; y: number; scale: number }
 
+  /** 倍率の表示 */
   const zoomLabel = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
-    wrapper.find('[role="status"][aria-label^="拡大率"]')
+    wrapper.findComponent(ViewportControls).find('span')
 
   /**
    * 実寸を入れてから測る。
@@ -997,7 +999,7 @@ describe('図の見ている位置の口（US-16 / UT-16）', () => {
     // 出さないと、上下限に当たったのか操作が効いていないのかが区別できない
     const { wrapper } = await sized()
 
-    expect(zoomLabel(wrapper).text()).toMatch(/^\d+%$/)
+    expect(zoomLabel(wrapper).text()).toMatch(/^拡大率\d+%$/)
   })
 
   it('ピンチすると、拡大率の表示も動く', async () => {

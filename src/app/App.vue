@@ -25,13 +25,6 @@ import { useViewState } from './shell/view-state'
 const state = useViewState()
 
 /**
- * 概要を開いているか（UT-13）。
- *
- * **器（UT-05）には持たせない。** 図の見え方（粒度・選択・絞り込み）とは違って、
- * 他の UT がこの状態を読む理由が無く、履歴にも積まない（UT-15 の決定と同じで、
- * 積むのは移動だけ）。ここだけで閉じる。
- */
-/**
  * 図の側の口（UT-16）。倍率を読み、全体表示を呼ぶ。
  *
  * ビューポートは図が持つ（UT-06 の契約）。ツールバーは別の領域にあるので、
@@ -40,6 +33,13 @@ const state = useViewState()
  */
 const canvas = useTemplateRef<InstanceType<typeof GraphCanvas>>('canvas')
 
+/**
+ * 概要を開いているか（UT-13）。
+ *
+ * **器（UT-05）には持たせない。** 図の見え方（粒度・選択・絞り込み）とは違って、
+ * 他の UT がこの状態を読む理由が無く、履歴にも積まない（UT-15 の決定と同じで、
+ * 積むのは移動だけ）。ここだけで閉じる。
+ */
 const overviewOpen = ref(false)
 
 /**

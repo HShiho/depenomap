@@ -1359,8 +1359,12 @@ describe('ホイールとトラックパッド（US-16 / UT-16）', () => {
     expect(viewportOf(wrapper).scale).toBe(MIN_SCALE)
   })
 
-  it('一覧の開閉で描く領域が変わっても、見ている位置は残る', async () => {
-    // 合わせ直すと、寄って見ていたぶんが開閉のたびに失われる
+  it('実寸が変わっても、描く領域だけが追従して位置は残る', async () => {
+    /*
+     * 一覧の開閉はこの実寸の変化として届く（観測は `AppShell` が持つ）。
+     * ここで見るのは受け取った側の振る舞いで、開閉そのものの配線ではない。
+     * 合わせ直すと、寄って見ていたぶんが開閉のたびに失われる。
+     */
     const { state, wrapper } = setup()
     await spin(wrapper, { deltaY: -150, ctrlKey: true })
     const moved = { ...viewportOf(wrapper) }
