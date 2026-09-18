@@ -1359,6 +1359,32 @@ describe('ホイールとトラックパッド（US-16 / UT-16）', () => {
     expect(viewportOf(wrapper).scale).toBe(MIN_SCALE)
   })
 
+  it('一覧の開閉で描く領域が変わっても、見ている位置は残る', async () => {
+    // 合わせ直すと、寄って見ていたぶんが開閉のたびに失われる
+    const { state, wrapper } = setup()
+    await spin(wrapper, { deltaY: -150, ctrlKey: true })
+    const moved = { ...viewportOf(wrapper) }
+
+    state.setCanvasSize(CANVAS.width + 300, CANVAS.height)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('svg.canvas').attributes('width')).toBe(String(CANVAS.width + 300))
+    expect(viewportOf(wrapper)).toEqual(moved)
+  })
+
+  it('広がったあとの全体表示は、広がったぶんを使う', async () => {
+    // 描く領域が追従していないと、収めたつもりが前の幅のままになる
+    const { state, wrapper } = setup()
+    const narrow = viewportOf(wrapper).scale
+
+    state.setCanvasSize(CANVAS.width * 2, CANVAS.height * 2)
+    await wrapper.vm.$nextTick()
+    ;(wrapper.vm as unknown as { fitToContent: () => void }).fitToContent()
+    await wrapper.vm.$nextTick()
+
+    expect(viewportOf(wrapper).scale).toBeGreaterThan(narrow)
+  })
+
   it('続けて回すと、前の位置から積み上がる', async () => {
     // 1 回ごとに全体表示へ戻ると、寄って見ることができない
     const { wrapper } = setup()
