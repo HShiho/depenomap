@@ -17,6 +17,7 @@ import { useViewState, type ColumnAxis } from '../shell/view-state'
 import { layerColours } from '../shell/layer-colour'
 import { callOrder } from './call-order'
 import { cycleMarkOf, isCycleEdge } from '../shell/cycle-mark'
+import { nodeFlagOf } from '../shell/node-flag'
 import { buildColumnPlan } from './column-axis'
 import { narrowedNodeIds } from './narrowing'
 import { edgeMidpoint, edgePath } from './edge-path'
@@ -296,8 +297,10 @@ const nodeVisuals = computed(() => {
       stat: string
       colour: string
       tooltip: string
-      /** 循環の印（UT-10）。含まれなければ `undefined` */
-      cycle: string | undefined
+      /** ノードに出す印（UT-10 の循環 / UT-19 の未追跡）。無ければ `undefined` */
+      flag: string | undefined
+      /** 循環に含まれるか。枠の描き分けに使う（印の文言とは別） */
+      inCycle: boolean
     }
   >()
   const viewModel = state.viewModel
@@ -306,14 +309,15 @@ const nodeVisuals = computed(() => {
   for (const placed of placedNodes.value) {
     const node = placed.node
     // 印は見出しと同じ行の右端に出る。見出しの上限はその幅ぶん狭くなる
-    const cycle = cycleMarkOf(viewModel, node.id)
+    const flag = nodeFlagOf(viewModel, node.id)
     visuals.set(node.id, {
-      name: titleOf(node, nameLimitFor(cycle)),
+      name: titleOf(node, nameLimitFor(flag)),
       path: subtitleOf(node, (id) => viewModel.fileOfMethod(id)?.path),
       tooltip: tooltipOf(node, (id) => viewModel.fileOfMethod(id)?.path),
       stat: statsOf(node),
       colour: layerColour.value(viewModel.layerOf(node.id).key),
-      cycle,
+      flag,
+      inCycle: cycleMarkOf(viewModel, node.id) !== undefined,
     })
   }
   return visuals
@@ -763,7 +767,7 @@ watch(
         class="node"
         :class="{
           selected: placed.node.id === state.selectedNodeId,
-          'in-cycle': nodeVisuals.get(placed.node.id)?.cycle !== undefined,
+          'in-cycle': nodeVisuals.get(placed.node.id)?.inCycle === true,
         }"
         :style="{ '--lc': nodeVisuals.get(placed.node.id)?.colour }"
         :transform="`translate(${placed.x},${placed.y})`"
@@ -791,13 +795,13 @@ watch(
           名前と同じ行の右端に置く。下の行は被依存・依存の数が使っている
         -->
         <text
-          v-if="nodeVisuals.get(placed.node.id)?.cycle !== undefined"
+          v-if="nodeVisuals.get(placed.node.id)?.flag !== undefined"
           :x="NODE_WIDTH - 10"
           y="19"
           class="flag"
           text-anchor="end"
         >
-          {{ nodeVisuals.get(placed.node.id)?.cycle }}
+          {{ nodeVisuals.get(placed.node.id)?.flag }}
         </text>
       </g>
     </g>

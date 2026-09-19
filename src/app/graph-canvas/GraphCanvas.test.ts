@@ -1220,7 +1220,8 @@ describe('循環の印（US-06 / UT-10）', () => {
     await wrapper.vm.$nextTick()
     const inCycle = viewModel.nodes.method.find((node) => viewModel.cyclesOf(node.id).length > 0)!
 
-    expect(nodeOf(wrapper, inCycle.id).find('.flag').text()).toBe('循環')
+    // 未追跡の印（UT-19）と同じ場所に出るので、含まれることだけを見る
+    expect(nodeOf(wrapper, inCycle.id).find('.flag').text()).toContain('循環')
   })
 
   it('循環に含まれる辺が線でも分かる', () => {
@@ -1279,6 +1280,24 @@ describe('循環の印（US-06 / UT-10）', () => {
     const nameRight = Number(nameElement.attributes('x')) + shown.length * NAME_CHAR_WIDTH
     const flagLeft = Number(flagElement.attributes('x')) - flag.length * FLAG_CHAR_WIDTH
     expect(nameRight + FLAG_GAP).toBeLessThanOrEqual(flagLeft)
+  })
+
+  it('追跡できなかった依存を持つノードに、その印が出る', () => {
+    // ここから先が追えていないことを、図の上でも知らせる（US-21）
+    const { wrapper } = setup({ granularity: 'method' })
+    const from = viewModel.unresolved[0]!.from
+
+    expect(nodeOf(wrapper, from).find('.flag').text()).toContain('未追跡')
+  })
+
+  it('追跡できなかった依存が無いノードには出ない', () => {
+    const { wrapper } = setup({ granularity: 'method' })
+    const plain = viewModel.nodes.method.find(
+      (node) =>
+        viewModel.unresolvedFrom(node.id).length === 0 && viewModel.cyclesOf(node.id).length === 0,
+    )!
+
+    expect(nodeOf(wrapper, plain.id).find('.flag').exists()).toBe(false)
   })
 
   it('循環が 1 件も無くても図が壊れない', () => {
