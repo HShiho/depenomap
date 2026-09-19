@@ -58,6 +58,14 @@ export interface HistoryEntry {
    * そのノードで見ていた状態**を持つので、戻ったときに同じ見え方へ帰れる。
    */
   readonly narrowed: boolean
+  /**
+   * その 1 手を指す番号。**積まれるたびに新しくなる**。
+   *
+   * 履歴の位置（添字）では 1 手を指せない。戻ってから別のノードを選ぶと進む先を
+   * 捨てるので、同じ添字に別の 1 手が入りうる。「その移動で来たのか」を覚えたい側
+   * （UT-19 の推測の印）が、位置の使い回しに引きずられないようにする。
+   */
+  readonly serial: number
 }
 
 /**
@@ -157,6 +165,8 @@ export const useViewState = defineStore('view-state', () => {
    */
   const history = ref<HistoryEntry[]>([])
   const historyIndex = ref(-1)
+  /** 次に積む 1 手の番号。積むたびに増え、戻る・進むでは変わらない */
+  let nextSerial = 0
 
   const selectedNode = computed(() =>
     selectedNodeId.value === undefined
@@ -200,8 +210,14 @@ export const useViewState = defineStore('view-state', () => {
 
     history.value = [
       ...history.value.slice(0, historyIndex.value + 1),
-      { nodeId, granularity: granularity.value, narrowed: narrowedToSelection.value },
+      {
+        nodeId,
+        granularity: granularity.value,
+        narrowed: narrowedToSelection.value,
+        serial: nextSerial,
+      },
     ]
+    nextSerial += 1
     historyIndex.value = history.value.length - 1
   }
 
@@ -445,6 +461,8 @@ export const useViewState = defineStore('view-state', () => {
      */
     history: computed(() => readonly(history.value) as readonly HistoryEntry[]),
     historyIndex: computed(() => historyIndex.value),
+    /** いまいる 1 手の番号。どこにも居なければ `undefined` */
+    currentMove: computed(() => history.value[historyIndex.value]?.serial),
     canGoBack,
     canGoForward,
 

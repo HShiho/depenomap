@@ -18,8 +18,9 @@
  * 起動直後ではなく**いつでも開けるシート**にしてある（UT-13 の決定）。読み込んだ
  * 直後に図が見えることを優先し、概要は必要なときに重ねる。参照仕様も同じ形。
  */
-import { computed, onMounted, useTemplateRef } from 'vue'
+import { computed } from 'vue'
 
+import SheetFrame from '../shell/SheetFrame.vue'
 import GraphIdentity from './GraphIdentity.vue'
 import LayerComposition from './LayerComposition.vue'
 import LayerFlowMatrix from './LayerFlowMatrix.vue'
@@ -31,20 +32,6 @@ import { useViewState } from '../shell/view-state'
 const emit = defineEmits<{ close: [] }>()
 
 const state = useViewState()
-
-/*
- * 焦点をシートへ引き取る。
- *
- * 覆いを出しただけでは、焦点は裏に残る。裏は `inert`（`AppShell`）なので、
- * そのままだと**焦点がどこにも無い状態**になり、Tab が文書の先頭へ飛ぶ。
- *
- * **返す先はここで覚えない。** この時点で裏は既に `inert` で、ブラウザが
- * 焦点を外したあとの `document.activeElement` を読みうる。押した口を
- * 覚えるのは、開く手続きを持つ側（`App`）の仕事。
- */
-const sheet = useTemplateRef<HTMLElement>('sheet')
-
-onMounted(() => sheet.value?.focus())
 
 const meta = computed(() => state.viewModel?.meta)
 
@@ -70,67 +57,37 @@ const subtitle = computed(() => {
 </script>
 
 <template>
-  <!--
-    背景の覆い。押すと閉じる。シートの外側を押して閉じられないと、
-    レールのボタンまで戻らないと閉じられなくなる
-  -->
-  <div
-    class="fixed inset-0 z-10 flex justify-center bg-ground/70 p-24 backdrop-blur-[2px]"
-    @click.self="emit('close')"
-  >
-    <section
-      ref="sheet"
-      class="flex max-h-full w-full max-w-[900px] flex-col overflow-hidden rounded-panel border border-line bg-surface shadow-float focus:outline-none"
-      tabindex="-1"
-      role="dialog"
-      aria-modal="true"
-      aria-label="依存関係の概要"
-    >
-      <header class="flex shrink-0 items-start gap-9 border-b border-line px-16 py-12">
-        <div class="min-w-0">
-          <h2 class="text-title text-ink">依存関係の概要</h2>
-          <p class="mt-2 truncate font-mono text-caption text-ink-3">{{ subtitle }}</p>
-        </div>
+  <SheetFrame label="依存関係の概要" close-label="概要を閉じる" @close="emit('close')">
+    <template #header>
+      <h2 class="text-title text-ink">依存関係の概要</h2>
+      <p class="mt-2 truncate font-mono text-caption text-ink-3">{{ subtitle }}</p>
+    </template>
 
-        <div class="grow"></div>
+    <div class="flex flex-col gap-18">
+      <section>
+        <h3 class="mb-8 text-overline text-ink-3 uppercase">規模</h3>
+        <ScaleCards />
+      </section>
 
-        <button
-          type="button"
-          class="rounded-control px-6 py-2 leading-none text-ink-3 hover:bg-surface-2 hover:text-ink"
-          aria-label="概要を閉じる"
-          title="概要を閉じる"
-          @click="emit('close')"
-        >
-          ✕
-        </button>
-      </header>
+      <section>
+        <h3 class="mb-8 text-overline text-ink-3 uppercase">層の構成</h3>
+        <LayerComposition />
+      </section>
 
-      <div class="flex min-h-0 grow flex-col gap-18 overflow-y-auto px-16 py-14">
-        <section>
-          <h3 class="mb-8 text-overline text-ink-3 uppercase">規模</h3>
-          <ScaleCards />
-        </section>
+      <section>
+        <h3 class="mb-8 text-overline text-ink-3 uppercase">層をまたぐ依存の流れ</h3>
+        <LayerFlowMatrix />
+      </section>
 
-        <section>
-          <h3 class="mb-8 text-overline text-ink-3 uppercase">層の構成</h3>
-          <LayerComposition />
-        </section>
+      <section>
+        <h3 class="mb-8 text-overline text-ink-3 uppercase">影響範囲の大きいファイル</h3>
+        <TopDependedFiles @move="moveTo" />
+      </section>
 
-        <section>
-          <h3 class="mb-8 text-overline text-ink-3 uppercase">層をまたぐ依存の流れ</h3>
-          <LayerFlowMatrix />
-        </section>
-
-        <section>
-          <h3 class="mb-8 text-overline text-ink-3 uppercase">影響範囲の大きいファイル</h3>
-          <TopDependedFiles @move="moveTo" />
-        </section>
-
-        <section v-if="meta !== undefined">
-          <h3 class="mb-8 text-overline text-ink-3 uppercase">このグラフの素性</h3>
-          <GraphIdentity :meta="meta" />
-        </section>
-      </div>
-    </section>
-  </div>
+      <section v-if="meta !== undefined">
+        <h3 class="mb-8 text-overline text-ink-3 uppercase">このグラフの素性</h3>
+        <GraphIdentity :meta="meta" />
+      </section>
+    </div>
+  </SheetFrame>
 </template>

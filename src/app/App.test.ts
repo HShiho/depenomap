@@ -936,6 +936,14 @@ describe('概要の開閉（US-11 / UT-13）', () => {
     expect(sheet(wrapper).exists()).toBe(false)
   })
 
+  it('閉じる口は、どのシートのものかが読める', async () => {
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    const close = sheet(wrapper).find('[aria-label="概要を閉じる"]')
+    expect(close.attributes('title')).toBe('概要を閉じる')
+  })
+
   it('違反件数や指摘を出さない（N-1）', async () => {
     const { wrapper } = await setup()
     await open(wrapper)
@@ -1100,6 +1108,252 @@ describe('手で動かした配置（US-17 / US-18 / UT-17）', () => {
 
     for (const word of ['警告', 'エラー', '崩れ', '問題', '戻してください']) {
       expect(chip(wrapper).text()).not.toContain(word)
+    }
+  })
+})
+
+describe('追跡できなかった依存（US-21 / UT-19）', () => {
+  const sheet = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+    wrapper.find('[aria-label="追跡できなかった依存"][role="dialog"]')
+
+  const open = async (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) => {
+    await wrapper.find('[aria-label="追跡できなかった依存を開く"]').trigger('click')
+  }
+
+  it('レールから開ける', async () => {
+    const { wrapper } = await setup()
+
+    await open(wrapper)
+
+    expect(sheet(wrapper).exists()).toBe(true)
+  })
+
+  it('呼び出し元・式・理由が分かる', async () => {
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const first = state.viewModel!.unresolved[0]!
+
+    const text = sheet(wrapper).text()
+    expect(text).toContain(first.expression)
+    expect(text).toContain(state.viewModel!.nodeById.get(first.from)!.name)
+    expect(text).toContain('DI コンテナの文字列トークン')
+  })
+
+  it('全件出る', async () => {
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+
+    expect(sheet(wrapper).findAll('[data-unresolved-id]')).toHaveLength(
+      state.viewModel!.unresolved.length,
+    )
+  })
+
+  it('候補が推測であることが分かる', async () => {
+    // 確定した依存と同じ言い方にしない
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const withCandidates = state.viewModel!.unresolved.find((u) => u.candidates.length > 0)!
+
+    const row = sheet(wrapper).find(`[data-unresolved-id="${withCandidates.id}"]`)
+    expect(row.text()).toContain('推測した行き先')
+  })
+
+  it('候補が無いものも破綻しない', async () => {
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const without = state.viewModel!.unresolved.find((u) => u.candidates.length === 0)!
+
+    const row = sheet(wrapper).find(`[data-unresolved-id="${without.id}"]`)
+    expect(row.exists()).toBe(true)
+    expect(row.text()).toContain('絞り込めていません')
+    expect(row.findAll('[data-node-id]')).toHaveLength(0)
+  })
+
+  it('候補から図へ移れる。移動は UT-14 の経路', async () => {
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const guess = state.viewModel!.unresolved.find((u) => u.candidates.length > 0)!
+    const candidate = guess.candidates[0]!
+
+    await sheet(wrapper).find(`[data-node-id="${candidate}"]`).trigger('click')
+
+    expect(state.selectedNodeId).toBe(candidate)
+    expect(state.narrowedToSelection).toBe(true)
+    expect(state.history.at(-1)?.nodeId).toBe(candidate)
+  })
+
+  it('移った先でも、推測で来たことが分かる', async () => {
+    // 確定した依存をたどって来たのかが区別できないと、読み取る構造が実態とずれる
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const guess = state.viewModel!.unresolved.find((u) => u.candidates.length > 0)!
+
+    await sheet(wrapper).find(`[data-node-id="${guess.candidates[0]!}"]`).trigger('click')
+
+    expect(sheet(wrapper).exists()).toBe(false)
+    expect(wrapper.find('.shell-overlay').text()).toContain(guess.expression)
+  })
+
+  it('次に移ると、推測の印は消える', async () => {
+    // 推測で来たのは 1 手前まで
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const guess = state.viewModel!.unresolved.find((u) => u.candidates.length > 0)!
+    await sheet(wrapper).find(`[data-node-id="${guess.candidates[0]!}"]`).trigger('click')
+
+    state.moveTo(state.viewModel!.nodes.file[2]!.id)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.shell-overlay').text()).not.toContain(guess.expression)
+  })
+
+  it('戻ると、推測の印は消える', async () => {
+    // 履歴の長さは変わらないので、移動の回数で消すと取り残される
+    const { state, wrapper } = await setup()
+    state.moveTo(state.viewModel!.nodes.file[2]!.id)
+    await open(wrapper)
+    const guess = state.viewModel!.unresolved.find((u) => u.candidates.length > 0)!
+    await sheet(wrapper).find(`[data-node-id="${guess.candidates[0]!}"]`).trigger('click')
+    expect(wrapper.find('.shell-overlay').text()).toContain(guess.expression)
+
+    state.back()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.shell-overlay').text()).not.toContain(guess.expression)
+  })
+
+  it('進んで戻ってくれば、また出る', async () => {
+    // 印は「どこにいるか」で決まる。推測で来たノードへ帰れば、また推測のまま
+    const { state, wrapper } = await setup()
+    state.moveTo(state.viewModel!.nodes.file[2]!.id)
+    await open(wrapper)
+    const guess = state.viewModel!.unresolved.find((u) => u.candidates.length > 0)!
+    await sheet(wrapper).find(`[data-node-id="${guess.candidates[0]!}"]`).trigger('click')
+    state.back()
+    await wrapper.vm.$nextTick()
+
+    state.forward()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.shell-overlay').text()).toContain(guess.expression)
+  })
+
+  it('確定した依存で同じノードへ来ても、印は出ない', async () => {
+    // ノードだけで持つと、たどり着いた経路に関わらず印が復活する
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const guess = state.viewModel!.unresolved.find((u) => u.candidates.length > 0)!
+    const candidate = guess.candidates[0]!
+    await sheet(wrapper).find(`[data-node-id="${candidate}"]`).trigger('click')
+
+    // いったん離れて、図から同じノードへ入り直す
+    state.setGranularity('method')
+    state.moveTo(state.viewModel!.nodes.method.find((n) => n.id !== candidate)!.id)
+    state.moveTo(candidate)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.shell-overlay').text()).not.toContain(guess.expression)
+  })
+
+  it('戻って選び直すと、履歴の位置が同じでも印は出ない', async () => {
+    /*
+     * 戻ってから別のノードを選ぶと進む先を捨てるので、同じ添字に別の 1 手が入る。
+     * 位置で見ていると、推測で移った直後と見分けがつかない
+     */
+    const { state, wrapper } = await setup()
+    state.setGranularity('method')
+    const first = state.viewModel!.nodes.method[0]!.id
+    state.moveTo(first)
+
+    await open(wrapper)
+    const guess = state.viewModel!.unresolved.find((u) => u.candidates.length > 0)!
+    const candidate = guess.candidates[0]!
+    await sheet(wrapper).find(`[data-node-id="${candidate}"]`).trigger('click')
+    expect(wrapper.find('.shell-overlay').text()).toContain(guess.expression)
+
+    // 手前へ戻ってから、図で同じノードを選び直す（履歴の位置が再現する）
+    state.back()
+    await wrapper.vm.$nextTick()
+    state.moveTo(candidate)
+    await wrapper.vm.$nextTick()
+
+    expect(state.historyIndex).toBe(1)
+    expect(wrapper.find('.shell-overlay').text()).not.toContain(guess.expression)
+  })
+
+  it('選択が外れたら、推測の印も消える', async () => {
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const guess = state.viewModel!.unresolved.find((u) => u.candidates.length > 0)!
+    await sheet(wrapper).find(`[data-node-id="${guess.candidates[0]!}"]`).trigger('click')
+
+    state.clearSelection()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.shell-overlay').text()).not.toContain(guess.expression)
+  })
+
+  it('開いているあいだ、裏は触れない', async () => {
+    const { wrapper } = await setup()
+
+    await open(wrapper)
+
+    for (const selector of ['nav', 'aside', 'main']) {
+      expect(wrapper.find(selector).attributes()).toHaveProperty('inert')
+    }
+  })
+
+  it('開くと焦点がシートへ移り、閉じると開いた口へ戻る', async () => {
+    const { wrapper } = await setup({ attach: true })
+    const button = wrapper.find('[aria-label="追跡できなかった依存を開く"]')
+    ;(button.element as HTMLElement).focus()
+
+    await open(wrapper)
+    expect(document.activeElement).toBe(sheet(wrapper).element)
+
+    await sheet(wrapper).find('[aria-label="追跡できなかった依存を閉じる"]').trigger('click')
+
+    expect(document.activeElement).toBe(button.element)
+  })
+
+  it('Esc で閉じる', async () => {
+    const { wrapper } = await setup({ attach: true })
+    await open(wrapper)
+
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await wrapper.vm.$nextTick()
+
+    expect(sheet(wrapper).exists()).toBe(false)
+  })
+
+  it('閉じる口は、どのシートのものかが読める', async () => {
+    /*
+     * 重なりは 2 つある（概要 / 追跡できなかった依存）。読み上げにもポインタにも
+     * 同じ名前を出す。片方だけ「閉じる」にすると、どれを閉じるのかが分からない
+     */
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    const close = sheet(wrapper).find('[aria-label="追跡できなかった依存を閉じる"]')
+    expect(close.attributes('title')).toBe('追跡できなかった依存を閉じる')
+  })
+
+  it('読めていないあいだは押せない', async () => {
+    const { state, wrapper } = await setup()
+    state.applyLoadOutcome({ kind: 'loading' })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[aria-label="追跡できなかった依存を開く"]').attributes()).toHaveProperty(
+      'disabled',
+    )
+  })
+
+  it('欠陥として扱わない（N-1）', async () => {
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    for (const word of ['違反', 'エラー', '警告', '修正してください', '問題']) {
+      expect(sheet(wrapper).text()).not.toContain(word)
     }
   })
 })

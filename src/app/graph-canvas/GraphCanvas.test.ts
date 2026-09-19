@@ -1195,9 +1195,10 @@ describe('循環の印（US-06 / UT-10）', () => {
     wrapper.find(`[data-node-id="${id}"]`)
 
   it('循環に含まれるノードに印が出る', () => {
+    // 印の場所は未追跡（UT-19）と同じ。ここでは循環のぶんだけを見る
     const { wrapper } = setup()
 
-    expect(nodeOf(wrapper, plain).find('.flag').text()).toBe('循環')
+    expect(nodeOf(wrapper, plain).find('.flag').text()).toContain('循環')
     expect(nodeOf(wrapper, plain).classes()).toContain('in-cycle')
   })
 
@@ -1207,9 +1208,15 @@ describe('循環の印（US-06 / UT-10）', () => {
     expect(nodeOf(wrapper, typeOnly).find('.flag').text()).toBe('循環（型のみ）')
   })
 
-  it('循環に含まれないノードには印が出ない', () => {
+  it('循環に含まれないノードには、循環の印が出ない', () => {
     const { wrapper } = setup()
-    const outside = viewModel.nodes.file.find((node) => viewModel.cyclesOf(node.id).length === 0)!
+    const outside = viewModel.nodes.file.find(
+      (node) =>
+        viewModel.cyclesOf(node.id).length === 0 &&
+        (viewModel.methodsOfFile.get(node.id) ?? []).every(
+          (method) => viewModel.unresolvedFrom(method.id).length === 0,
+        ),
+    )!
 
     expect(nodeOf(wrapper, outside.id).find('.flag').exists()).toBe(false)
     expect(nodeOf(wrapper, outside.id).classes()).not.toContain('in-cycle')
@@ -1220,7 +1227,8 @@ describe('循環の印（US-06 / UT-10）', () => {
     await wrapper.vm.$nextTick()
     const inCycle = viewModel.nodes.method.find((node) => viewModel.cyclesOf(node.id).length > 0)!
 
-    expect(nodeOf(wrapper, inCycle.id).find('.flag').text()).toBe('循環')
+    // 未追跡の印（UT-19）と同じ場所に出るので、含まれることだけを見る
+    expect(nodeOf(wrapper, inCycle.id).find('.flag').text()).toContain('循環')
   })
 
   it('循環に含まれる辺が線でも分かる', () => {
@@ -1281,13 +1289,73 @@ describe('循環の印（US-06 / UT-10）', () => {
     expect(nameRight + FLAG_GAP).toBeLessThanOrEqual(flagLeft)
   })
 
+  it('追跡できなかった依存を持つノードに、その印が出る', () => {
+    // ここから先が追えていないことを、図の上でも知らせる（US-21）
+    const { wrapper } = setup({ granularity: 'method' })
+    const from = viewModel.unresolved[0]!.from
+
+    expect(nodeOf(wrapper, from).find('.flag').text()).toContain('未追跡')
+  })
+
+  it('既定のファイル粒度でも、印が出る', () => {
+    // `unresolved[].from` は必ずメソッド。巻き上げないと既定の表示で一度も出ない
+    const { wrapper } = setup()
+    const owner = viewModel.fileOfMethod(viewModel.unresolved[0]!.from)!
+
+    expect(nodeOf(wrapper, owner.id).find('.flag').text()).toContain('未追跡')
+  })
+
+  it('追跡できなかった依存が無いノードには出ない', () => {
+    const { wrapper } = setup({ granularity: 'method' })
+    const plain = viewModel.nodes.method.find(
+      (node) =>
+        viewModel.unresolvedFrom(node.id).length === 0 && viewModel.cyclesOf(node.id).length === 0,
+    )!
+
+    expect(nodeOf(wrapper, plain.id).find('.flag').exists()).toBe(false)
+  })
+
+  it('印が重なっても、名前と重ならない幅に収まる', () => {
+    // 印は組み合わさる（循環（型のみ）・未追跡）。いちばん長い形でも収まる
+    const long = `${'A'.repeat(40)}.ts`
+    const model = buildViewModel({
+      ...result.graph,
+      nodes: result.graph.nodes.map((node) =>
+        node.id === typeOnly ? { ...node, name: long } : node,
+      ),
+      unresolved: [
+        ...result.graph.unresolved,
+        {
+          id: 'u_probe',
+          reason: 'callback',
+          from: result.graph.nodes.find((n) => n.kind === 'method' && n.parent === typeOnly)!.id,
+          expression: 'cb()',
+          candidates: [],
+        },
+      ],
+    })
+    const { wrapper } = setup({ viewModel: model })
+
+    const shown = nodeOf(wrapper, typeOnly).find('.name').text()
+    const flag = nodeOf(wrapper, typeOnly).find('.flag')
+    expect(flag.text()).toBe('循環（型のみ）・未追跡')
+
+    const { NAME_CHAR_WIDTH, FLAG_GAP, FLAG_CHAR_WIDTH } = LABEL_GEOMETRY
+    const nameRight =
+      Number(nodeOf(wrapper, typeOnly).find('.name').attributes('x')) +
+      shown.length * NAME_CHAR_WIDTH
+    const flagLeft = Number(flag.attributes('x')) - flag.text().length * FLAG_CHAR_WIDTH
+    expect(nameRight + FLAG_GAP).toBeLessThanOrEqual(flagLeft)
+  })
+
   it('循環が 1 件も無くても図が壊れない', () => {
     const { wrapper } = setup({
       viewModel: buildViewModel({ ...result.graph, cycles: [] }),
     })
 
     expect(wrapper.findAll('g.node').length).toBeGreaterThan(0)
-    expect(wrapper.findAll('.flag')).toHaveLength(0)
+    // 印の場所は未追跡（UT-19）と同じなので、循環のぶんが消えたことを見る
+    expect(wrapper.findAll('.flag').filter((flag) => flag.text().includes('循環'))).toHaveLength(0)
     expect(wrapper.findAll('path.edge').length).toBeGreaterThan(0)
     expect(wrapper.findAll('path.cyclic')).toHaveLength(0)
   })
