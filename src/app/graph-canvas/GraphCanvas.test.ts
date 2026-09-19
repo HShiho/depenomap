@@ -12,6 +12,7 @@ import * as columnAxis from './column-axis'
 import * as layoutModule from './layout'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import { LABEL_GEOMETRY, NAME_LIMIT } from './node-label'
+import { MAX_SCALE, MIN_SCALE, toWorld } from './viewport'
 import GraphCanvas from './GraphCanvas.vue'
 
 import fixture from '../../../test-data/dependency-graph.complex.json'
@@ -1301,5 +1302,146 @@ describe('循環の印（US-06 / UT-10）', () => {
 
     expect(nodeOf(wrapper, plain).classes()).toContain('selected')
     expect(nodeOf(wrapper, plain).classes()).toContain('in-cycle')
+  })
+})
+
+describe('ホイールとトラックパッド（US-16 / UT-16）', () => {
+  /** キャンバスへホイールを 1 回送る。実寸は jsdom では 0 なので原点として扱われる */
+  const spin = async (
+    wrapper: ReturnType<typeof setup>['wrapper'],
+    init: Partial<WheelEventInit> & { deltaX?: number; deltaY?: number } = {},
+  ) => {
+    const event = new WheelEvent('wheel', { cancelable: true, bubbles: true, ...init })
+    wrapper.find('svg.canvas').element.dispatchEvent(event)
+    await wrapper.vm.$nextTick()
+    return event
+  }
+
+  it('2 本指スクロールで図が動く', async () => {
+    const { wrapper } = setup()
+    const before = { ...viewportOf(wrapper) }
+
+    await spin(wrapper, { deltaX: 30, deltaY: 20 })
+
+    const after = viewportOf(wrapper)
+    expect(after.x).toBe(before.x - 30)
+    expect(after.y).toBe(before.y - 20)
+    expect(after.scale).toBe(before.scale)
+  })
+
+  it('ピンチで倍率が変わる', async () => {
+    const { wrapper } = setup()
+    const before = viewportOf(wrapper).scale
+
+    await spin(wrapper, { deltaY: -60, ctrlKey: true })
+
+    expect(viewportOf(wrapper).scale).toBeGreaterThan(before)
+  })
+
+  it('ブラウザの既定を止める', async () => {
+    // 止めないと、⌘ + ホイールがページ全体の拡大に、横スクロールが履歴に吸われる
+    const { wrapper } = setup()
+
+    const pan = await spin(wrapper, { deltaX: 10 })
+    const zoom = await spin(wrapper, { deltaY: -10, ctrlKey: true })
+
+    expect(pan.defaultPrevented).toBe(true)
+    expect(zoom.defaultPrevented).toBe(true)
+  })
+
+  it('倍率の上下限を超えない', async () => {
+    const { wrapper } = setup()
+
+    for (let i = 0; i < 40; i += 1) await spin(wrapper, { deltaY: -200, ctrlKey: true })
+    expect(viewportOf(wrapper).scale).toBe(MAX_SCALE)
+
+    for (let i = 0; i < 80; i += 1) await spin(wrapper, { deltaY: 200, ctrlKey: true })
+    expect(viewportOf(wrapper).scale).toBe(MIN_SCALE)
+  })
+
+  it('実寸が変わっても、描く領域だけが追従して位置は残る', async () => {
+    /*
+     * 一覧の開閉はこの実寸の変化として届く（観測は `AppShell` が持つ）。
+     * ここで見るのは受け取った側の振る舞いで、開閉そのものの配線ではない。
+     * 合わせ直すと、寄って見ていたぶんが開閉のたびに失われる。
+     */
+    const { state, wrapper } = setup()
+    await spin(wrapper, { deltaY: -150, ctrlKey: true })
+    const moved = { ...viewportOf(wrapper) }
+
+    state.setCanvasSize(CANVAS.width + 300, CANVAS.height)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('svg.canvas').attributes('width')).toBe(String(CANVAS.width + 300))
+    expect(viewportOf(wrapper)).toEqual(moved)
+  })
+
+  it('広がったあとの全体表示は、広がったぶんを使う', async () => {
+    // 描く領域が追従していないと、収めたつもりが前の幅のままになる
+    const { state, wrapper } = setup()
+    const narrow = viewportOf(wrapper).scale
+
+    state.setCanvasSize(CANVAS.width * 2, CANVAS.height * 2)
+    await wrapper.vm.$nextTick()
+    ;(wrapper.vm as unknown as { fitToContent: () => void }).fitToContent()
+    await wrapper.vm.$nextTick()
+
+    expect(viewportOf(wrapper).scale).toBeGreaterThan(narrow)
+  })
+
+  it('ポインタの下にあるものが動かない（画面の座標から数える）', async () => {
+    /*
+     * ここで見るのは `clientX/Y` からキャンバスの座標への換算。x と y の
+     * 取り違えや、要素の左上を引き忘れても、純粋関数側の検査は通る。
+     * jsdom は実寸を持たないので、矩形を差し込んで測れる状態を作る
+     */
+    const { wrapper } = setup()
+    const box = { left: 120, top: 60, width: CANVAS.width, height: CANVAS.height }
+    const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      ...box,
+      right: box.left + box.width,
+      bottom: box.top + box.height,
+      x: box.left,
+      y: box.top,
+      toJSON: () => ({}),
+    })
+
+    try {
+      const pointer = { clientX: 500, clientY: 300 }
+      const inCanvas = { x: pointer.clientX - box.left, y: pointer.clientY - box.top }
+      const before = toWorld(viewportOf(wrapper), inCanvas)
+
+      await spin(wrapper, { deltaY: -120, ctrlKey: true, ...pointer })
+
+      const after = toWorld(viewportOf(wrapper), inCanvas)
+      expect(after.x).toBeCloseTo(before.x, 6)
+      expect(after.y).toBeCloseTo(before.y, 6)
+    } finally {
+      // 差し替えたまま残すと、以降のテストが全部この矩形を見る
+      rect.mockRestore()
+    }
+  })
+
+  it('行単位で届く環境でも、キャンバスまで単位が伝わる', async () => {
+    // 受け渡しを 1 つ落とすと、px 扱いに戻って実質動かなくなる
+    const { wrapper } = setup()
+    const before = { ...viewportOf(wrapper) }
+
+    await spin(wrapper, { deltaY: 3, deltaMode: 1 })
+
+    expect(before.y - viewportOf(wrapper).y).toBe(48)
+  })
+
+  it('続けて回すと、前の位置から積み上がる', async () => {
+    // 1 回ごとに全体表示へ戻ると、寄って見ることができない
+    const { wrapper } = setup()
+    const before = { ...viewportOf(wrapper) }
+
+    await spin(wrapper, { deltaX: 30, deltaY: 20 })
+    await spin(wrapper, { deltaX: 30, deltaY: 20 })
+
+    const after = viewportOf(wrapper)
+    expect(after.x).toBe(before.x - 60)
+    expect(after.y).toBe(before.y - 40)
   })
 })

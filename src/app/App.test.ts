@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { loadGraphFromValue } from '@/core/graph/loader'
 import App from './App.vue'
 import { CYCLE_LABEL } from './shell/cycle-mark'
+import ViewportControls from './graph-canvas/ViewportControls.vue'
 import { useViewState } from './shell/view-state'
 
 import fixture from '../../test-data/dependency-graph.complex.json'
@@ -951,5 +952,79 @@ describe('概要の開閉（US-11 / UT-13）', () => {
       expect(sheet(wrapper).text()).not.toContain(word)
     }
     expect(sheet(wrapper).findAll('a[download]')).toHaveLength(0)
+  })
+})
+
+describe('図の見ている位置の口（US-16 / UT-16）', () => {
+  const spin = async (
+    wrapper: Awaited<ReturnType<typeof setup>>['wrapper'],
+    init: Partial<WheelEventInit> = {},
+  ) => {
+    wrapper
+      .find('svg.canvas')
+      .element.dispatchEvent(new WheelEvent('wheel', { cancelable: true, bubbles: true, ...init }))
+    await wrapper.vm.$nextTick()
+  }
+
+  const viewportOf = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+    JSON.parse(
+      JSON.stringify(
+        (
+          wrapper.findComponent({ name: 'GraphCanvas' }).vm as unknown as {
+            viewport: { x: number; y: number; scale: number }
+          }
+        ).viewport,
+      ),
+    ) as { x: number; y: number; scale: number }
+
+  /** 倍率の表示 */
+  const zoomLabel = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+    wrapper.findComponent(ViewportControls).find('span')
+
+  /**
+   * 実寸を入れてから測る。
+   *
+   * jsdom に `ResizeObserver` が無いため、`App` 経由では実寸が 0×0 のまま
+   * 入らない。0×0 では全体表示が等倍を返すので、**何を呼んでも 100% になり**
+   * 「戻った」ことを見たつもりの検査が素通りする。
+   */
+  const sized = async () => {
+    const found = await setup()
+    found.state.setCanvasSize(1200, 800)
+    await found.wrapper.vm.$nextTick()
+    return found
+  }
+
+  it('拡大率が読める', async () => {
+    // 出さないと、上下限に当たったのか操作が効いていないのかが区別できない
+    const { wrapper } = await sized()
+
+    expect(zoomLabel(wrapper).text()).toMatch(/^拡大率\d+%$/)
+  })
+
+  it('ピンチすると、拡大率の表示も動く', async () => {
+    const { wrapper } = await sized()
+    const before = zoomLabel(wrapper).text()
+
+    await spin(wrapper, { deltaY: -200, ctrlKey: true })
+
+    expect(zoomLabel(wrapper).text()).not.toBe(before)
+  })
+
+  it('全体表示で、動かしたぶんが戻る', async () => {
+    // 手で動かして迷子になったときに戻れる口
+    const { wrapper } = await sized()
+    const fitted = { ...viewportOf(wrapper) }
+    // 全体表示は等倍とは限らない。等倍だと「何をしても 100%」と区別が付かない
+    expect(fitted.scale).not.toBe(1)
+
+    await spin(wrapper, { deltaY: -200, ctrlKey: true })
+    await spin(wrapper, { deltaX: 120, deltaY: 90 })
+    expect(viewportOf(wrapper)).not.toEqual(fitted)
+
+    await wrapper.find('[aria-label="全体を表示"]').trigger('click')
+
+    // 倍率だけでなく、動かした位置も戻る
+    expect(viewportOf(wrapper)).toEqual(fitted)
   })
 })

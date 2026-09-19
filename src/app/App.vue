@@ -5,7 +5,7 @@
  * 各領域の中身は UT-06 以降が差し込む。いまレールと通知に入っているのは、
  * 器が動いていることを目で確かめるための**暫定表示**である。
  */
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
 
 import { callOrder } from './graph-canvas/call-order'
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
@@ -16,12 +16,22 @@ import OverviewSheet from './overview/OverviewSheet.vue'
 import SidebarPanel from './sidebar/SidebarPanel.vue'
 import GranularityToggle from './graph-canvas/GranularityToggle.vue'
 import GraphCanvas from './graph-canvas/GraphCanvas.vue'
+import ViewportControls from './graph-canvas/ViewportControls.vue'
 import AppShell from './shell/AppShell.vue'
 import HistoryNav from './shell/HistoryNav.vue'
 import { loadGraphInto } from './shell/graph-source'
 import { useViewState } from './shell/view-state'
 
 const state = useViewState()
+
+/**
+ * 図の側の口（UT-16）。倍率を読み、全体表示を呼ぶ。
+ *
+ * ビューポートは図が持つ（UT-06 の契約）。ツールバーは別の領域にあるので、
+ * 値と呼び出しをここで橋渡しする。**状態を器（UT-05）へ移さない** — 図の
+ * 見ている位置は、図が組み換わるたびに図の側の都合で書き換わる。
+ */
+const canvas = useTemplateRef<InstanceType<typeof GraphCanvas>>('canvas')
 
 /**
  * 概要を開いているか（UT-13）。
@@ -144,7 +154,7 @@ const showsOrderNote = computed(
 <template>
   <AppShell :sheet-open="overviewShown">
     <template #canvas>
-      <GraphCanvas />
+      <GraphCanvas ref="canvas" />
     </template>
 
     <!--
@@ -170,6 +180,10 @@ const showsOrderNote = computed(
 
         <GranularityToggle />
         <ColumnAxisToggle />
+
+        <span class="h-17 w-px shrink-0 bg-line"></span>
+
+        <ViewportControls :scale="canvas?.viewport.scale ?? 1" @fit="canvas?.fitToContent()" />
       </div>
     </template>
 

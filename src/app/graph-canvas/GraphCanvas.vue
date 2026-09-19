@@ -23,6 +23,7 @@ import { edgeMidpoint, edgePath } from './edge-path'
 import { nameLimitFor, subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import { centreOn, fit, transformOf, type Viewport } from './viewport'
+import { applyWheel } from './wheel-gesture'
 
 const state = useViewState()
 
@@ -338,6 +339,35 @@ function fitToContent(): void {
   viewport.value = fit({ width: layout.value.width, height: layout.value.height }, view.value)
 }
 
+/**
+ * ホイール／トラックパッド（UT-16 / US-16）。
+ *
+ * **既定の動きは止める。** 止めないと、⌘ + ホイールがブラウザ全体の拡大に、
+ * 横方向のスクロールが「前のページへ戻る」に吸われる。図の上でだけ止めるので、
+ * 一覧や概要の側のスクロールは残る。
+ *
+ * **止めるのはホイールだけ。** タッチの指の動きはこの UT の対象外（US-16 は
+ * トラックパッド）で、受け取る先も無い。`touch-action` で殺すと、タッチ画面では
+ * ブラウザ既定の拡大縮小まで失われて、図を大きくする手段が 1 つも無くなる。
+ * タッチを受けるときは、受け取る側と一緒に止める。
+ *
+ * どの入力がどの動きになるかは `wheel-gesture.ts` が持つ。ここは位置を渡して
+ * 結果を受け取るだけ。
+ */
+function onWheel(event: WheelEvent): void {
+  event.preventDefault()
+  const box = (event.currentTarget as Element).getBoundingClientRect()
+  viewport.value = applyWheel(viewport.value, {
+    deltaX: event.deltaX,
+    deltaY: event.deltaY,
+    deltaMode: event.deltaMode,
+    shiftKey: event.shiftKey,
+    ctrlKey: event.ctrlKey,
+    metaKey: event.metaKey,
+    point: { x: event.clientX - box.left, y: event.clientY - box.top },
+  })
+}
+
 function focusNode(nodeId: string): void {
   const placed = positions.value.get(nodeId)
   if (placed) viewport.value = centreOn(viewport.value, placed, view.value)
@@ -401,6 +431,12 @@ let lastFocused: string | undefined
  * そのときの画面は 0×0 で全体表示が成立せず、あとからサイズが入っても
  * 等倍・左上のまま固定されてしまう。両方が揃った最初の時点で合わせ、
  * 以降のリサイズでは動かさない。
+ *
+ * **一覧の開閉でも動かさない**（UT-16）。描く領域は実寸に追従する（`<svg>` の
+ * 幅と高さがそのまま変わる）が、見ている位置はそのまま残す。合わせ直すと、
+ * 寄って見ていたぶんが開閉のたびに失われる。開閉には 0.18 秒のアニメーションが
+ * あり、そのあいだ実寸が連続して変わるので、追従させるほど図が揺れる。
+ * 戻したいときはツールバーの全体表示で戻す。
  */
 watch(
   () =>
@@ -464,6 +500,7 @@ watch(
     :width="state.canvasWidth || '100%'"
     :height="state.canvasHeight || '100%'"
     @click="onBackgroundClick"
+    @wheel="onWheel"
   >
     <defs>
       <!-- 矢尻。線と同じ色トークンを使う（UT-04） -->
