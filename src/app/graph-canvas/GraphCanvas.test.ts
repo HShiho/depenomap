@@ -1740,9 +1740,28 @@ describe('ノードを手で動かす（US-17 / UT-17）', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find(`[data-node-id="${moved}"]`).exists()).toBe(false)
-    const vm = wrapper.vm as unknown as { movedNodes: { id: string }[]; movedOutOfView: number }
+    const vm = wrapper.vm as unknown as {
+      movedNodes: { id: string }[]
+      movedOutOfView: string[]
+    }
     expect(vm.movedNodes.map((node) => node.id)).toEqual([moved])
-    expect(vm.movedOutOfView).toBe(1)
+    expect(vm.movedOutOfView).toEqual([moved])
+  })
+
+  it('図に出ていないぶんは、正本 JSON の並びで続く', async () => {
+    // 動かした順に積まれるので、そのまま出すと一覧の並びが操作の履歴になる
+    const { state, wrapper } = setup()
+    const early = viewModel.nodes.file[2]!.id
+    const late = viewModel.nodes.file[5]!.id
+
+    // 正本 JSON で後ろにあるほうから動かす
+    await drag(wrapper, late, { x: 340, y: 280 })
+    await drag(wrapper, early, { x: 320, y: 260 })
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    const vm = wrapper.vm as unknown as { movedNodes: { id: string }[] }
+    expect(vm.movedNodes.map((node) => node.id)).toEqual([early, late])
   })
 
   it('全体表示は、外へ動かしたノードも入れる', async () => {
@@ -1762,6 +1781,22 @@ describe('ノードを手で動かす（US-17 / UT-17）', () => {
     expect(screen.y).toBeGreaterThanOrEqual(0)
     expect(screen.x + NODE_WIDTH * view.scale).toBeLessThanOrEqual(CANVAS.width)
     expect(screen.y + NODE_HEIGHT * view.scale).toBeLessThanOrEqual(CANVAS.height)
+  })
+
+  it('全体表示は、左や上へ動かしたノードも入れる', async () => {
+    // 右下だけを数えると、負の側へ出たぶんが画面の外に残る
+    const { wrapper } = setup()
+    const id = viewModel.nodes.file[2]!.id
+    await drag(wrapper, id, { x: -500, y: -300 })
+
+    ;(wrapper.vm as unknown as { fitToContent: () => void }).fitToContent()
+    await wrapper.vm.$nextTick()
+
+    const view = viewportOf(wrapper)
+    const at = positionOf(wrapper, id)
+    expect(at.x).toBeLessThan(0)
+    expect(at.x * view.scale + view.x).toBeGreaterThanOrEqual(0)
+    expect(at.y * view.scale + view.y).toBeGreaterThanOrEqual(0)
   })
 
   it('右ボタンでは掴まない', async () => {

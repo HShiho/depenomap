@@ -166,7 +166,7 @@ const showsOrderNote = computed(
       <!-- 手で動かしたノード（UT-17）。図を見ているあいだも状態が読める -->
       <MovedNodesChip
         :nodes="canvas?.movedNodes ?? []"
-        :out-of-view="canvas?.movedOutOfView ?? 0"
+        :out-of-view="canvas?.movedOutOfView ?? []"
       />
 
       <NarrowingChip

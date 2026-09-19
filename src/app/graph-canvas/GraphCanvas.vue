@@ -22,7 +22,7 @@ import { narrowedNodeIds } from './narrowing'
 import { edgeMidpoint, edgePath } from './edge-path'
 import { nameLimitFor, subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
-import { centreOn, fit, transformOf, type Viewport } from './viewport'
+import { centreOn, fitBounds, transformOf, type Viewport } from './viewport'
 import { draggedTo, isDrag, type DragStart, type NodePositions } from './node-drag'
 import { applyWheel } from './wheel-gesture'
 
@@ -358,26 +358,31 @@ function onBackgroundClick(): void {}
 const view = computed(() => ({ width: state.canvasWidth, height: state.canvasHeight }))
 
 /**
- * 図の全体が入る大きさ。
+ * 図の外接矩形。
  *
  * **手で動かしたぶんも含める**（UT-17）。既定の並びの寸法だけで合わせると、
  * 外へ動かしたノードは「全体を表示」しても画面の外に残る。
+ *
+ * **左と上も見る。** 手で動かすと座標は負にもなり、大きさ（右下の端）だけを
+ * 数えると左や上へ出たぶんが入らない。
  */
-const contentSize = computed(() => {
-  const base = { width: layout.value.width, height: layout.value.height }
+const contentBounds = computed(() => {
+  const base = { minX: 0, minY: 0, maxX: layout.value.width, maxY: layout.value.height }
   if (movedPositions.value.size === 0) return base
 
   return placedNodes.value.reduce(
-    (size, placed) => ({
-      width: Math.max(size.width, placed.x + NODE_WIDTH),
-      height: Math.max(size.height, placed.y + NODE_HEIGHT),
+    (bounds, placed) => ({
+      minX: Math.min(bounds.minX, placed.x),
+      minY: Math.min(bounds.minY, placed.y),
+      maxX: Math.max(bounds.maxX, placed.x + NODE_WIDTH),
+      maxY: Math.max(bounds.maxY, placed.y + NODE_HEIGHT),
     }),
     base,
   )
 })
 
 function fitToContent(): void {
-  viewport.value = fit(contentSize.value, view.value)
+  viewport.value = fitBounds(contentBounds.value, view.value)
 }
 
 /**
@@ -447,12 +452,6 @@ function onNodePointerDown(node: GraphNode, event: PointerEvent): void {
   }
 
   /*
-   * 文字の上から掴んでも、ブラウザの文字選択が走らないようにする。
-   * 走ると、動かすあいだ図の広い範囲が反転する
-   */
-  event.preventDefault()
-
-  /*
    * 購読は窓に付ける。ノードの上だけで拾うと、速く動かしてポインタが
    * ノードから外れた瞬間に置き去りになる。
    *
@@ -508,20 +507,22 @@ const movedNodes = computed<readonly GraphNode[]>(() => {
     .map((placed) => placed.node)
     .filter((node) => movedPositions.value.has(node.id))
   const shownIds = new Set(shown.map((node) => node.id))
-  const hidden = [...movedPositions.value.keys()]
-    .filter((id) => !shownIds.has(id))
-    .map((id) => viewModel.nodeById.get(id))
-    .filter((node): node is GraphNode => node !== undefined)
+  /*
+   * 図に出ていないぶんは**正本 JSON の並び**で続ける。上書きは動かした順に
+   * 積まれるので、そのまま出すと一覧の並びが操作の履歴になる
+   */
+  const hidden = [...viewModel.nodes.file, ...viewModel.nodes.method].filter(
+    (node) => movedPositions.value.has(node.id) && !shownIds.has(node.id),
+  )
 
   return [...shown, ...hidden]
 })
 
-/** 図に出ていないぶん。印が「どれを動かしたか」を出すときに分けて示す */
-const movedOutOfView = computed(
-  () =>
-    movedNodes.value.length -
-    placedNodes.value.filter((placed) => movedPositions.value.has(placed.node.id)).length,
-)
+/** 図に出ていないノードの ID。印が行ごとに示す */
+const movedOutOfView = computed(() => {
+  const shown = new Set(placedNodes.value.map((placed) => placed.node.id))
+  return movedNodes.value.map((node) => node.id).filter((id) => !shown.has(id))
+})
 
 /** 動かしたぶんを捨てる。ノードを指定すればそれだけ（UT-17 の決定） */
 function resetPositions(nodeId?: string): void {
@@ -873,6 +874,16 @@ watch(
 /* ノード。塗りは層の色を混ぜ、状態は枠線だけで表す（参照仕様） */
 .node {
   cursor: pointer;
+  /*
+   * 文字の上から掴んでも、ブラウザの文字選択が走らないようにする（UT-17）。
+   * 走ると、動かすあいだ図の広い範囲が反転する。
+   *
+   * **`preventDefault` では止めない。** それは文字選択だけでなく、押した
+   * ところへ焦点を移す既定の動きまで止める。検索欄に焦点が残ったままになり、
+   * そこで押した Esc は検索欄が先に食う（UT-14 の「どこを触っていても解ける」
+   * が崩れる）
+   */
+  user-select: none;
 }
 
 .node .box {

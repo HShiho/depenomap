@@ -102,6 +102,34 @@ export function fit(content: Size, view: Size): Viewport {
   }
 }
 
+/** 図の外接矩形。原点が 0 とは限らない（手で動かすと負にもなる / UT-17） */
+export interface Bounds {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+/**
+ * 外接矩形の全体が入るビューポート。
+ *
+ * `fit` は**内容の左上が原点にある**前提で数える。手で動かしたノード（UT-17）は
+ * 負の座標にも出るので、そのままでは左や上へ出たぶんが画面の外に残る。
+ * 大きさで倍率と余白を決めたあと、左上のぶんだけずらす。
+ */
+export function fitBounds(bounds: Bounds, view: Size): Viewport {
+  const size = {
+    width: bounds.maxX - bounds.minX,
+    height: bounds.maxY - bounds.minY,
+  }
+  const base = fit(size, view)
+  return {
+    scale: base.scale,
+    x: base.x - bounds.minX * base.scale,
+    y: base.y - bounds.minY * base.scale,
+  }
+}
+
 /**
  * 画面上のある点を動かさずに拡大縮小する。
  *

@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import { NODE_HEIGHT, NODE_WIDTH } from './layout'
 import {
-  centreOn,
-  clampScale,
-  fit,
   IDENTITY,
   MAX_SCALE,
   MIN_SCALE,
+  centreOn,
+  clampScale,
+  fit,
+  fitBounds,
   panBy,
   toScreen,
   toWorld,
@@ -124,5 +125,31 @@ describe('ノードへ寄せる', () => {
     const moved = centreOn({ x: 0, y: 0, scale: 0.6 }, { x: 100, y: 100 }, view)
 
     expect(moved.scale).toBe(0.6)
+  })
+})
+
+describe('外接矩形に合わせる（UT-17）', () => {
+  it('原点から始まるときは、大きさで合わせるのと同じ', () => {
+    const size = { width: 800, height: 600 }
+    const view = { width: 1200, height: 800 }
+
+    expect(fitBounds({ minX: 0, minY: 0, maxX: size.width, maxY: size.height }, view)).toEqual(
+      fit(size, view),
+    )
+  })
+
+  it('負の側へ出ていても、画面の中に収まる', () => {
+    // 手で動かすと座標は負になる。右下だけを数えると左や上が入らない
+    const bounds = { minX: -400, minY: -200, maxX: 800, maxY: 600 }
+    const view = { width: 1200, height: 800 }
+
+    const at = fitBounds(bounds, view)
+
+    const topLeft = { x: bounds.minX * at.scale + at.x, y: bounds.minY * at.scale + at.y }
+    const bottomRight = { x: bounds.maxX * at.scale + at.x, y: bounds.maxY * at.scale + at.y }
+    expect(topLeft.x).toBeGreaterThanOrEqual(0)
+    expect(topLeft.y).toBeGreaterThanOrEqual(0)
+    expect(bottomRight.x).toBeLessThanOrEqual(view.width)
+    expect(bottomRight.y).toBeLessThanOrEqual(view.height)
   })
 })

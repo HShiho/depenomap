@@ -15,7 +15,7 @@ function file(name: string, directory = 'src'): FileNode {
   }
 }
 
-const setup = (nodes: readonly GraphNode[], outOfView = 0) =>
+const setup = (nodes: readonly GraphNode[], outOfView: readonly string[] = []) =>
   mount(MovedNodesChip, { props: { nodes, outOfView } })
 
 describe('手で動かしたノードの印（US-18 / UT-17）', () => {
@@ -88,17 +88,21 @@ describe('手で動かしたノードの印（US-18 / UT-17）', () => {
     expect(wrapper.findAll('li')).toHaveLength(2)
   })
 
-  it('図に出ていないぶんは、そのことを添える', async () => {
-    // 隠れているあいだも上書きは残っている。ただし探しに行けない
-    const wrapper = setup([file('a.ts'), file('b.ts')], 1)
+  it('図に出ていないものは、その行で分かる', async () => {
+    // 総数だけだと、並んだ名前のどれを指しているのかが読めない
+    const shown = file('a.ts')
+    const gone = file('b.ts')
+    const wrapper = setup([shown, gone], [gone.id])
 
     await wrapper.trigger('focusin')
 
-    expect(wrapper.text()).toContain('1 件はいま図に出ていません')
+    const rows = wrapper.findAll('li').map((row) => row.text())
+    expect(rows.find((row) => row.includes('b.ts'))).toContain('図に出ていません')
+    expect(rows.find((row) => row.includes('a.ts'))).not.toContain('図に出ていません')
   })
 
   it('全部出ているときは、その断りを出さない', async () => {
-    const wrapper = setup([file('a.ts')], 0)
+    const wrapper = setup([file('a.ts')], [])
 
     await wrapper.trigger('focusin')
 
