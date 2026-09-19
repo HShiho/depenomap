@@ -1199,6 +1199,49 @@ describe('追跡できなかった依存（US-21 / UT-19）', () => {
     expect(wrapper.find('.shell-overlay').text()).not.toContain(guess.expression)
   })
 
+  it('戻ると、推測の印は消える', async () => {
+    // 履歴の長さは変わらないので、移動の回数で消すと取り残される
+    const { state, wrapper } = await setup()
+    state.moveTo(state.viewModel!.nodes.file[2]!.id)
+    await open(wrapper)
+    const guess = state.viewModel!.unresolved.find((u) => u.candidates.length > 0)!
+    await sheet(wrapper).find(`[data-node-id="${guess.candidates[0]!}"]`).trigger('click')
+    expect(wrapper.find('.shell-overlay').text()).toContain(guess.expression)
+
+    state.back()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.shell-overlay').text()).not.toContain(guess.expression)
+  })
+
+  it('進んで戻ってくれば、また出る', async () => {
+    // 印は「どこにいるか」で決まる。推測で来たノードへ帰れば、また推測のまま
+    const { state, wrapper } = await setup()
+    state.moveTo(state.viewModel!.nodes.file[2]!.id)
+    await open(wrapper)
+    const guess = state.viewModel!.unresolved.find((u) => u.candidates.length > 0)!
+    await sheet(wrapper).find(`[data-node-id="${guess.candidates[0]!}"]`).trigger('click')
+    state.back()
+    await wrapper.vm.$nextTick()
+
+    state.forward()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.shell-overlay').text()).toContain(guess.expression)
+  })
+
+  it('選択が外れたら、推測の印も消える', async () => {
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const guess = state.viewModel!.unresolved.find((u) => u.candidates.length > 0)!
+    await sheet(wrapper).find(`[data-node-id="${guess.candidates[0]!}"]`).trigger('click')
+
+    state.clearSelection()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.shell-overlay').text()).not.toContain(guess.expression)
+  })
+
   it('概要と同時には出さない', async () => {
     // 重ねると、裏のシートが触れないまま残る
     const { wrapper } = await setup()

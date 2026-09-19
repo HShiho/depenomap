@@ -5,7 +5,7 @@
  * 各領域の中身は UT-06 以降が差し込む。いまレールと通知に入っているのは、
  * 器が動いていることを目で確かめるための**暫定表示**である。
  */
-import { computed, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, useTemplateRef } from 'vue'
 
 import { callOrder } from './graph-canvas/call-order'
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
@@ -57,13 +57,23 @@ function openOverview(event: MouseEvent): void {
 }
 
 /**
- * 推測の候補から移ったときに残す式（UT-19 / US-21）。
+ * 推測の候補から移ったときの記録（UT-19 / US-21）。
  *
  * **移った先では「推測で来た」ことが画面から消える。** 確定した依存をたどって
  * 来たのか、絞り込めなかった候補へ飛んだのかが区別できないと、そこから読み取る
- * 構造が実態とずれる。次にどこかへ移るまで出し続ける。
+ * 構造が実態とずれる。
+ *
+ * **「どこにいるか」で持つ。** 移動の回数で消すと、戻る・進む（履歴の長さが
+ * 変わらない）や、同じノードを選び直したとき（そもそも積まれない）に取り残される。
+ * 選択が推測で来たノードから離れた時点で、出す理由が無くなる。
  */
-const guessedFrom = ref<string | undefined>(undefined)
+const guessed = ref<{ nodeId: string; expression: string } | undefined>(undefined)
+
+const guessedFrom = computed(() =>
+  guessed.value !== undefined && state.selectedNodeId === guessed.value.nodeId
+    ? guessed.value.expression
+    : undefined,
+)
 
 /**
  * 推測の候補へ移る（UT-19 は導線を差し込むだけ）。
@@ -71,13 +81,9 @@ const guessedFrom = ref<string | undefined>(undefined)
  * **移動そのものは UT-14 の経路を通す。** 別の経路を作ると、推測から移った
  * ときだけ絞り込みが立たない、履歴に積まれない、といった食い違いができる。
  */
-/** 直後の履歴の変化が、いまの移動そのものかどうか */
-let guessedMoveIsCurrent = false
-
 function moveToCandidate(nodeId: string, expression: string): void {
-  guessedMoveIsCurrent = true
   state.moveTo(nodeId)
-  guessedFrom.value = expression
+  guessed.value = { nodeId, expression }
   unresolved.close()
 }
 
@@ -85,18 +91,6 @@ function openUnresolved(event: MouseEvent): void {
   overview.close()
   unresolved.open(event)
 }
-
-/*
- * 次の移動で印を消す。推測で来たのは 1 手前までで、そこから先は確定した
- * 依存をたどっている
- */
-watch(
-  () => state.history.length,
-  () => {
-    if (guessedMoveIsCurrent) guessedMoveIsCurrent = false
-    else guessedFrom.value = undefined
-  },
-)
 
 onMounted(() => void loadGraphInto(state))
 
@@ -179,7 +173,7 @@ const showsOrderNote = computed(
       <GuessedMoveChip
         v-if="guessedFrom !== undefined"
         :expression="guessedFrom"
-        @close="guessedFrom = undefined"
+        @close="guessed = undefined"
       />
 
       <MovedNodesChip
