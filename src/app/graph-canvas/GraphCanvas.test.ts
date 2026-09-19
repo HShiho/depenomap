@@ -1315,6 +1315,39 @@ describe('循環の印（US-06 / UT-10）', () => {
     expect(nodeOf(wrapper, plain.id).find('.flag').exists()).toBe(false)
   })
 
+  it('印が重なっても、名前と重ならない幅に収まる', () => {
+    // 印は組み合わさる（循環（型のみ）・未追跡）。いちばん長い形でも収まる
+    const long = `${'A'.repeat(40)}.ts`
+    const model = buildViewModel({
+      ...result.graph,
+      nodes: result.graph.nodes.map((node) =>
+        node.id === typeOnly ? { ...node, name: long } : node,
+      ),
+      unresolved: [
+        ...result.graph.unresolved,
+        {
+          id: 'u_probe',
+          reason: 'callback',
+          from: result.graph.nodes.find((n) => n.kind === 'method' && n.parent === typeOnly)!.id,
+          expression: 'cb()',
+          candidates: [],
+        },
+      ],
+    })
+    const { wrapper } = setup({ viewModel: model })
+
+    const shown = nodeOf(wrapper, typeOnly).find('.name').text()
+    const flag = nodeOf(wrapper, typeOnly).find('.flag')
+    expect(flag.text()).toBe('循環（型のみ）・未追跡')
+
+    const { NAME_CHAR_WIDTH, FLAG_GAP, FLAG_CHAR_WIDTH } = LABEL_GEOMETRY
+    const nameRight =
+      Number(nodeOf(wrapper, typeOnly).find('.name').attributes('x')) +
+      shown.length * NAME_CHAR_WIDTH
+    const flagLeft = Number(flag.attributes('x')) - flag.text().length * FLAG_CHAR_WIDTH
+    expect(nameRight + FLAG_GAP).toBeLessThanOrEqual(flagLeft)
+  })
+
   it('循環が 1 件も無くても図が壊れない', () => {
     const { wrapper } = setup({
       viewModel: buildViewModel({ ...result.graph, cycles: [] }),
