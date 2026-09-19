@@ -125,6 +125,14 @@ export interface ViewModel {
   cyclesOfEdge: (edgeId: string) => readonly Cycle[]
   /** このノードで追跡が止まった、という未解決依存 */
   unresolvedFrom: (nodeId: string) => readonly Unresolved[]
+  /**
+   * 追えなかった依存の全件（US-21）。正本 JSON の並びを保つ。
+   *
+   * **確定した依存（`edges`）とは別に持つ。** 混ぜるとグラフ全体の信頼性が
+   * 読み手に伝わらなくなるため、正本 JSON でも独立した節になっている
+   * （スキーマ §3）。その隔離をここでも保つ
+   */
+  unresolved: readonly Unresolved[]
   /** このノードが候補として推測されている、という未解決依存 */
   unresolvedCandidatesFor: (nodeId: string) => readonly Unresolved[]
 
@@ -320,6 +328,7 @@ export function buildViewModel(graph: DependencyGraph): ViewModel {
     fanInOf: (nodeId, granularity) => fanIn[granularity].get(nodeId) ?? 0,
     cyclesOf: (nodeId) => cyclesByNode.get(nodeId) ?? [],
     cyclesOfEdge: (edgeId) => cyclesByEdge.get(edgeId) ?? [],
+    unresolved: graph.unresolved,
     unresolvedFrom: (nodeId) => unresolved.byOrigin.get(nodeId) ?? [],
     unresolvedCandidatesFor: (nodeId) => unresolved.byCandidate.get(nodeId) ?? [],
     searchKeyOf: (nodeId) => searchKeys.get(nodeId),
