@@ -8,14 +8,14 @@ import { afterAll, describe, expect, it } from 'vitest'
 import type { LoadResult } from '../core/graph/loader'
 import { GRAPH_ENDPOINT, LOCATE_ENDPOINT } from '../core/graph/api'
 import { createApp } from './app'
-import { DEFAULT_PORT } from './config'
+import { DEFAULT_HOST, DEFAULT_PORT } from './config'
 
 const fixturePath = fileURLToPath(
   new URL('../../test-data/dependency-graph.complex.json', import.meta.url),
 )
 
 function appFor(graphPath: string) {
-  return createApp({ graphPath, port: DEFAULT_PORT })
+  return createApp({ graphPath, port: DEFAULT_PORT, host: DEFAULT_HOST })
 }
 
 /** このファイルが作った一時ディレクトリ。テストの後に消す */
@@ -135,7 +135,7 @@ const HTML_ACCEPT = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q
 describe('画面の配信（本番）', () => {
   it('clientDir を渡すと index.html を返す', async () => {
     const app = createApp(
-      { graphPath: fixturePath, port: DEFAULT_PORT },
+      { graphPath: fixturePath, port: DEFAULT_PORT, host: DEFAULT_HOST },
       {
         clientDir: await writeClientDir(),
       },
@@ -149,7 +149,7 @@ describe('画面の配信（本番）', () => {
 
   it('アセットを返す', async () => {
     const app = createApp(
-      { graphPath: fixturePath, port: DEFAULT_PORT },
+      { graphPath: fixturePath, port: DEFAULT_PORT, host: DEFAULT_HOST },
       {
         clientDir: await writeClientDir(),
       },
@@ -165,7 +165,7 @@ describe('画面の配信（本番）', () => {
     '画面は単一ページなので、直接叩かれた URL にも index.html を返す: %s',
     async (path) => {
       const app = createApp(
-        { graphPath: fixturePath, port: DEFAULT_PORT },
+        { graphPath: fixturePath, port: DEFAULT_PORT, host: DEFAULT_HOST },
         {
           clientDir: await writeClientDir(),
         },
@@ -180,7 +180,7 @@ describe('画面の配信（本番）', () => {
 
   it('画面を求めていない要求はフォールバックしない', async () => {
     const app = createApp(
-      { graphPath: fixturePath, port: DEFAULT_PORT },
+      { graphPath: fixturePath, port: DEFAULT_PORT, host: DEFAULT_HOST },
       {
         clientDir: await writeClientDir(),
       },
@@ -193,7 +193,7 @@ describe('画面の配信（本番）', () => {
 
   it('静的配信より API を先に引き当てる', async () => {
     const app = createApp(
-      { graphPath: fixturePath, port: DEFAULT_PORT },
+      { graphPath: fixturePath, port: DEFAULT_PORT, host: DEFAULT_HOST },
       {
         clientDir: await writeClientDir(),
       },
@@ -206,7 +206,7 @@ describe('画面の配信（本番）', () => {
 
   it('知らない /api/* は 404。画面のフォールバックに巻き込まない', async () => {
     const app = createApp(
-      { graphPath: fixturePath, port: DEFAULT_PORT },
+      { graphPath: fixturePath, port: DEFAULT_PORT, host: DEFAULT_HOST },
       { clientDir: await writeClientDir() },
     )
 
@@ -220,7 +220,7 @@ describe('画面の配信（本番）', () => {
     '無いアセットは 404。index.html を返さない: Accept %s',
     async (accept) => {
       const app = createApp(
-        { graphPath: fixturePath, port: DEFAULT_PORT },
+        { graphPath: fixturePath, port: DEFAULT_PORT, host: DEFAULT_HOST },
         { clientDir: await writeClientDir() },
       )
 
@@ -232,7 +232,7 @@ describe('画面の配信（本番）', () => {
 
   it('index.html は毎回問い合わせさせる', async () => {
     const app = createApp(
-      { graphPath: fixturePath, port: DEFAULT_PORT },
+      { graphPath: fixturePath, port: DEFAULT_PORT, host: DEFAULT_HOST },
       { clientDir: await writeClientDir() },
     )
 
@@ -262,6 +262,7 @@ describe(`GET ${LOCATE_ENDPOINT}`, () => {
     const app = createApp({
       graphPath: fixturePath,
       port: DEFAULT_PORT,
+      host: DEFAULT_HOST,
       repo: { hostPath: '/Users/me/app', mountPath: repoDir },
     })
 
@@ -280,6 +281,7 @@ describe(`GET ${LOCATE_ENDPOINT}`, () => {
     const app = createApp({
       graphPath: fixturePath,
       port: DEFAULT_PORT,
+      host: DEFAULT_HOST,
       repo: { hostPath: '/Users/me/app', mountPath: repoDir },
     })
 
@@ -304,6 +306,7 @@ describe(`GET ${LOCATE_ENDPOINT}`, () => {
     const app = createApp({
       graphPath: fixturePath,
       port: DEFAULT_PORT,
+      host: DEFAULT_HOST,
       repo: { hostPath: '/Users/me/app', mountPath: repoDir },
     })
 

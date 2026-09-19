@@ -248,3 +248,25 @@ describe('解析対象リポジトリの指定（UT-20）', () => {
     expect(result.ok).toBe(false)
   })
 })
+
+describe('待ち受ける宛先（UT-20）', () => {
+  it('既定はループバックだけ', () => {
+    // この口には認証が無く、解析対象の構成をそのまま返す
+    const result = resolveConfig(['--graph', '/g.json'], {}, '/w')
+
+    expect(result.ok && result.config.host).toBe('127.0.0.1')
+  })
+
+  it('明示すれば、そこで待ち受ける', () => {
+    // コンテナの中のループバックは外から届かない
+    const result = resolveConfig(['--graph', '/g.json', '--host', '0.0.0.0'], {}, '/w')
+
+    expect(result.ok && result.config.host).toBe('0.0.0.0')
+  })
+
+  it('環境変数でも渡せる', () => {
+    const result = resolveConfig([], { DEPENOMAP_GRAPH: '/g.json', DEPENOMAP_HOST: '::' }, '/w')
+
+    expect(result.ok && result.config.host).toBe('::')
+  })
+})

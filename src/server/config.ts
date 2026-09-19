@@ -30,6 +30,19 @@ export const PORT_ENV = 'DEPENOMAP_PORT'
 /** 解析対象リポジトリの在り処を渡す環境変数（UT-20） */
 export const REPO_ENV = 'DEPENOMAP_REPO'
 
+/** 待ち受ける宛先を渡す環境変数（UT-20） */
+export const HOST_ENV = 'DEPENOMAP_HOST'
+
+/**
+ * 待ち受ける宛先の既定値。**ループバックだけ**。
+ *
+ * この口には認証が無く、`/api/graph` は解析対象のファイル構成と依存関係を
+ * そのまま返す。既定で全インターフェースに開くと、同じネットワークにいる誰もが
+ * それを読める。コンテナの中から外へ見せる必要があるとき（UT-20 / Docker）は、
+ * そこで明示的に開く。
+ */
+export const DEFAULT_HOST = '127.0.0.1'
+
 /**
  * 解析対象リポジトリの在り処（UT-20 / ADR-004）。
  *
@@ -54,6 +67,8 @@ export interface ServerConfig {
    */
   graphPath: string
   port: number
+  /** 待ち受ける宛先。既定はループバックだけ */
+  host: string
   /**
    * 解析対象リポジトリ。渡されなければ `undefined`。
    *
@@ -70,7 +85,7 @@ export interface ServerConfig {
 export type ConfigResult = { ok: true; config: ServerConfig } | { ok: false; messages: string[] }
 
 /** 解釈できる起動オプション。ここに無いものを受け取ったら黙って捨てずに失敗させる */
-const KNOWN_OPTIONS = ['--graph', '--port', '--repo'] as const
+const KNOWN_OPTIONS = ['--graph', '--port', '--repo', '--host'] as const
 type KnownOption = (typeof KNOWN_OPTIONS)[number]
 
 function isKnownOption(value: string): value is KnownOption {
@@ -212,6 +227,9 @@ export function resolveConfig(
     else errors.push(parsed.message)
   }
 
+  const rawHost = values['--host'] ?? env[HOST_ENV]
+  const host = rawHost === undefined || rawHost === '' ? DEFAULT_HOST : rawHost
+
   const rawRepo = values['--repo'] ?? env[REPO_ENV]
   let repo: RepoMount | undefined
   if (rawRepo !== undefined && rawRepo !== '') {
@@ -229,6 +247,7 @@ export function resolveConfig(
     config: {
       graphPath: isAbsolute(rawGraph) ? rawGraph : resolve(cwd, rawGraph),
       port,
+      host,
       repo,
     },
   }

@@ -12,13 +12,17 @@ import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
 
 import { createApp } from './app'
-import { GRAPH_PATH_ENV, PORT_ENV, resolveConfig } from './config'
+import { GRAPH_PATH_ENV, HOST_ENV, PORT_ENV, REPO_ENV, resolveConfig } from './config'
 
 const USAGE = [
-  '使い方: node dist/server/main.js --graph <正本 JSON のパス> [--port <ポート>]',
+  '使い方: node dist/server/main.js --graph <正本 JSON のパス> [--port <ポート>] [--repo <リポジトリ>]',
   '',
   `  --graph  正本 JSON のパス（環境変数 ${GRAPH_PATH_ENV} でも指定できる）`,
   `  --port   待ち受けポート（環境変数 ${PORT_ENV} でも指定できる）`,
+  `  --repo   解析対象リポジトリ <ホスト側>[=<マウント先>]（環境変数 ${REPO_ENV} でも指定できる）`,
+  `  --host   待ち受ける宛先（既定はループバックだけ。環境変数 ${HOST_ENV} でも指定できる）`,
+  '',
+  '  --repo は VSCode で開く（UT-18）ときに使う。図を読むだけなら要らない。',
 ].join('\n')
 
 /**
@@ -46,17 +50,22 @@ if (!existsSync(clientDir)) {
 const app = createApp(config, { clientDir })
 
 /*
- * **ループバックだけで待ち受ける。**
+ * **既定ではループバックだけで待ち受ける**（`config.ts` の `DEFAULT_HOST`）。
  *
  * この口には認証が無く、`/api/graph` は解析対象のファイル構成と依存関係を
  * そのまま返す。既定で全インターフェースに開くと、同じネットワークにいる
  * 誰もがそれを読める。ローカルでの閲覧用であり、外部公開は扱わない。
  *
- * コンテナの中から外へ見せる必要が出た場合（UT-20）は、そこで明示的に開く。
+ * コンテナの中のループバックは外から届かないので、Docker では `--host`
+ * （`DEPENOMAP_HOST`）で明示的に開ける。**開けるのはコンテナの中だけ**で、
+ * ホスト側でどこに見せるかは `docker run -p` が決める（UT-20）。
  */
-const server = serve({ fetch: app.fetch, port: config.port, hostname: '127.0.0.1' }, (info) => {
+const server = serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => {
   console.log(`depenomap: http://localhost:${info.port}`)
   console.log(`  正本 JSON: ${config.graphPath}`)
+  if (config.repo !== undefined) {
+    console.log(`  リポジトリ: ${config.repo.hostPath}（この中からは ${config.repo.mountPath}）`)
+  }
 })
 
 /*
