@@ -11,10 +11,30 @@
 import type { ViewModel } from '@/core/ir/view-model'
 import { cycleMarkOf } from './cycle-mark'
 
-/** 追跡できなかった依存の印。件数まで出す（どれかは一覧で見る / UT-19） */
+/** 追跡できなかった依存がある、という印 */
+const UNRESOLVED = '未追跡'
+
+/**
+ * 追跡できなかった依存の印。
+ *
+ * **件数は出さない**（循環の印と同じ扱い / N-1）。数を出すと「多いほど悪い」と
+ * いう読み方を持ち込む。どれが追えていないのかは一覧で見る。
+ *
+ * **ファイル粒度では、中のメソッドのぶんも数える。** `unresolved[].from` は必ず
+ * メソッド（スキーマ §3 / 読み込み時に検査済み）なので、そのままだと既定の
+ * 表示では一度も出ない。ファイルを見ているときも「この先が追えていない」ことは
+ * 知りたい。
+ */
 function unresolvedMarkOf(viewModel: ViewModel, nodeId: string): string | undefined {
-  const count = viewModel.unresolvedFrom(nodeId).length
-  return count === 0 ? undefined : `未追跡 ${count}`
+  if (viewModel.unresolvedFrom(nodeId).length > 0) return UNRESOLVED
+
+  const node = viewModel.nodeById.get(nodeId)
+  if (node?.kind !== 'file') return undefined
+
+  const methods = viewModel.methodsOfFile.get(node.id) ?? []
+  return methods.some((method) => viewModel.unresolvedFrom(method.id).length > 0)
+    ? UNRESOLVED
+    : undefined
 }
 
 /**

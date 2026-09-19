@@ -15,14 +15,15 @@ function graphOf(mutate?: (g: DependencyGraph) => void): DependencyGraph {
 const vmOf = (mutate?: (g: DependencyGraph) => void) => buildViewModel(graphOf(mutate))
 const viewModel = vmOf()
 
-/** 追跡できなかった依存を持つノード */
+/** 追跡できなかった依存を持つメソッドと、その所属ファイル */
 const withUnresolved = viewModel.unresolved[0]!.from
+const ownerFile = viewModel.fileOfMethod(withUnresolved)!.id
 /** 循環に含まれるファイル */
 const inCycle = 'file:src/usecase/ListTodos.ts'
 
 describe('ノードに出す印（UT-10 / UT-19）', () => {
   it('どちらも無ければ、印を出さない', () => {
-    const plain = viewModel.nodes.file.find(
+    const plain = viewModel.nodes.method.find(
       (node) =>
         viewModel.cyclesOf(node.id).length === 0 && viewModel.unresolvedFrom(node.id).length === 0,
     )!
@@ -31,12 +32,46 @@ describe('ノードに出す印（UT-10 / UT-19）', () => {
   })
 
   it('循環だけなら、循環の印', () => {
-    expect(nodeFlagOf(viewModel, inCycle)).toBe('循環')
+    const model = vmOf((g) => {
+      g.unresolved = []
+    })
+
+    expect(nodeFlagOf(model, inCycle)).toBe('循環')
   })
 
-  it('追跡できなかった依存があれば、件数まで出す', () => {
-    // どれかは一覧で見る。ここは「ここから先が追えていない」ことまで
-    expect(nodeFlagOf(viewModel, withUnresolved)).toContain('未追跡 1')
+  it('追跡できなかった依存があれば、その印を出す', () => {
+    expect(nodeFlagOf(viewModel, withUnresolved)).toContain('未追跡')
+  })
+
+  it('件数は出さない（N-1）', () => {
+    // 数を出すと「多いほど悪い」という読み方を持ち込む（循環の印と同じ扱い）
+    const model = vmOf((g) => {
+      for (const id of ['u_probe1', 'u_probe2']) {
+        g.unresolved.push({
+          id,
+          reason: 'callback',
+          from: withUnresolved,
+          expression: 'cb()',
+          candidates: [],
+        })
+      }
+    })
+
+    expect(nodeFlagOf(model, withUnresolved)).not.toMatch(/\d/)
+  })
+
+  it('ファイル粒度でも、中のメソッドのぶんで印が出る', () => {
+    // `unresolved[].from` は必ずメソッド。巻き上げないと既定の表示で一度も出ない
+    expect(viewModel.unresolvedFrom(ownerFile)).toHaveLength(0)
+    expect(nodeFlagOf(viewModel, ownerFile)).toContain('未追跡')
+  })
+
+  it('中のメソッドにも無いファイルには出ない', () => {
+    const model = vmOf((g) => {
+      g.unresolved = []
+    })
+
+    expect(nodeFlagOf(model, ownerFile)).toBeUndefined()
   })
 
   it('両方あるときは、どちらも落とさない', () => {
@@ -45,7 +80,7 @@ describe('ノードに出す印（UT-10 / UT-19）', () => {
       g.unresolved.push({
         id: 'u_probe',
         reason: 'callback',
-        from: inCycle,
+        from: viewModel.nodes.method.find((m) => m.parent === inCycle)!.id,
         expression: 'cb()',
         candidates: [],
       })
@@ -54,22 +89,6 @@ describe('ノードに出す印（UT-10 / UT-19）', () => {
     const flag = nodeFlagOf(model, inCycle)!
     expect(flag).toContain('循環')
     expect(flag).toContain('未追跡')
-  })
-
-  it('件数は、そのノードから追えなかった数', () => {
-    const model = vmOf((g) => {
-      for (const id of ['u_probe1', 'u_probe2']) {
-        g.unresolved.push({
-          id,
-          reason: 'callback',
-          from: inCycle,
-          expression: 'cb()',
-          candidates: [],
-        })
-      }
-    })
-
-    expect(nodeFlagOf(model, inCycle)).toContain('未追跡 2')
   })
 
   it('判定を示す言葉を出さない（N-1）', () => {
