@@ -1445,3 +1445,178 @@ describe('ホイールとトラックパッド（US-16 / UT-16）', () => {
     expect(after.y).toBe(before.y - 40)
   })
 })
+
+describe('ノードを手で動かす（US-17 / UT-17）', () => {
+  /** ノードの現在の位置（図の座標） */
+  const positionOf = (wrapper: ReturnType<typeof setup>['wrapper'], id: string) => {
+    const at = wrapper.find(`[data-node-id="${id}"]`).attributes('transform') ?? ''
+    const found = /translate\(([\d.-]+),([\d.-]+)\)/.exec(at)
+    return { x: Number(found?.[1]), y: Number(found?.[2]) }
+  }
+
+  /** 押して、動かして、離す */
+  const drag = async (
+    wrapper: ReturnType<typeof setup>['wrapper'],
+    id: string,
+    to: { x: number; y: number },
+    from = { x: 100, y: 100 },
+  ) => {
+    wrapper
+      .find(`[data-node-id="${id}"]`)
+      .element.dispatchEvent(
+        new MouseEvent('pointerdown', {
+          bubbles: true,
+          button: 0,
+          clientX: from.x,
+          clientY: from.y,
+        }),
+      )
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: to.x, clientY: to.y }))
+    window.dispatchEvent(new MouseEvent('pointerup', {}))
+    await wrapper.vm.$nextTick()
+  }
+
+  it('掴んで動かすと、離した位置に留まる', async () => {
+    const { wrapper } = setup()
+    const id = viewModel.nodes.file[2]!.id
+    const before = positionOf(wrapper, id)
+
+    await drag(wrapper, id, { x: 260, y: 180 })
+
+    const after = positionOf(wrapper, id)
+    const scale = viewportOf(wrapper).scale
+    expect(after.x).toBeCloseTo(before.x + 160 / scale, 6)
+    expect(after.y).toBeCloseTo(before.y + 80 / scale, 6)
+  })
+
+  it('動かしたノードだけが動く', async () => {
+    const { wrapper } = setup()
+    const moved = viewModel.nodes.file[2]!.id
+    const other = viewModel.nodes.file[3]!.id
+    const before = positionOf(wrapper, other)
+
+    await drag(wrapper, moved, { x: 300, y: 300 })
+
+    expect(positionOf(wrapper, other)).toEqual(before)
+  })
+
+  it('つながる線も一緒に動く', async () => {
+    // ノードだけ動いて線が残ると、依存の形が読めなくなる
+    const { wrapper } = setup()
+    const edge = viewModel.edges.file.find((e) => e.granularity === 'file')!
+    const before = wrapper.find(`[data-edge-id="${edge.id}"]`).attributes('d')
+
+    await drag(wrapper, edge.from, { x: 400, y: 320 })
+
+    expect(wrapper.find(`[data-edge-id="${edge.id}"]`).attributes('d')).not.toBe(before)
+  })
+
+  it('押しただけなら動かない。選択は動く', async () => {
+    // 手の震えで選べなくなると、クリックで選択できない
+    const { state, wrapper } = setup()
+    const id = viewModel.nodes.file[2]!.id
+
+    await drag(wrapper, id, { x: 101, y: 101 })
+
+    // 位置の上書きは記録されない（選ぶと図が組み換わるので、座標では見ない）
+    expect((wrapper.vm as unknown as { movedNodes: unknown[] }).movedNodes).toHaveLength(0)
+
+    await wrapper.find(`[data-node-id="${id}"]`).trigger('click')
+    expect(state.selectedNodeId).toBe(id)
+  })
+
+  it('動かして離したときは、選択が動かない', async () => {
+    // 並べ替えただけで図が絞り込まれると、並べているあいだ図が崩れ続ける
+    const { state, wrapper } = setup()
+    const id = viewModel.nodes.file[2]!.id
+
+    await drag(wrapper, id, { x: 300, y: 300 })
+    await wrapper.find(`[data-node-id="${id}"]`).trigger('click')
+
+    expect(state.selectedNodeId).toBeUndefined()
+  })
+
+  it('粒度や軸を切り替えても、動かした位置が残る', async () => {
+    // ノード ID で持つ（UT-17 の決定）
+    const { state, wrapper } = setup()
+    const id = viewModel.nodes.file[2]!.id
+    await drag(wrapper, id, { x: 320, y: 260 })
+    const moved = positionOf(wrapper, id)
+
+    state.columnAxis = 'depth'
+    await wrapper.vm.$nextTick()
+
+    expect(positionOf(wrapper, id)).toEqual(moved)
+  })
+
+  it('リセットで既定の並びへ戻る', async () => {
+    const { wrapper } = setup()
+    const id = viewModel.nodes.file[2]!.id
+    const before = positionOf(wrapper, id)
+    await drag(wrapper, id, { x: 320, y: 260 })
+
+    ;(wrapper.vm as unknown as { resetPositions: (id?: string) => void }).resetPositions()
+    await wrapper.vm.$nextTick()
+
+    expect(positionOf(wrapper, id)).toEqual(before)
+  })
+
+  it('ノードを指定すると、そのノードだけ戻る', async () => {
+    const { wrapper } = setup()
+    const one = viewModel.nodes.file[2]!.id
+    const two = viewModel.nodes.file[3]!.id
+    const before = positionOf(wrapper, one)
+    await drag(wrapper, one, { x: 320, y: 260 })
+    await drag(wrapper, two, { x: 340, y: 280 })
+    const keep = positionOf(wrapper, two)
+
+    ;(wrapper.vm as unknown as { resetPositions: (id?: string) => void }).resetPositions(one)
+    await wrapper.vm.$nextTick()
+
+    expect(positionOf(wrapper, one)).toEqual(before)
+    expect(positionOf(wrapper, two)).toEqual(keep)
+  })
+
+  it('動かしたノードを、図と同じ並びで数えられる', async () => {
+    const { wrapper } = setup()
+    const one = viewModel.nodes.file[2]!.id
+    const two = viewModel.nodes.file[3]!.id
+
+    await drag(wrapper, two, { x: 340, y: 280 })
+    await drag(wrapper, one, { x: 320, y: 260 })
+
+    const moved = (wrapper.vm as unknown as { movedNodes: { id: string }[] }).movedNodes
+    expect(moved).toHaveLength(2)
+    expect(new Set(moved.map((node) => node.id))).toEqual(new Set([one, two]))
+  })
+
+  it('別のグラフを読むと、動かしたぶんを捨てる', async () => {
+    // ノード ID は JSON ごとの取り決めで、同じ ID が別のものを指しうる
+    const { state, wrapper } = setup()
+    const id = viewModel.nodes.file[2]!.id
+    await drag(wrapper, id, { x: 320, y: 260 })
+
+    state.applyLoadOutcome({ kind: 'ready', viewModel: buildViewModel(result.graph), warnings: [] })
+    await wrapper.vm.$nextTick()
+
+    expect((wrapper.vm as unknown as { movedNodes: unknown[] }).movedNodes).toHaveLength(0)
+  })
+
+  it('右ボタンでは掴まない', async () => {
+    // 文脈メニュー（UT-18）が使う
+    const { wrapper } = setup()
+    const id = viewModel.nodes.file[2]!.id
+    const before = positionOf(wrapper, id)
+
+    wrapper
+      .find(`[data-node-id="${id}"]`)
+      .element.dispatchEvent(
+        new MouseEvent('pointerdown', { bubbles: true, button: 2, clientX: 100, clientY: 100 }),
+      )
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 300, clientY: 300 }))
+    window.dispatchEvent(new MouseEvent('pointerup', {}))
+    await wrapper.vm.$nextTick()
+
+    expect(positionOf(wrapper, id)).toEqual(before)
+  })
+})
