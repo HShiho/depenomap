@@ -12,12 +12,15 @@
  * 全体表示は、手で動かして迷子になったときに戻れる口。図が組み換わったときは
  * 自動で合わせ直す（`GraphCanvas`）ので、ここは**人が呼ぶときのため**にある。
  *
- * 配置のリセット（ノードを動かしたぶんを戻す）は UT-17 が持つ。ここが持つのは
- * 見ている位置だけ。
+ * 配置のリセット（UT-17 / US-18）も同じ並びに置く。どちらも「図の見え方を
+ * 元に戻す」操作で、探す場所が分かれていると片方を見落とす。
+ *
+ * **動かしていないときは押せない。** 押せるかどうかが、そのままリセットの
+ * 効く状態を表す（UT-17 の完了条件）。
  */
-defineProps<{ scale: number }>()
+defineProps<{ scale: number; movedCount: number }>()
 
-defineEmits<{ fit: [] }>()
+defineEmits<{ fit: []; resetPositions: [] }>()
 </script>
 
 <template>
@@ -34,6 +37,17 @@ defineEmits<{ fit: [] }>()
       @click="$emit('fit')"
     >
       ⤢
+    </button>
+
+    <button
+      type="button"
+      class="rounded-control px-8 py-4 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink disabled:cursor-default disabled:text-line disabled:hover:bg-transparent"
+      :disabled="movedCount === 0"
+      :aria-label="`配置を戻す（手で動かしたノード ${movedCount} 件）`"
+      title="配置を戻す"
+      @click="$emit('resetPositions')"
+    >
+      ↺
     </button>
   </div>
 </template>

@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { loadGraphFromValue } from '@/core/graph/loader'
 import App from './App.vue'
 import { CYCLE_LABEL } from './shell/cycle-mark'
+import MovedNodesChip from './graph-canvas/MovedNodesChip.vue'
 import ViewportControls from './graph-canvas/ViewportControls.vue'
 import { useViewState } from './shell/view-state'
 
@@ -1026,5 +1027,79 @@ describe('図の見ている位置の口（US-16 / UT-16）', () => {
 
     // 倍率だけでなく、動かした位置も戻る
     expect(viewportOf(wrapper)).toEqual(fitted)
+  })
+})
+
+describe('手で動かした配置（US-17 / US-18 / UT-17）', () => {
+  /** ノードを掴んで動かして離す */
+  const drag = async (
+    wrapper: Awaited<ReturnType<typeof setup>>['wrapper'],
+    id: string,
+    to: { x: number; y: number },
+  ) => {
+    wrapper
+      .find(`g[data-node-id="${id}"]`)
+      .element.dispatchEvent(
+        new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }),
+      )
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: to.x, clientY: to.y }))
+    window.dispatchEvent(new MouseEvent('pointerup', {}))
+    await wrapper.vm.$nextTick()
+  }
+
+  const resetButton = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+    wrapper.find('[title="配置を戻す"]')
+
+  const chip = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+    wrapper.findComponent(MovedNodesChip)
+
+  it('動かしていないときは、リセットが押せない', async () => {
+    // 押せるかどうかが、そのままリセットの効く状態を表す
+    const { wrapper } = await setup()
+
+    expect(resetButton(wrapper).attributes()).toHaveProperty('disabled')
+    expect(chip(wrapper).text()).toBe('')
+  })
+
+  it('動かすと、件数が図の上に出てリセットが押せる', async () => {
+    const { state, wrapper } = await setup()
+    const id = state.viewModel!.nodes.file[2]!.id
+
+    await drag(wrapper, id, { x: 300, y: 280 })
+
+    expect(chip(wrapper).text()).toContain('1')
+    expect(resetButton(wrapper).attributes()).not.toHaveProperty('disabled')
+  })
+
+  it('印に触れると、どのノードを動かしたのかが出る', async () => {
+    // 件数だけでは、図の中から探し直すことになる
+    const { state, wrapper } = await setup()
+    const node = state.viewModel!.nodes.file[2]!
+    await drag(wrapper, node.id, { x: 300, y: 280 })
+
+    expect(chip(wrapper).text()).not.toContain(node.name)
+    await chip(wrapper).trigger('focusin')
+
+    expect(chip(wrapper).text()).toContain(node.name)
+  })
+
+  it('リセットで、印もボタンも元に戻る', async () => {
+    const { state, wrapper } = await setup()
+    await drag(wrapper, state.viewModel!.nodes.file[2]!.id, { x: 300, y: 280 })
+
+    await resetButton(wrapper).trigger('click')
+
+    expect(chip(wrapper).text()).toBe('')
+    expect(resetButton(wrapper).attributes()).toHaveProperty('disabled')
+  })
+
+  it('動かしたことを問題として扱わない（N-1）', async () => {
+    const { state, wrapper } = await setup()
+    await drag(wrapper, state.viewModel!.nodes.file[2]!.id, { x: 300, y: 280 })
+    await chip(wrapper).trigger('focusin')
+
+    for (const word of ['警告', 'エラー', '崩れ', '問題', '戻してください']) {
+      expect(chip(wrapper).text()).not.toContain(word)
+    }
   })
 })

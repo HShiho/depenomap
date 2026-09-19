@@ -16,6 +16,7 @@ import OverviewSheet from './overview/OverviewSheet.vue'
 import SidebarPanel from './sidebar/SidebarPanel.vue'
 import GranularityToggle from './graph-canvas/GranularityToggle.vue'
 import GraphCanvas from './graph-canvas/GraphCanvas.vue'
+import MovedNodesChip from './graph-canvas/MovedNodesChip.vue'
 import ViewportControls from './graph-canvas/ViewportControls.vue'
 import AppShell from './shell/AppShell.vue'
 import HistoryNav from './shell/HistoryNav.vue'
@@ -162,6 +163,9 @@ const showsOrderNote = computed(
       列の軸（UT-08）もこの中に並べる
     -->
     <template #canvas-overlay>
+      <!-- 手で動かしたノード（UT-17）。図を見ているあいだも状態が読める -->
+      <MovedNodesChip :nodes="canvas?.movedNodes ?? []" />
+
       <NarrowingChip
         v-if="narrowingLabel !== undefined"
         :label="narrowingLabel"
@@ -183,7 +187,12 @@ const showsOrderNote = computed(
 
         <span class="h-17 w-px shrink-0 bg-line"></span>
 
-        <ViewportControls :scale="canvas?.viewport.scale ?? 1" @fit="canvas?.fitToContent()" />
+        <ViewportControls
+          :scale="canvas?.viewport.scale ?? 1"
+          :moved-count="canvas?.movedNodes.length ?? 0"
+          @fit="canvas?.fitToContent()"
+          @reset-positions="canvas?.resetPositions()"
+        />
       </div>
     </template>
 
