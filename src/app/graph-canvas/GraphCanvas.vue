@@ -22,8 +22,8 @@ import { narrowedNodeIds } from './narrowing'
 import { edgeMidpoint, edgePath } from './edge-path'
 import { nameLimitFor, subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
-import { centreOn, fit, transformOf, type Point, type Viewport } from './viewport'
-import { draggedTo, isDrag, type DragStart } from './node-drag'
+import { centreOn, fit, transformOf, type Viewport } from './viewport'
+import { draggedTo, isDrag, type DragStart, type NodePositions } from './node-drag'
 import { applyWheel } from './wheel-gesture'
 
 const state = useViewState()
@@ -155,7 +155,7 @@ const layout = computed(() => {
  * ノード ID で持つので、粒度や列の軸を切り替えても残る（UT-17 の決定）。
  * 表示上のものであり、正本 JSON は書き換えない（C-3）。保存もしない。
  */
-const movedPositions = ref(new Map<string, Point>())
+const movedPositions = ref<NodePositions>(new Map())
 
 /** 既定の並びに、手で動かしたぶんを重ねた配置 */
 const placedNodes = computed(() =>

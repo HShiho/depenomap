@@ -19,7 +19,11 @@ import type { Point } from './viewport'
  */
 export const DRAG_THRESHOLD = 4
 
-/** 手で動かした位置。ノード ID から引く */
+/**
+ * 手で動かした位置。ノード ID から引く（UT-17 の公開する契約）。
+ *
+ * 既定の並びに対する差分であり、**これを持っているかどうかが「動かした状態」**。
+ */
 export type NodePositions = ReadonlyMap<string, Point>
 
 /**

@@ -1575,17 +1575,23 @@ describe('ノードを手で動かす（US-17 / UT-17）', () => {
     expect(positionOf(wrapper, two)).toEqual(keep)
   })
 
-  it('動かしたノードを、図と同じ並びで数えられる', async () => {
+  it('動かしたノードが、図と同じ並びで並ぶ', async () => {
+    // 動かした順ではなく図の並び。印の一覧が図と同じ順で読める
     const { wrapper } = setup()
     const one = viewModel.nodes.file[2]!.id
     const two = viewModel.nodes.file[3]!.id
 
+    // 後ろに並ぶほうから動かす
     await drag(wrapper, two, { x: 340, y: 280 })
     await drag(wrapper, one, { x: 320, y: 260 })
 
+    const shown = wrapper
+      .findAll('g.node')
+      .map((node) => node.attributes('data-node-id')!)
+      .filter((id) => id === one || id === two)
     const moved = (wrapper.vm as unknown as { movedNodes: { id: string }[] }).movedNodes
-    expect(moved).toHaveLength(2)
-    expect(new Set(moved.map((node) => node.id))).toEqual(new Set([one, two]))
+
+    expect(moved.map((node) => node.id)).toEqual(shown)
   })
 
   it('別のグラフを読むと、動かしたぶんを捨てる', async () => {
