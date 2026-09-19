@@ -392,13 +392,23 @@ function onWheel(event: WheelEvent): void {
 
 /* --- ノードを手で動かす（UT-17 / US-17） ------------------------------ */
 
-/** 掴んでいるノード。離すまで持つ */
-let dragging: DragStart | undefined
 /**
- * 直前の押下がドラッグだったか。
+ * 掴んでいるノード。離すまで持つ。
+ *
+ * **1 本の指（ポインタ）だけを見る。** 掴んだ `pointerId` 以外の動きで
+ * 位置を書き換えると、2 本目の指やペンが動いただけでノードが飛ぶ。
+ */
+let dragging: (DragStart & { pointerId: number; moved: boolean }) | undefined
+/**
+ * 直前のジェスチャがドラッグだったか。
  *
  * 動かして離すと `click` も続けて飛ぶ。そのまま選択が動くと、**並べ替えた
- * だけで図が絞り込まれる**（UT-14）。1 回ぶんだけ握り潰す。
+ * だけで図が絞り込まれる**（UT-14）。次の押下まで握り潰す。
+ *
+ * **押した時点で倒す。** ドラッグを終えた場所がノードの上とは限らず
+ * （印やツールバーの上、画面の外）、その場合 `click` は来ない。`click` が
+ * 来るまで立てたままにすると、次の正当なクリックが 1 回効かなくなり、
+ * 次の押下ではしきい値も素通りする。
  */
 let draggedJustNow = false
 
@@ -408,39 +418,58 @@ function onNodePointerDown(node: GraphNode, event: PointerEvent): void {
   const placed = positions.value.get(node.id)
   if (placed === undefined) return
 
+  draggedJustNow = false
   dragging = {
     nodeId: node.id,
+    pointerId: event.pointerId,
+    moved: false,
     pointer: { x: event.clientX, y: event.clientY },
     origin: { x: placed.x, y: placed.y },
   }
+
+  /*
+   * 文字の上から掴んでも、ブラウザの文字選択が走らないようにする。
+   * 走ると、動かすあいだ図の広い範囲が反転する
+   */
+  event.preventDefault()
+
   /*
    * 購読は窓に付ける。ノードの上だけで拾うと、速く動かしてポインタが
-   * ノードから外れた瞬間に置き去りになる
+   * ノードから外れた瞬間に置き去りになる。
+   *
+   * **取り消しも拾う。** ブラウザがジェスチャを引き取ると `pointerup` は
+   * 来ないので、離したあとも指の動きにノードが付いてくる
    */
   window.addEventListener('pointermove', onPointerMove)
   window.addEventListener('pointerup', onPointerUp)
+  window.addEventListener('pointercancel', onPointerUp)
 }
 
 function onPointerMove(event: PointerEvent): void {
   const start = dragging
-  if (start === undefined) return
+  if (start === undefined || event.pointerId !== start.pointerId) return
 
   const pointer = { x: event.clientX, y: event.clientY }
-  if (!draggedJustNow && !isDrag(start.pointer, pointer)) return
+  if (!start.moved && !isDrag(start.pointer, pointer)) return
 
+  start.moved = true
   draggedJustNow = true
   const next = new Map(movedPositions.value)
   next.set(start.nodeId, draggedTo(start, pointer, viewport.value.scale))
   movedPositions.value = next
 }
 
-function onPointerUp(): void {
+function onPointerUp(event?: PointerEvent): void {
+  if (event !== undefined && dragging !== undefined && event.pointerId !== dragging.pointerId) {
+    return
+  }
   dragging = undefined
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', onPointerUp)
+  window.removeEventListener('pointercancel', onPointerUp)
 }
 
-onUnmounted(onPointerUp)
+onUnmounted(() => onPointerUp())
 
 /** 手で動かしたノード。並びは図と同じ（上から下、左から右） */
 const movedNodes = computed(() =>

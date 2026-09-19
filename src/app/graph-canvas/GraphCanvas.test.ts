@@ -1637,6 +1637,95 @@ describe('ノードを手で動かす（US-17 / UT-17）', () => {
     expect(viewportOf(wrapper)).toEqual(before)
   })
 
+  it('ノードの外で離しても、次のクリックが効く', async () => {
+    /*
+     * 離した先がノードの上とは限らない（印やツールバーの上、画面の外）。
+     * その場合 `click` は来ないので、握り潰しの札を立てたままにすると
+     * 次の正当なクリックが 1 回効かなくなる
+     */
+    const { state, wrapper } = setup()
+    const dragged = viewModel.nodes.file[2]!.id
+    const other = viewModel.nodes.file[3]!.id
+
+    // ノードの外で離す（窓へ直接送る）
+    wrapper
+      .find(`[data-node-id="${dragged}"]`)
+      .element.dispatchEvent(
+        new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }),
+      )
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 400, clientY: 400 }))
+    window.dispatchEvent(new MouseEvent('pointerup', {}))
+    await wrapper.vm.$nextTick()
+
+    // 実際のクリックは押下から始まる。同じ順で送る
+    const target = wrapper.find(`[data-node-id="${other}"]`)
+    target.element.dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 500, clientY: 500 }),
+    )
+    window.dispatchEvent(new MouseEvent('pointerup', {}))
+    await target.trigger('click')
+
+    expect(state.selectedNodeId).toBe(other)
+  })
+
+  it('ノードの外で離したあと、しきい値がまた効く', async () => {
+    // 札が残ると、次の押下では 1px の震えでも動いてしまう
+    const { wrapper } = setup()
+    const dragged = viewModel.nodes.file[2]!.id
+    const other = viewModel.nodes.file[3]!.id
+    await drag(wrapper, dragged, { x: 400, y: 400 })
+    const before = positionOf(wrapper, other)
+
+    await drag(wrapper, other, { x: 101, y: 101 })
+
+    expect(positionOf(wrapper, other)).toEqual(before)
+  })
+
+  it('ジェスチャが取り消されたら、指に付いてこない', async () => {
+    // `pointercancel` のあと `pointerup` は来ない
+    const { wrapper } = setup()
+    const id = viewModel.nodes.file[2]!.id
+    wrapper
+      .find(`[data-node-id="${id}"]`)
+      .element.dispatchEvent(
+        new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }),
+      )
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 300, clientY: 300 }))
+    await wrapper.vm.$nextTick()
+    const at = positionOf(wrapper, id)
+
+    window.dispatchEvent(new MouseEvent('pointercancel', {}))
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 600, clientY: 600 }))
+    await wrapper.vm.$nextTick()
+
+    expect(positionOf(wrapper, id)).toEqual(at)
+  })
+
+  it('掴んでいない指が動いても、ノードは飛ばない', async () => {
+    // 2 本目の指やペンの動きで位置を書き換えない
+    const { wrapper } = setup()
+    const id = viewModel.nodes.file[2]!.id
+    wrapper
+      .find(`[data-node-id="${id}"]`)
+      .element.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          bubbles: true,
+          button: 0,
+          pointerId: 1,
+          clientX: 100,
+          clientY: 100,
+        }),
+      )
+    const before = positionOf(wrapper, id)
+
+    window.dispatchEvent(
+      new PointerEvent('pointermove', { pointerId: 2, clientX: 500, clientY: 500 }),
+    )
+    await wrapper.vm.$nextTick()
+
+    expect(positionOf(wrapper, id)).toEqual(before)
+  })
+
   it('右ボタンでは掴まない', async () => {
     // 文脈メニュー（UT-18）が使う
     const { wrapper } = setup()
