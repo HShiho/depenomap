@@ -55,21 +55,22 @@ const sheets = useSheets<'overview' | 'unresolved'>(ready)
  * 来たのか、絞り込めなかった候補へ飛んだのかが区別できないと、そこから読み取る
  * 構造が実態とずれる。
  *
- * **「どの移動で来たか」で持つ。** 移動の回数で消すと、戻る・進む（履歴の長さが
+ * **「その 1 手で来たか」で持つ。** 移動の回数で消すと、戻る・進む（履歴の長さが
  * 変わらない）や、同じノードを選び直したとき（そもそも積まれない）に取り残される。
- * かといってノードだけで持つと、**確定した依存をたどって同じノードへ来たときに
- * 印が復活する**。履歴の位置まで見れば、戻って帰ってきたとき（位置が同じ）は
- * 出したまま、選び直したとき（新しい位置になる）は出さない、を両立できる。
+ * ノードだけで持つと、確定した依存で同じノードへ来たときに印が復活する。
+ * 履歴の位置も、戻ってから選び直すと使い回されるので 1 手を指せない。
+ *
+ * 履歴の 1 手そのもの（`serial`）を覚えれば、戻って帰ってきたときは出したまま、
+ * 選び直したときは出さない、が位置の衝突と無関係に成立する。**選択も見る** —
+ * 選択を外しても履歴の位置は動かないので、1 手だけでは指す先が消えても残る。
  */
-const guessed = ref<{ nodeId: string; historyIndex: number; expression: string } | undefined>(
-  undefined,
-)
+const guessed = ref<{ nodeId: string; move: number; expression: string } | undefined>(undefined)
 
 const guessedFrom = computed(() => {
   const found = guessed.value
   if (found === undefined) return undefined
 
-  return state.selectedNodeId === found.nodeId && state.historyIndex === found.historyIndex
+  return state.selectedNodeId === found.nodeId && state.currentMove === found.move
     ? found.expression
     : undefined
 })
@@ -82,7 +83,7 @@ const guessedFrom = computed(() => {
  */
 function moveToCandidate(nodeId: string, expression: string): void {
   state.moveTo(nodeId)
-  guessed.value = { nodeId, historyIndex: state.historyIndex, expression }
+  guessed.value = { nodeId, move: state.currentMove ?? -1, expression }
   sheets.close()
 }
 

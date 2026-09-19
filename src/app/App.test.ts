@@ -1255,6 +1255,32 @@ describe('追跡できなかった依存（US-21 / UT-19）', () => {
     expect(wrapper.find('.shell-overlay').text()).not.toContain(guess.expression)
   })
 
+  it('戻って選び直すと、履歴の位置が同じでも印は出ない', async () => {
+    /*
+     * 戻ってから別のノードを選ぶと進む先を捨てるので、同じ添字に別の 1 手が入る。
+     * 位置で見ていると、推測で移った直後と見分けがつかない
+     */
+    const { state, wrapper } = await setup()
+    state.setGranularity('method')
+    const first = state.viewModel!.nodes.method[0]!.id
+    state.moveTo(first)
+
+    await open(wrapper)
+    const guess = state.viewModel!.unresolved.find((u) => u.candidates.length > 0)!
+    const candidate = guess.candidates[0]!
+    await sheet(wrapper).find(`[data-node-id="${candidate}"]`).trigger('click')
+    expect(wrapper.find('.shell-overlay').text()).toContain(guess.expression)
+
+    // 手前へ戻ってから、図で同じノードを選び直す（履歴の位置が再現する）
+    state.back()
+    await wrapper.vm.$nextTick()
+    state.moveTo(candidate)
+    await wrapper.vm.$nextTick()
+
+    expect(state.historyIndex).toBe(1)
+    expect(wrapper.find('.shell-overlay').text()).not.toContain(guess.expression)
+  })
+
   it('選択が外れたら、推測の印も消える', async () => {
     const { state, wrapper } = await setup()
     await open(wrapper)
