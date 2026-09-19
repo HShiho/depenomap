@@ -1,0 +1,53 @@
+# depenomap を Docker で動かす（UT-20 / ADR-004）。
+#
+# Nix は開発環境の正、Docker は配布・実行の正として役割を分ける（ADR-005）。
+# Node のバージョンだけ両方で揃える（`flake.nix` は Node 24）。
+#
+# **画面とサーバーは `pnpm build` の成果物をそのまま動かす。** ここで別の
+# 組み立て方をすると、Docker でだけ違うものが動く経路ができる（UT-03 との
+# 二重メンテを避ける）。
+
+# --- 組み立て ---------------------------------------------------------------
+FROM node:24-slim AS build
+
+WORKDIR /app
+
+# Git フックの仕込み（`prepare` スクリプト）は、組み立てにも実行にも要らない
+ENV HUSKY=0
+
+# 依存だけ先に入れる。ソースだけ変えたときに、この層を作り直さずに済む
+COPY package.json pnpm-lock.yaml ./
+RUN corepack enable && pnpm install --frozen-lockfile
+
+COPY . .
+RUN pnpm build
+
+# --- 実行 -------------------------------------------------------------------
+FROM node:24-slim AS runtime
+
+WORKDIR /app
+ENV NODE_ENV=production
+ENV HUSKY=0
+
+# 実行に要るのは成果物と、サーバーが読み込む依存だけ。
+#
+# `dist/server/main.js` は依存をバンドルせずに import する（`hono` /
+# `@hono/node-server` / `valibot`）。画面側の依存はビルド済みの
+# `dist/client` に入っているので、ここでは要らない。
+COPY package.json pnpm-lock.yaml ./
+RUN corepack enable && pnpm install --frozen-lockfile --prod --ignore-scripts
+COPY --from=build /app/dist ./dist
+
+# 既定のポート（`config.ts` の DEFAULT_PORT と同じ）
+EXPOSE 5173
+
+# コンテナの外から届くようにする。
+#
+# `main.ts` はループバックだけで待ち受ける（この口には認証が無く、解析対象の
+# 構成をそのまま返すため）。コンテナの中のループバックは外から届かないので、
+# ここで明示的に開ける。**開けるのはコンテナの中だけ**で、ホスト側でどこに
+# 見せるかは `docker run -p` が決める。
+ENV DEPENOMAP_HOST=0.0.0.0
+
+# 正本 JSON のパスは指定が要る（UT-03）。`--graph` か DEPENOMAP_GRAPH で渡す
+ENTRYPOINT ["node", "dist/server/main.js"]

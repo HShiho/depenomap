@@ -1,0 +1,20 @@
+# Docker の組み立てに送らないもの（UT-20）。
+#
+# `COPY . .` はこのファイルを除いた全部を送る。**ホスト側で作られたものを
+# 持ち込まない**ことが要点で、特に `node_modules` はプラットフォーム依存の
+# 成果物を含むため、コンテナの中で入れ直したものと衝突する。
+
+# ホスト側の環境・成果物
+.direnv/
+node_modules/
+dist/
+coverage/
+
+# 履歴と設計資料（実行には要らない）
+.git/
+.github/
+plan/
+
+# Docker 自身
+Dockerfile
+.dockerignore
