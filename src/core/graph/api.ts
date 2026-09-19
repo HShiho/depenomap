@@ -21,6 +21,29 @@ export const GRAPH_ENDPOINT = '/api/graph'
  */
 export const LOCATE_ENDPOINT = '/api/locate'
 
+/** 解決できなかった理由。呼び出し側（UT-18）が何を案内するかを決められるようにする */
+export type LocateFailure =
+  /** リポジトリの在り処が渡されていない（起動パラメータ） */
+  | 'no-repo'
+  /** 相対パスとして受け取れない形（絶対パス、リポジトリの外へ出る、など） */
+  | 'bad-path'
+
+/**
+ * 位置を尋ねた結果。
+ *
+ * **解決できないことを失敗として扱わない**（N-1）。実体が無くても位置は返す
+ * （`exists: false`）。この口は 200 で返り、結果は本文に載る。
+ */
+export type LocateResult =
+  | {
+      resolved: true
+      /** ホストから見た絶対パス。エディタへ渡すのはこちら */
+      hostPath: string
+      /** そこに実体があったか。**無いことを欠陥として扱わない**（N-1） */
+      exists: boolean
+    }
+  | { resolved: false; reason: LocateFailure }
+
 /**
  * 取得の結果。
  *

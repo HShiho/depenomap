@@ -8,30 +8,17 @@
  * 存在を確かめるのはこのプロセスから見える側（`mountPath`）、返すのはホストから
  * 見える側（`hostPath`）。**同じ場所を 2 つの名前で指す**。
  *
+ * 結果の形（`LocateResult`）は `core/graph/api.ts` に置く。**画面（UT-18）も同じ形を
+ * 読む**ためで、画面が `src/server/` を import する形にすると境界の向きが崩れる。
+ *
  * **開けるかどうかの判定はしない**（N-1）。存在を確かめるところまでで、それ以上の
  * 評価（正しいファイルか、読めるか）はしない。解決できないことも欠陥ではない。
  */
 
 import { isAbsolute, join, normalize, sep } from 'node:path'
 
+import type { LocateResult } from '../core/graph/api'
 import type { RepoMount } from './config'
-
-/** 解決できなかった理由。呼び出し側（UT-18）が何を案内するかを決められるようにする */
-export type LocateFailure =
-  /** リポジトリの在り処が渡されていない（起動パラメータ） */
-  | 'no-repo'
-  /** 相対パスとして受け取れない形（絶対パス、リポジトリの外へ出る、など） */
-  | 'bad-path'
-
-export type LocateResult =
-  | {
-      resolved: true
-      /** ホストから見た絶対パス。エディタへ渡すのはこちら */
-      hostPath: string
-      /** そこに実体があったか。**無いことを欠陥として扱わない**（N-1） */
-      exists: boolean
-    }
-  | { resolved: false; reason: LocateFailure }
 
 /**
  * リポジトリの外を指していないか。
