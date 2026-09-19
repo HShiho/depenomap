@@ -35,6 +35,16 @@ const open = ref(false)
 // 並べるのはノードそのもの。名前は同じものが複数ありうる（別ディレクトリの同名ファイル）
 const listed = computed(() => props.nodes.slice(0, LIST_LIMIT))
 const hidden = computed(() => new Set(props.outOfView ?? []))
+
+/**
+ * 上限からあふれたぶんのうち、図に出ていない数。
+ *
+ * 行ごとの印だけだと、**隠れたものが上限の外に落ちたときに、図に出ていない
+ * ものがあること自体が画面から消える**。リセットが効く理由が読めなくなる。
+ */
+const restHidden = computed(
+  () => props.nodes.slice(LIST_LIMIT).filter((node) => hidden.value.has(node.id)).length,
+)
 const rest = computed(() => Math.max(0, props.nodes.length - LIST_LIMIT))
 </script>
 
@@ -55,11 +65,22 @@ const rest = computed(() => Math.max(0, props.nodes.length - LIST_LIMIT))
     </span>
 
     <ul v-if="open" class="flex flex-col gap-2">
-      <li v-for="node in listed" :key="node.id" class="truncate text-caption text-ink-3">
-        <span class="font-mono">{{ fullTitleOf(node) }}</span>
-        <span v-if="hidden.has(node.id)" class="text-ink-3">（図に出ていません）</span>
+      <!--
+        **切るのは名前のほう**（`NarrowingChip` と同じ判断）。印を後ろに置いた
+        まま行ごと切ると、印が無いのか切れたのかが読めない
+      -->
+      <li
+        v-for="node in listed"
+        :key="node.id"
+        class="flex items-baseline gap-4 text-caption text-ink-3"
+      >
+        <span class="min-w-0 truncate font-mono">{{ fullTitleOf(node) }}</span>
+        <span v-if="hidden.has(node.id)" class="shrink-0">（図に出ていません）</span>
       </li>
-      <li v-if="rest > 0" class="text-caption text-ink-3">ほか {{ rest }} 件</li>
+      <li v-if="rest > 0" class="text-caption text-ink-3">
+        ほか {{ rest }} 件
+        <template v-if="restHidden > 0">（うち {{ restHidden }} 件は図に出ていません）</template>
+      </li>
     </ul>
   </div>
 </template>

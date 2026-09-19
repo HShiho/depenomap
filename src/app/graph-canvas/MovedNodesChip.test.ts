@@ -96,6 +96,31 @@ describe('手で動かしたノードの印（US-18 / UT-17）', () => {
     }
   })
 
+  it('上限からあふれた先に隠れていても、そのことが読める', async () => {
+    // 行ごとの印だけだと、隠れたものが上限の外に落ちたときに画面から消える
+    const shown = Array.from({ length: 9 }, (_, index) => file(`s${index}.ts`))
+    const gone = [file('x.ts'), file('y.ts')]
+    const wrapper = setup(
+      [...shown, ...gone],
+      gone.map((node) => node.id),
+    )
+
+    await wrapper.trigger('focusin')
+
+    const rest = wrapper.findAll('li').at(-1)!.text()
+    expect(rest).toContain('ほか 3 件')
+    expect(rest).toContain('2 件は図に出ていません')
+  })
+
+  it('あふれた先に隠れていなければ、その断りは出さない', async () => {
+    const nodes = Array.from({ length: 11 }, (_, index) => file(`s${index}.ts`))
+    const wrapper = setup(nodes, [nodes[0]!.id])
+
+    await wrapper.trigger('focusin')
+
+    expect(wrapper.findAll('li').at(-1)!.text()).not.toContain('件は図に出ていません')
+  })
+
   it('図に出ていないものは、その行で分かる', async () => {
     // 総数だけだと、並んだ名前のどれを指しているのかが読めない
     const shown = file('a.ts')

@@ -508,8 +508,9 @@ const movedNodes = computed<readonly GraphNode[]>(() => {
     .filter((node) => movedPositions.value.has(node.id))
   const shownIds = new Set(shown.map((node) => node.id))
   /*
-   * 図に出ていないぶんは**正本 JSON の並び**で続ける。上書きは動かした順に
-   * 積まれるので、そのまま出すと一覧の並びが操作の履歴になる
+   * 図に出ていないぶんは、そのあとへ**粒度ごとに正本 JSON の並び**で続ける
+   * （ファイル → メソッドの順）。上書きは動かした順に積まれるので、そのまま
+   * 出すと一覧の並びが操作の履歴になる
    */
   const hidden = [...viewModel.nodes.file, ...viewModel.nodes.method].filter(
     (node) => movedPositions.value.has(node.id) && !shownIds.has(node.id),
