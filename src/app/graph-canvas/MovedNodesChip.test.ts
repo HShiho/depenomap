@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { FileNode, GraphNode } from '@/core/graph/schema'
 import MovedNodesChip from './MovedNodesChip.vue'
@@ -72,20 +72,28 @@ describe('手で動かしたノードの印（US-18 / UT-17）', () => {
     expect(wrapper.text()).not.toContain('ほか')
   })
 
-  it('別のディレクトリの同名ファイルも、2 件として並ぶ', async () => {
+  it('別のディレクトリの同名ファイルも、別のものとして扱う', async () => {
     /*
      * 名前は一意ではない。一意なのはノード ID だけ。
      *
-     * 並びのキーにノード ID を使っていることは、ここでは確かめられない
-     * （Vue 3.5 は重複したキーを記録しない）。**見ているのは、同名でも
-     * 2 件として出ること**まで。
+     * 名前を並びのキーにすると、描き直しのときに別のものが同じものと
+     * 見なされる。Vue が知らせるのは**更新のとき**で、しかも前後の早道で
+     * 消化されずに中ほどを取り替える形になったときだけなので、その形で確かめる。
      */
-    const wrapper = setup([file('index.ts', 'src/a'), file('index.ts', 'src/b')])
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const wrapper = setup([file('a.ts'), file('b.ts'), file('c.ts')])
+      await wrapper.trigger('focusin')
 
-    await wrapper.trigger('focusin')
+      await wrapper.setProps({
+        nodes: [file('a.ts'), file('index.ts', 'src/x'), file('index.ts', 'src/y'), file('c.ts')],
+      })
 
-    expect(wrapper.text()).toContain('2')
-    expect(wrapper.findAll('li')).toHaveLength(2)
+      expect(wrapper.findAll('li')).toHaveLength(4)
+      expect(warn.mock.calls.flat().join(' ')).not.toContain('Duplicate keys')
+    } finally {
+      warn.mockRestore()
+    }
   })
 
   it('図に出ていないものは、その行で分かる', async () => {
