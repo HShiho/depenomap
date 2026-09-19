@@ -1705,17 +1705,15 @@ describe('ノードを手で動かす（US-17 / UT-17）', () => {
     // 2 本目の指やペンの動きで位置を書き換えない
     const { wrapper } = setup()
     const id = viewModel.nodes.file[2]!.id
-    wrapper
-      .find(`[data-node-id="${id}"]`)
-      .element.dispatchEvent(
-        new PointerEvent('pointerdown', {
-          bubbles: true,
-          button: 0,
-          pointerId: 1,
-          clientX: 100,
-          clientY: 100,
-        }),
-      )
+    wrapper.find(`[data-node-id="${id}"]`).element.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        bubbles: true,
+        button: 0,
+        pointerId: 1,
+        clientX: 100,
+        clientY: 100,
+      }),
+    )
     const before = positionOf(wrapper, id)
 
     window.dispatchEvent(
@@ -1724,6 +1722,40 @@ describe('ノードを手で動かす（US-17 / UT-17）', () => {
     await wrapper.vm.$nextTick()
 
     expect(positionOf(wrapper, id)).toEqual(before)
+  })
+
+  it('図から隠れても、戻せることが分かる', async () => {
+    // 描いているものだけを数えると、戻せるのに「戻すものは無い」と出る
+    const { state, wrapper } = setup()
+    const moved = viewModel.nodes.file[2]!.id
+    await drag(wrapper, moved, { x: 320, y: 260 })
+
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find(`[data-node-id="${moved}"]`).exists()).toBe(false)
+    const vm = wrapper.vm as unknown as { movedNodes: { id: string }[]; movedOutOfView: number }
+    expect(vm.movedNodes.map((node) => node.id)).toEqual([moved])
+    expect(vm.movedOutOfView).toBe(1)
+  })
+
+  it('全体表示は、外へ動かしたノードも入れる', async () => {
+    // 既定の並びの寸法だけで合わせると、外へ動かしたノードが画面に残らない
+    const { wrapper } = setup()
+    const id = viewModel.nodes.file[2]!.id
+    // 下限の倍率でも収まる範囲へ動かす（それ以上はどう合わせても入らない）
+    await drag(wrapper, id, { x: 1200, y: 800 })
+
+    ;(wrapper.vm as unknown as { fitToContent: () => void }).fitToContent()
+    await wrapper.vm.$nextTick()
+
+    const view = viewportOf(wrapper)
+    const at = positionOf(wrapper, id)
+    const screen = { x: at.x * view.scale + view.x, y: at.y * view.scale + view.y }
+    expect(screen.x).toBeGreaterThanOrEqual(0)
+    expect(screen.y).toBeGreaterThanOrEqual(0)
+    expect(screen.x + NODE_WIDTH * view.scale).toBeLessThanOrEqual(CANVAS.width)
+    expect(screen.y + NODE_HEIGHT * view.scale).toBeLessThanOrEqual(CANVAS.height)
   })
 
   it('右ボタンでは掴まない', async () => {

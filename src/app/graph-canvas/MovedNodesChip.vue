@@ -9,6 +9,10 @@
  * 件数だけでは「どれを動かしたのか」が分からないので、**触れると（ホバー・
  * フォーカス）名前を出す**。図の中で探し直さずに済む。
  *
+ * **図から外れたぶんも数に入れる。** 絞り込みや粒度の切り替えで隠れても
+ * 上書きは残っているので、隠れているあいだだけ「戻すものが無い」ように
+ * 見えてはいけない。ただし探しに行けないので、そのことは分けて示す。
+ *
  * 良し悪しは示さない（N-1）。動かしたこと自体を問題として扱わない。
  */
 import { computed, ref } from 'vue'
@@ -19,11 +23,16 @@ import { fullTitleOf } from './node-label'
 /** 名前を出す上限。これを超えたぶんは数で示す */
 const LIST_LIMIT = 8
 
-const props = defineProps<{ nodes: readonly GraphNode[] }>()
+const props = defineProps<{
+  nodes: readonly GraphNode[]
+  /** そのうち、いま図に出ていない数（絞り込みや粒度の切り替えで外れたもの） */
+  outOfView?: number
+}>()
 
 const open = ref(false)
 
-const names = computed(() => props.nodes.slice(0, LIST_LIMIT).map((node) => fullTitleOf(node)))
+// 並べるのはノードそのもの。名前は同じものが複数ありうる（別ディレクトリの同名ファイル）
+const listed = computed(() => props.nodes.slice(0, LIST_LIMIT))
 const rest = computed(() => Math.max(0, props.nodes.length - LIST_LIMIT))
 </script>
 
@@ -44,10 +53,13 @@ const rest = computed(() => Math.max(0, props.nodes.length - LIST_LIMIT))
     </span>
 
     <ul v-if="open" class="flex flex-col gap-2">
-      <li v-for="name in names" :key="name" class="truncate font-mono text-caption text-ink-3">
-        {{ name }}
+      <li v-for="node in listed" :key="node.id" class="truncate font-mono text-caption text-ink-3">
+        {{ fullTitleOf(node) }}
       </li>
       <li v-if="rest > 0" class="text-caption text-ink-3">ほか {{ rest }} 件</li>
+      <li v-if="(outOfView ?? 0) > 0" class="text-caption text-ink-3">
+        （うち {{ outOfView }} 件はいま図に出ていません）
+      </li>
     </ul>
   </div>
 </template>

@@ -164,7 +164,10 @@ const showsOrderNote = computed(
     -->
     <template #canvas-overlay>
       <!-- 手で動かしたノード（UT-17）。図を見ているあいだも状態が読める -->
-      <MovedNodesChip :nodes="canvas?.movedNodes ?? []" />
+      <MovedNodesChip
+        :nodes="canvas?.movedNodes ?? []"
+        :out-of-view="canvas?.movedOutOfView ?? 0"
+      />
 
       <NarrowingChip
         v-if="narrowingLabel !== undefined"

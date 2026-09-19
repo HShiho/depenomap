@@ -357,8 +357,27 @@ function onBackgroundClick(): void {}
 
 const view = computed(() => ({ width: state.canvasWidth, height: state.canvasHeight }))
 
+/**
+ * 図の全体が入る大きさ。
+ *
+ * **手で動かしたぶんも含める**（UT-17）。既定の並びの寸法だけで合わせると、
+ * 外へ動かしたノードは「全体を表示」しても画面の外に残る。
+ */
+const contentSize = computed(() => {
+  const base = { width: layout.value.width, height: layout.value.height }
+  if (movedPositions.value.size === 0) return base
+
+  return placedNodes.value.reduce(
+    (size, placed) => ({
+      width: Math.max(size.width, placed.x + NODE_WIDTH),
+      height: Math.max(size.height, placed.y + NODE_HEIGHT),
+    }),
+    base,
+  )
+})
+
 function fitToContent(): void {
-  viewport.value = fit({ width: layout.value.width, height: layout.value.height }, view.value)
+  viewport.value = fit(contentSize.value, view.value)
 }
 
 /**
@@ -471,11 +490,37 @@ function onPointerUp(event?: PointerEvent): void {
 
 onUnmounted(() => onPointerUp())
 
-/** 手で動かしたノード。並びは図と同じ（上から下、左から右） */
-const movedNodes = computed(() =>
-  placedNodes.value
+/**
+ * 手で動かしたノード。
+ *
+ * **数えるのは上書きそのもので、いま描いているノードではない。** 絞り込み
+ * （UT-14）で隠れたり、粒度を切り替えて図から外れたりしても、上書きは残って
+ * いる。描いているものだけを数えると、戻せるのに「戻すものは無い」と出る。
+ *
+ * 並びは図と同じ（上から下、左から右）。図に出ていないものは、そのあとへ
+ * 正本 JSON の並びで続ける。
+ */
+const movedNodes = computed<readonly GraphNode[]>(() => {
+  const viewModel = state.viewModel
+  if (viewModel === undefined) return []
+
+  const shown = placedNodes.value
     .map((placed) => placed.node)
-    .filter((node) => movedPositions.value.has(node.id)),
+    .filter((node) => movedPositions.value.has(node.id))
+  const shownIds = new Set(shown.map((node) => node.id))
+  const hidden = [...movedPositions.value.keys()]
+    .filter((id) => !shownIds.has(id))
+    .map((id) => viewModel.nodeById.get(id))
+    .filter((node): node is GraphNode => node !== undefined)
+
+  return [...shown, ...hidden]
+})
+
+/** 図に出ていないぶん。印が「どれを動かしたか」を出すときに分けて示す */
+const movedOutOfView = computed(
+  () =>
+    movedNodes.value.length -
+    placedNodes.value.filter((placed) => movedPositions.value.has(placed.node.id)).length,
 )
 
 /** 動かしたぶんを捨てる。ノードを指定すればそれだけ（UT-17 の決定） */
@@ -503,7 +548,7 @@ function focusNode(nodeId: string): void {
   if (placed) viewport.value = centreOn(viewport.value, placed, view.value)
 }
 
-defineExpose({ viewport, fitToContent, focusNode, movedNodes, resetPositions })
+defineExpose({ viewport, fitToContent, focusNode, movedNodes, movedOutOfView, resetPositions })
 
 /**
  * 最後に全体表示を合わせた対象。**グラフ・粒度・並べ方の組につき 1 回だけ**
