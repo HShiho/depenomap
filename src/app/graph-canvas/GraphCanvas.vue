@@ -9,7 +9,7 @@
  * それぞれ純粋関数に出してある。ここが持つのは、状態の器（UT-05）から
  * 読んだ値をそれらへ渡し、SVG を組み立てて、操作を器へ返すところだけ。
  */
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 
 import type { GraphEdge, GraphNode } from '@/core/graph/schema'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
@@ -22,7 +22,8 @@ import { narrowedNodeIds } from './narrowing'
 import { edgeMidpoint, edgePath } from './edge-path'
 import { nameLimitFor, subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
-import { centreOn, fit, transformOf, type Viewport } from './viewport'
+import { centreOn, fitBounds, transformOf, type Viewport } from './viewport'
+import { draggedTo, isDrag, type DragStart, type NodePositions } from './node-drag'
 import { applyWheel } from './wheel-gesture'
 
 const state = useViewState()
@@ -148,8 +149,24 @@ const layout = computed(() => {
   })
 })
 
+/**
+ * 手で動かした位置（UT-17 / US-17）。**既定の並びに対する差分**として持つ。
+ *
+ * ノード ID で持つので、粒度や列の軸を切り替えても残る（UT-17 の決定）。
+ * 表示上のものであり、正本 JSON は書き換えない（C-3）。保存もしない。
+ */
+const movedPositions = ref<NodePositions>(new Map())
+
+/** 既定の並びに、手で動かしたぶんを重ねた配置 */
+const placedNodes = computed(() =>
+  layout.value.nodes.map((placed) => {
+    const moved = movedPositions.value.get(placed.node.id)
+    return moved === undefined ? placed : { ...placed, x: moved.x, y: moved.y }
+  }),
+)
+
 const positions = computed(
-  () => new Map(layout.value.nodes.map((placed) => [placed.node.id, placed])),
+  () => new Map(placedNodes.value.map((placed) => [placed.node.id, placed])),
 )
 
 /**
@@ -286,7 +303,7 @@ const nodeVisuals = computed(() => {
   const viewModel = state.viewModel
   if (!viewModel) return visuals
 
-  for (const placed of layout.value.nodes) {
+  for (const placed of placedNodes.value) {
     const node = placed.node
     // 印は見出しと同じ行の右端に出る。見出しの上限はその幅ぶん狭くなる
     const cycle = cycleMarkOf(viewModel, node.id)
@@ -316,6 +333,11 @@ const emit = defineEmits<{
  * 立たない、という食い違いができる。
  */
 function onNodeClick(node: GraphNode): void {
+  // 動かして離したときの `click` は、選択ではない
+  if (draggedJustNow) {
+    draggedJustNow = false
+    return
+  }
   // 図の上で同じノードをもう一度押したときだけ、絞り込みを解く
   state.moveTo(node.id, { toggle: true })
 }
@@ -335,8 +357,32 @@ function onBackgroundClick(): void {}
 
 const view = computed(() => ({ width: state.canvasWidth, height: state.canvasHeight }))
 
+/**
+ * 図の外接矩形。
+ *
+ * **手で動かしたぶんも含める**（UT-17）。既定の並びの寸法だけで合わせると、
+ * 外へ動かしたノードは「全体を表示」しても画面の外に残る。
+ *
+ * **左と上も見る。** 手で動かすと座標は負にもなり、大きさ（右下の端）だけを
+ * 数えると左や上へ出たぶんが入らない。
+ */
+const contentBounds = computed(() => {
+  const base = { minX: 0, minY: 0, maxX: layout.value.width, maxY: layout.value.height }
+  if (movedPositions.value.size === 0) return base
+
+  return placedNodes.value.reduce(
+    (bounds, placed) => ({
+      minX: Math.min(bounds.minX, placed.x),
+      minY: Math.min(bounds.minY, placed.y),
+      maxX: Math.max(bounds.maxX, placed.x + NODE_WIDTH),
+      maxY: Math.max(bounds.maxY, placed.y + NODE_HEIGHT),
+    }),
+    base,
+  )
+})
+
 function fitToContent(): void {
-  viewport.value = fit({ width: layout.value.width, height: layout.value.height }, view.value)
+  viewport.value = fitBounds(contentBounds.value, view.value)
 }
 
 /**
@@ -368,12 +414,143 @@ function onWheel(event: WheelEvent): void {
   })
 }
 
+/* --- ノードを手で動かす（UT-17 / US-17） ------------------------------ */
+
+/**
+ * 掴んでいるノード。離すまで持つ。
+ *
+ * **1 本の指（ポインタ）だけを見る。** 掴んだ `pointerId` 以外の動きで
+ * 位置を書き換えると、2 本目の指やペンが動いただけでノードが飛ぶ。
+ */
+let dragging: (DragStart & { pointerId: number; moved: boolean }) | undefined
+/**
+ * 直前のジェスチャがドラッグだったか。
+ *
+ * 動かして離すと `click` も続けて飛ぶ。そのまま選択が動くと、**並べ替えた
+ * だけで図が絞り込まれる**（UT-14）。次の押下まで握り潰す。
+ *
+ * **押した時点で倒す。** ドラッグを終えた場所がノードの上とは限らず
+ * （印やツールバーの上、画面の外）、その場合 `click` は来ない。`click` が
+ * 来るまで立てたままにすると、次の正当なクリックが 1 回効かなくなり、
+ * 次の押下ではしきい値も素通りする。
+ */
+let draggedJustNow = false
+
+function onNodePointerDown(node: GraphNode, event: PointerEvent): void {
+  // 右ボタンは文脈メニュー（UT-18）が使う
+  if (event.button !== 0) return
+  const placed = positions.value.get(node.id)
+  if (placed === undefined) return
+
+  draggedJustNow = false
+  dragging = {
+    nodeId: node.id,
+    pointerId: event.pointerId,
+    moved: false,
+    pointer: { x: event.clientX, y: event.clientY },
+    origin: { x: placed.x, y: placed.y },
+  }
+
+  /*
+   * 購読は窓に付ける。ノードの上だけで拾うと、速く動かしてポインタが
+   * ノードから外れた瞬間に置き去りになる。
+   *
+   * **取り消しも拾う。** ブラウザがジェスチャを引き取ると `pointerup` は
+   * 来ないので、離したあとも指の動きにノードが付いてくる
+   */
+  window.addEventListener('pointermove', onPointerMove)
+  window.addEventListener('pointerup', onPointerUp)
+  window.addEventListener('pointercancel', onPointerUp)
+}
+
+function onPointerMove(event: PointerEvent): void {
+  const start = dragging
+  if (start === undefined || event.pointerId !== start.pointerId) return
+
+  const pointer = { x: event.clientX, y: event.clientY }
+  if (!start.moved && !isDrag(start.pointer, pointer)) return
+
+  start.moved = true
+  draggedJustNow = true
+  const next = new Map(movedPositions.value)
+  next.set(start.nodeId, draggedTo(start, pointer, viewport.value.scale))
+  movedPositions.value = next
+}
+
+function onPointerUp(event?: PointerEvent): void {
+  if (event !== undefined && dragging !== undefined && event.pointerId !== dragging.pointerId) {
+    return
+  }
+  dragging = undefined
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', onPointerUp)
+  window.removeEventListener('pointercancel', onPointerUp)
+}
+
+onUnmounted(() => onPointerUp())
+
+/**
+ * 手で動かしたノード。
+ *
+ * **数えるのは上書きそのもので、いま描いているノードではない。** 絞り込み
+ * （UT-14）で隠れたり、粒度を切り替えて図から外れたりしても、上書きは残って
+ * いる。描いているものだけを数えると、戻せるのに「戻すものは無い」と出る。
+ *
+ * 並びは図と同じ（上から下、左から右）。図に出ていないものは、そのあとへ
+ * 正本 JSON の並びで続ける。
+ */
+const movedNodes = computed<readonly GraphNode[]>(() => {
+  const viewModel = state.viewModel
+  if (viewModel === undefined) return []
+
+  const shown = placedNodes.value
+    .map((placed) => placed.node)
+    .filter((node) => movedPositions.value.has(node.id))
+  const shownIds = new Set(shown.map((node) => node.id))
+  /*
+   * 図に出ていないぶんは、そのあとへ**粒度ごとに正本 JSON の並び**で続ける
+   * （ファイル → メソッドの順）。上書きは動かした順に積まれるので、そのまま
+   * 出すと一覧の並びが操作の履歴になる
+   */
+  const hidden = [...viewModel.nodes.file, ...viewModel.nodes.method].filter(
+    (node) => movedPositions.value.has(node.id) && !shownIds.has(node.id),
+  )
+
+  return [...shown, ...hidden]
+})
+
+/** 図に出ていないノードの ID。印が行ごとに示す */
+const movedOutOfView = computed(() => {
+  const shown = new Set(placedNodes.value.map((placed) => placed.node.id))
+  return movedNodes.value.map((node) => node.id).filter((id) => !shown.has(id))
+})
+
+/** 動かしたぶんを捨てる。ノードを指定すればそれだけ（UT-17 の決定） */
+function resetPositions(nodeId?: string): void {
+  if (nodeId === undefined) {
+    movedPositions.value = new Map()
+    return
+  }
+  const next = new Map(movedPositions.value)
+  next.delete(nodeId)
+  movedPositions.value = next
+}
+
+/*
+ * 別のグラフを読んだら捨てる。ノード ID は JSON ごとの取り決めで、
+ * 同じ ID が別のものを指しうる。粒度や軸の切り替えでは捨てない（UT-17 の決定）
+ */
+watch(
+  () => state.viewModel,
+  () => resetPositions(),
+)
+
 function focusNode(nodeId: string): void {
   const placed = positions.value.get(nodeId)
   if (placed) viewport.value = centreOn(viewport.value, placed, view.value)
 }
 
-defineExpose({ viewport, fitToContent, focusNode })
+defineExpose({ viewport, fitToContent, focusNode, movedNodes, movedOutOfView, resetPositions })
 
 /**
  * 最後に全体表示を合わせた対象。**グラフ・粒度・並べ方の組につき 1 回だけ**
@@ -580,7 +757,7 @@ watch(
       </g>
 
       <g
-        v-for="placed in layout.nodes"
+        v-for="placed in placedNodes"
         :key="placed.node.id"
         :data-node-id="placed.node.id"
         class="node"
@@ -591,6 +768,7 @@ watch(
         :style="{ '--lc': nodeVisuals.get(placed.node.id)?.colour }"
         :transform="`translate(${placed.x},${placed.y})`"
         @click.stop="onNodeClick(placed.node)"
+        @pointerdown="onNodePointerDown(placed.node, $event)"
         @contextmenu="emit('nodeContextMenu', placed.node, $event)"
       >
         <!--
@@ -697,6 +875,16 @@ watch(
 /* ノード。塗りは層の色を混ぜ、状態は枠線だけで表す（参照仕様） */
 .node {
   cursor: pointer;
+  /*
+   * 文字の上から掴んでも、ブラウザの文字選択が走らないようにする（UT-17）。
+   * 走ると、動かすあいだ図の広い範囲が反転する。
+   *
+   * **`preventDefault` では止めない。** それは文字選択だけでなく、押した
+   * ところへ焦点を移す既定の動きまで止める。検索欄に焦点が残ったままになり、
+   * そこで押した Esc は検索欄が先に食う（UT-14 の「どこを触っていても解ける」
+   * が崩れる）
+   */
+  user-select: none;
 }
 
 .node .box {
