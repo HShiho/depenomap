@@ -11,15 +11,18 @@
  *   3. **焦点を返す先は、状態を倒す前に捕まえる。** 裏を `inert` にしたあとの
  *      `document.activeElement` は、ブラウザが焦点を外したあとの値になりうる
  *   4. **返すのは裏の `inert` が外れたあと。** 外れる前は焦点を受け取れない
+ *
+ * **出せるのは 1 枚だけ。** どれが出ているかを 1 つの値で持つので、重ねて出す
+ * 経路がそもそも作れない（重ねると、裏のシートが触れないまま残る）。
  */
 
 import { computed, nextTick, ref, watch, type ComputedRef, type Ref } from 'vue'
 
-export interface Sheet {
-  /** 画面に出ているか。裏を `inert` にするかどうかも、これで決める */
-  shown: ComputedRef<boolean>
+export interface Sheets<Name extends string> {
+  /** いま出ているシート。どれも出ていなければ `undefined` */
+  shown: ComputedRef<Name | undefined>
   /** 押した口から開く。閉じたときの焦点の戻り先をここで覚える */
-  open: (event: MouseEvent) => void
+  open: (name: Name, event: MouseEvent) => void
   /** 閉じて、開いた口へ焦点を返す */
   close: () => void
 }
@@ -27,14 +30,14 @@ export interface Sheet {
 /**
  * @param ready 中身を出せる状態か（読み込みが済んでいるか）
  */
-export function useSheet(ready: () => boolean): Sheet {
-  const wanted: Ref<boolean> = ref(false)
+export function useSheets<Name extends string>(ready: () => boolean): Sheets<Name> {
+  const wanted: Ref<Name | undefined> = ref(undefined) as Ref<Name | undefined>
   const opener: Ref<HTMLElement | null> = ref(null)
 
-  const shown = computed(() => wanted.value && ready())
+  const shown = computed(() => (ready() ? wanted.value : undefined))
 
   function close(): void {
-    wanted.value = false
+    wanted.value = undefined
     const button = opener.value
     opener.value = null
     void nextTick(() => button?.focus())
@@ -46,9 +49,9 @@ export function useSheet(ready: () => boolean): Sheet {
 
   return {
     shown,
-    open: (event) => {
+    open: (name, event) => {
       opener.value = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
-      wanted.value = true
+      wanted.value = name
     },
     close,
   }

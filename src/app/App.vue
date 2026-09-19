@@ -23,7 +23,7 @@ import ViewportControls from './graph-canvas/ViewportControls.vue'
 import AppShell from './shell/AppShell.vue'
 import HistoryNav from './shell/HistoryNav.vue'
 import { loadGraphInto } from './shell/graph-source'
-import { useSheet } from './shell/use-sheet'
+import { useSheets } from './shell/use-sheet'
 import { useViewState } from './shell/view-state'
 
 const state = useViewState()
@@ -45,16 +45,8 @@ const canvas = useTemplateRef<InstanceType<typeof GraphCanvas>>('canvas')
  * 積むのは移動だけ）。開閉の取り決めは `use-sheet.ts` にまとめてある。
  */
 const ready = () => state.status.kind === 'ready'
-const overview = useSheet(ready)
-const unresolved = useSheet(ready)
 
-/** いま出ているシート。重ねて出さない（出せば裏のシートが触れなくなる） */
-const sheetShown = computed(() => overview.shown.value || unresolved.shown.value)
-
-function openOverview(event: MouseEvent): void {
-  unresolved.close()
-  overview.open(event)
-}
+const sheets = useSheets<'overview' | 'unresolved'>(ready)
 
 /**
  * 推測の候補から移ったときの記録（UT-19 / US-21）。
@@ -84,12 +76,7 @@ const guessedFrom = computed(() =>
 function moveToCandidate(nodeId: string, expression: string): void {
   state.moveTo(nodeId)
   guessed.value = { nodeId, expression }
-  unresolved.close()
-}
-
-function openUnresolved(event: MouseEvent): void {
-  overview.close()
-  unresolved.open(event)
+  sheets.close()
 }
 
 onMounted(() => void loadGraphInto(state))
@@ -112,9 +99,8 @@ function onKeydown(event: KeyboardEvent): void {
    * 順に閉じるのが Esc の筋で、下に隠れている図の絞り込みを先に解くと、
    * 閉じたあとに図が変わっている
    */
-  if (sheetShown.value) {
-    overview.close()
-    unresolved.close()
+  if (sheets.shown.value !== undefined) {
+    sheets.close()
     return
   }
   if (!state.narrowedToSelection) return
@@ -159,7 +145,7 @@ const showsOrderNote = computed(
 </script>
 
 <template>
-  <AppShell :sheet-open="sheetShown">
+  <AppShell :sheet-open="sheets.shown.value !== undefined">
     <template #canvas>
       <GraphCanvas ref="canvas" />
     </template>
@@ -248,7 +234,7 @@ const showsOrderNote = computed(
           :disabled="state.status.kind !== 'ready'"
           aria-label="概要を開く"
           title="概要"
-          @click="openOverview"
+          @click="sheets.open('overview', $event)"
         >
           ▤
         </button>
@@ -263,7 +249,7 @@ const showsOrderNote = computed(
           :disabled="state.status.kind !== 'ready'"
           aria-label="追跡できなかった依存を開く"
           title="追跡できなかった依存"
-          @click="openUnresolved"
+          @click="sheets.open('unresolved', $event)"
         >
           ?
         </button>
@@ -296,12 +282,12 @@ const showsOrderNote = computed(
     </template>
 
     <template #sheet>
-      <OverviewSheet v-if="overview.shown.value" @close="overview.close()" />
+      <OverviewSheet v-if="sheets.shown.value === 'overview'" @close="sheets.close()" />
 
       <!-- 追跡できなかった依存（UT-19 / US-21）。確定した依存とは別の場所に置く -->
       <UnresolvedSheet
-        v-if="unresolved.shown.value"
-        @close="unresolved.close()"
+        v-if="sheets.shown.value === 'unresolved'"
+        @close="sheets.close()"
         @move-to-candidate="moveToCandidate"
       />
     </template>

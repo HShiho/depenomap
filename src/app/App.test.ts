@@ -1242,8 +1242,8 @@ describe('追跡できなかった依存（US-21 / UT-19）', () => {
     expect(wrapper.find('.shell-overlay').text()).not.toContain(guess.expression)
   })
 
-  it('概要と同時には出さない', async () => {
-    // 重ねると、裏のシートが触れないまま残る
+  it('概要を開くと、こちらは引っ込む', async () => {
+    // 出せるのは 1 枚だけ（`use-sheet.ts`）。重ねると裏のシートが触れないまま残る
     const { wrapper } = await setup()
     await open(wrapper)
 
@@ -1251,6 +1251,48 @@ describe('追跡できなかった依存（US-21 / UT-19）', () => {
 
     expect(sheet(wrapper).exists()).toBe(false)
     expect(wrapper.find('[aria-label="依存関係の概要"]').exists()).toBe(true)
+  })
+  it('開いているあいだ、裏は触れない', async () => {
+    const { wrapper } = await setup()
+
+    await open(wrapper)
+
+    for (const selector of ['nav', 'aside', 'main']) {
+      expect(wrapper.find(selector).attributes()).toHaveProperty('inert')
+    }
+  })
+
+  it('開くと焦点がシートへ移り、閉じると開いた口へ戻る', async () => {
+    const { wrapper } = await setup({ attach: true })
+    const button = wrapper.find('[aria-label="追跡できなかった依存を開く"]')
+    ;(button.element as HTMLElement).focus()
+
+    await open(wrapper)
+    expect(document.activeElement).toBe(sheet(wrapper).element)
+
+    await sheet(wrapper).find('[aria-label="追跡できなかった依存を閉じる"]').trigger('click')
+
+    expect(document.activeElement).toBe(button.element)
+  })
+
+  it('Esc で閉じる', async () => {
+    const { wrapper } = await setup({ attach: true })
+    await open(wrapper)
+
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await wrapper.vm.$nextTick()
+
+    expect(sheet(wrapper).exists()).toBe(false)
+  })
+
+  it('読めていないあいだは押せない', async () => {
+    const { state, wrapper } = await setup()
+    state.applyLoadOutcome({ kind: 'loading' })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[aria-label="追跡できなかった依存を開く"]').attributes()).toHaveProperty(
+      'disabled',
+    )
   })
 
   it('欠陥として扱わない（N-1）', async () => {
