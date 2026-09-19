@@ -24,16 +24,46 @@ const emit = defineEmits<{ close: []; moveToCandidate: [nodeId: string, expressi
 
 const state = useViewState()
 
+/**
+ * 選択中のノードに紐づくもの（完了条件）。
+ *
+ * 図で「未追跡」の印を見た読み手が、その依存を特定できる必要がある。件数の
+ * 多いグラフでは、全件から探し直すことになる。**引き当ては UT-02 のもの**
+ * （`unresolvedFrom`）を使う。
+ *
+ * ファイルを選んでいるときは、その中のメソッドのぶんも拾う。`unresolved[].from`
+ * は必ずメソッドなので、ファイル粒度で見ているあいだは 1 件も当たらなくなる。
+ */
+const selectedIds = computed(() => {
+  const viewModel = state.viewModel
+  const selected = state.selectedNodeId
+  if (viewModel === undefined || selected === undefined) return new Set<string>()
+
+  const node = viewModel.nodeById.get(selected)
+  const owners =
+    node?.kind === 'file'
+      ? (viewModel.methodsOfFile.get(node.id) ?? []).map((method) => method.id)
+      : []
+
+  return new Set(
+    [selected, ...owners].flatMap((id) => viewModel.unresolvedFrom(id).map((u) => u.id)),
+  )
+})
+
 const items = computed(() => {
   const viewModel = state.viewModel
   if (viewModel === undefined) return []
 
-  return viewModel.unresolved.map((unresolved) => ({
+  const all = viewModel.unresolved.map((unresolved) => ({
     unresolved,
     /** 呼び出し元。粒度に関わらず引ける（ノード ID で持つ） */
     from: viewModel.nodeById.get(unresolved.from),
     candidates: unresolved.candidates.map((id) => ({ id, node: viewModel.nodeById.get(id) })),
+    ofSelected: selectedIds.value.has(unresolved.id),
   }))
+
+  // 並べ替えるだけで、落とさない（全件が見える）
+  return [...all.filter((item) => item.ofSelected), ...all.filter((item) => !item.ofSelected)]
 })
 </script>
 
@@ -58,10 +88,12 @@ const items = computed(() => {
         :key="item.unresolved.id"
         class="rounded-item border border-line bg-surface-2 px-12 py-10"
         :data-unresolved-id="item.unresolved.id"
+        :data-of-selected="item.ofSelected ? '' : undefined"
       >
         <div class="flex items-baseline gap-7 text-caption text-ink-3">
           <span>{{ readingOf(item.unresolved.reason) }}</span>
           <span class="font-mono text-micro">{{ item.unresolved.reason }}</span>
+          <span v-if="item.ofSelected" class="text-accent">選択中のノード</span>
         </div>
 
         <p class="mt-4 font-mono text-meta break-all text-ink">

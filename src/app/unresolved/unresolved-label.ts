@@ -17,17 +17,21 @@ import type { Unresolved } from '@/core/graph/schema'
  * 値はスキーマ §3 が挙げているもの。**ここに無いコードは、そのまま出す** —
  * 知らない値を「その他」などに丸めると、正本 JSON が言っていることが画面から
  * 消える。抽出側が新しい理由を足しても、読み手には届く。
+ *
+ * **`Map` で持つ。** オブジェクトだと `constructor` や `toString` を引いた
+ * ときに継承した関数が返り、画面にその中身が出る。`reason` の書式は正本 JSON の
+ * 自由（スキーマは `string` としか言わない）で、ビューアは中身を検査しない。
  */
-const READINGS: Readonly<Record<string, string>> = {
-  'dynamic-di-token': 'DI コンテナの文字列トークン',
-  'dynamic-import': '動的 import',
-  callback: 'コールバック経由の呼び出し',
-  'dynamic-property': '動的なプロパティ参照',
-}
+const READINGS = new Map<string, string>([
+  ['dynamic-di-token', 'DI コンテナの文字列トークン'],
+  ['dynamic-import', '動的 import'],
+  ['callback', 'コールバック経由の呼び出し'],
+  ['dynamic-property', '動的なプロパティ参照'],
+])
 
 /** 理由の読み替え。知らないコードはそのまま */
 export function readingOf(reason: string): string {
-  return READINGS[reason] ?? reason
+  return READINGS.get(reason) ?? reason
 }
 
 /**

@@ -26,6 +26,14 @@ describe('理由の読み替え（US-21）', () => {
     expect(readingOf('brand-new-reason')).toBe('brand-new-reason')
   })
 
+  it.each(['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__'])(
+    '%s のような名前でも、そのまま出す',
+    (reason) => {
+      // オブジェクトで持つと、継承した関数が返って画面にその中身が出る
+      expect(readingOf(reason)).toBe(reason)
+    },
+  )
+
   it('是正を促す言葉を出さない（N-1）', () => {
     const readings = ['dynamic-di-token', 'dynamic-import', 'callback', 'dynamic-property'].map(
       readingOf,
