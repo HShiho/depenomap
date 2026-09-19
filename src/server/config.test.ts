@@ -182,3 +182,69 @@ describe('解釈できない入力', () => {
     expect(result.messages).toHaveLength(3)
   })
 })
+
+describe('解析対象リポジトリの指定（UT-20）', () => {
+  it('ホスト側とマウント先を対応づける', () => {
+    // 存在を確かめるのはマウント先、エディタへ渡すのはホスト側
+    const result = resolveConfig(['--graph', '/g.json', '--repo', '/Users/me/app=/repo'], {}, '/w')
+
+    expect(result.ok && result.config.repo).toEqual({
+      hostPath: '/Users/me/app',
+      mountPath: '/repo',
+    })
+  })
+
+  it('マウント先を省くと、ホスト側と同じ場所とみなす', () => {
+    // Docker を経由せずに動かすときは両者が一致する
+    const result = resolveConfig(['--graph', '/g.json', '--repo', '/Users/me/app'], {}, '/w')
+
+    expect(result.ok && result.config.repo).toEqual({
+      hostPath: '/Users/me/app',
+      mountPath: '/Users/me/app',
+    })
+  })
+
+  it('環境変数でも渡せる', () => {
+    const result = resolveConfig([], { DEPENOMAP_GRAPH: '/g.json', DEPENOMAP_REPO: '/a=/b' }, '/w')
+
+    expect(result.ok && result.config.repo?.mountPath).toBe('/b')
+  })
+
+  it('コマンドラインが環境変数より優先される', () => {
+    const result = resolveConfig(
+      ['--graph', '/g.json', '--repo', '/from/argv'],
+      { DEPENOMAP_REPO: '/from/env' },
+      '/w',
+    )
+
+    expect(result.ok && result.config.repo?.hostPath).toBe('/from/argv')
+  })
+
+  it('渡さなくても起動できる', () => {
+    // 図を読むだけなら要らない。エディタで開くときにだけ効く（N-1）
+    const result = resolveConfig(['--graph', '/g.json'], {}, '/w')
+
+    expect(result.ok && result.config.repo).toBeUndefined()
+  })
+
+  it('相対パスは受け付けない', () => {
+    // 作業ディレクトリが違う場所から起動すると、別の場所を指す
+    const result = resolveConfig(['--graph', '/g.json', '--repo', 'app=/repo'], {}, '/w')
+
+    expect(result.ok).toBe(false)
+    expect(!result.ok && result.messages.join(' ')).toContain('絶対パス')
+  })
+
+  it('空の指定は受け付けない', () => {
+    const result = resolveConfig(['--graph', '/g.json', '--repo', '/a='], {}, '/w')
+
+    expect(result.ok).toBe(false)
+  })
+
+  it('複数回渡されたら失敗する', () => {
+    // 後勝ちで黙って上書きすると、どちらが効いたのかが起動コマンドから読めない
+    const result = resolveConfig(['--graph', '/g.json', '--repo', '/a', '--repo', '/b'], {}, '/w')
+
+    expect(result.ok).toBe(false)
+  })
+})

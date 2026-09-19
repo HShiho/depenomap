@@ -27,6 +27,26 @@ export const GRAPH_PATH_ENV = 'DEPENOMAP_GRAPH'
 /** 待ち受けポートを渡す環境変数 */
 export const PORT_ENV = 'DEPENOMAP_PORT'
 
+/** 解析対象リポジトリの在り処を渡す環境変数（UT-20） */
+export const REPO_ENV = 'DEPENOMAP_REPO'
+
+/**
+ * 解析対象リポジトリの在り処（UT-20 / ADR-004）。
+ *
+ * ノードの `path` は `meta.rootDir` からの相対で、**画面が動く場所と実ファイルが
+ * 在る場所は違う**。その対応をサーバーが持つことで、画面は相対パスだけを扱える。
+ *
+ * Docker で動かすときは、ホスト側のリポジトリをコンテナへマウントする。
+ * 存在を確かめるのはコンテナから見える側（`mountPath`）、エディタへ渡すのは
+ * ホストから見える側（`hostPath`）で、**同じ場所を 2 つの名前で指す**。
+ */
+export interface RepoMount {
+  /** ホストから見たリポジトリの絶対パス。エディタへ渡すのはこちら */
+  hostPath: string
+  /** このプロセスから見たリポジトリの絶対パス。存在を確かめるのはこちら */
+  mountPath: string
+}
+
 export interface ServerConfig {
   /**
    * 正本 JSON の**絶対パス**。相対指定は解釈時に作業ディレクトリを起点として解決する。
@@ -34,6 +54,13 @@ export interface ServerConfig {
    */
   graphPath: string
   port: number
+  /**
+   * 解析対象リポジトリ。渡されなければ `undefined`。
+   *
+   * **渡されないことは欠陥ではない**（N-1）。図を読むだけなら要らず、
+   * エディタで開く（UT-18）ときにだけ効く
+   */
+  repo?: RepoMount
 }
 
 /**
@@ -43,7 +70,7 @@ export interface ServerConfig {
 export type ConfigResult = { ok: true; config: ServerConfig } | { ok: false; messages: string[] }
 
 /** 解釈できる起動オプション。ここに無いものを受け取ったら黙って捨てずに失敗させる */
-const KNOWN_OPTIONS = ['--graph', '--port'] as const
+const KNOWN_OPTIONS = ['--graph', '--port', '--repo'] as const
 type KnownOption = (typeof KNOWN_OPTIONS)[number]
 
 function isKnownOption(value: string): value is KnownOption {
@@ -106,6 +133,35 @@ function parseArgv(argv: string[]): {
   return { values, errors }
 }
 
+/**
+ * `--repo <ホスト側>` または `--repo <ホスト側>=<マウント先>` を解釈する。
+ *
+ * **対応は明示で与える**（UT-20 の決定）。`meta.rootDir` の末尾から推測すると、
+ * 当たったときも外れたときも理由が起動コマンドから読めない。
+ *
+ * マウント先を省いたときは、ホスト側と同じ場所とみなす。Docker を経由せずに
+ * 動かすとき（開発時）は両者が一致する。
+ */
+function parseRepo(raw: string): { ok: true; repo: RepoMount } | { ok: false; message: string } {
+  const eq = raw.indexOf('=')
+  const hostPath = eq === -1 ? raw : raw.slice(0, eq)
+  const mountPath = eq === -1 ? hostPath : raw.slice(eq + 1)
+
+  if (hostPath === '' || mountPath === '') {
+    return { ok: false, message: `リポジトリの指定が空: ${raw}` }
+  }
+  /*
+   * **絶対パスで受ける。** 相対で受けると、作業ディレクトリが違う場所から
+   * 起動したときに別の場所を指す。マウント先はコンテナの中の位置で、
+   * こちらの作業ディレクトリとは無関係でもある
+   */
+  if (!isAbsolute(hostPath) || !isAbsolute(mountPath)) {
+    return { ok: false, message: `リポジトリは絶対パスで指定する: ${raw}` }
+  }
+
+  return { ok: true, repo: { hostPath, mountPath } }
+}
+
 function parsePort(raw: string): { ok: true; port: number } | { ok: false; message: string } {
   if (!/^\d+$/.test(raw)) {
     return { ok: false, message: `ポートは数値で指定する: ${raw}` }
@@ -156,6 +212,14 @@ export function resolveConfig(
     else errors.push(parsed.message)
   }
 
+  const rawRepo = values['--repo'] ?? env[REPO_ENV]
+  let repo: RepoMount | undefined
+  if (rawRepo !== undefined && rawRepo !== '') {
+    const parsed = parseRepo(rawRepo)
+    if (parsed.ok) repo = parsed.repo
+    else errors.push(parsed.message)
+  }
+
   if (errors.length > 0 || rawGraph === undefined || rawGraph === '') {
     return { ok: false, messages: errors }
   }
@@ -165,6 +229,7 @@ export function resolveConfig(
     config: {
       graphPath: isAbsolute(rawGraph) ? rawGraph : resolve(cwd, rawGraph),
       port,
+      repo,
     },
   }
 }
