@@ -5,7 +5,7 @@
  * 各領域の中身は UT-06 以降が差し込む。いまレールと通知に入っているのは、
  * 器が動いていることを目で確かめるための**暫定表示**である。
  */
-import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
 
 import { callOrder } from './graph-canvas/call-order'
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
@@ -13,6 +13,8 @@ import NarrowingChip from './graph-canvas/NarrowingChip.vue'
 import { fullTitleOf } from './graph-canvas/node-label'
 import CycleBadge from './sidebar/CycleBadge.vue'
 import OverviewSheet from './overview/OverviewSheet.vue'
+import GuessedMoveChip from './unresolved/GuessedMoveChip.vue'
+import UnresolvedSheet from './unresolved/UnresolvedSheet.vue'
 import SidebarPanel from './sidebar/SidebarPanel.vue'
 import GranularityToggle from './graph-canvas/GranularityToggle.vue'
 import GraphCanvas from './graph-canvas/GraphCanvas.vue'
@@ -21,6 +23,7 @@ import ViewportControls from './graph-canvas/ViewportControls.vue'
 import AppShell from './shell/AppShell.vue'
 import HistoryNav from './shell/HistoryNav.vue'
 import { loadGraphInto } from './shell/graph-source'
+import { useSheet } from './shell/use-sheet'
 import { useViewState } from './shell/view-state'
 
 const state = useViewState()
@@ -35,34 +38,65 @@ const state = useViewState()
 const canvas = useTemplateRef<InstanceType<typeof GraphCanvas>>('canvas')
 
 /**
- * 概要を開いているか（UT-13）。
+ * 画面全体に重なるもの（UT-13 の概要、UT-19 の追跡できなかった依存）。
  *
  * **器（UT-05）には持たせない。** 図の見え方（粒度・選択・絞り込み）とは違って、
  * 他の UT がこの状態を読む理由が無く、履歴にも積まない（UT-15 の決定と同じで、
- * 積むのは移動だけ）。ここだけで閉じる。
+ * 積むのは移動だけ）。開閉の取り決めは `use-sheet.ts` にまとめてある。
  */
-const overviewOpen = ref(false)
+const ready = () => state.status.kind === 'ready'
+const overview = useSheet(ready)
+const unresolved = useSheet(ready)
 
-/**
- * 概要が画面に出ているか。**開閉の状態と、出す条件を 1 つの式にする。**
- *
- * 裏を `inert` にするかどうかと、シートを描くかどうかが別々の条件だと、
- * 読み込み結果が `ready` を外れたときにシートだけ消えて、画面全体が
- * `inert` のまま残る。
- */
-const overviewShown = computed(() => overviewOpen.value && state.status.kind === 'ready')
-
-/** 概要を開く。閉じたときに焦点を返す先を、状態を倒す前に捕まえておく */
-const opener = ref<HTMLElement | null>(null)
+/** いま出ているシート。重ねて出さない（出せば裏のシートが触れなくなる） */
+const sheetShown = computed(() => overview.shown.value || unresolved.shown.value)
 
 function openOverview(event: MouseEvent): void {
-  /*
-   * **押した口はここで捕まえる。** シート側の `onMounted` で読むと、その時点で
-   * 裏は `inert` になっており、ブラウザが焦点を外したあとの値を読みうる。
-   */
-  opener.value = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
-  overviewOpen.value = true
+  unresolved.close()
+  overview.open(event)
 }
+
+/**
+ * 推測の候補から移ったときに残す式（UT-19 / US-21）。
+ *
+ * **移った先では「推測で来た」ことが画面から消える。** 確定した依存をたどって
+ * 来たのか、絞り込めなかった候補へ飛んだのかが区別できないと、そこから読み取る
+ * 構造が実態とずれる。次にどこかへ移るまで出し続ける。
+ */
+const guessedFrom = ref<string | undefined>(undefined)
+
+/**
+ * 推測の候補へ移る（UT-19 は導線を差し込むだけ）。
+ *
+ * **移動そのものは UT-14 の経路を通す。** 別の経路を作ると、推測から移った
+ * ときだけ絞り込みが立たない、履歴に積まれない、といった食い違いができる。
+ */
+/** 直後の履歴の変化が、いまの移動そのものかどうか */
+let guessedMoveIsCurrent = false
+
+function moveToCandidate(nodeId: string, expression: string): void {
+  guessedMoveIsCurrent = true
+  state.moveTo(nodeId)
+  guessedFrom.value = expression
+  unresolved.close()
+}
+
+function openUnresolved(event: MouseEvent): void {
+  overview.close()
+  unresolved.open(event)
+}
+
+/*
+ * 次の移動で印を消す。推測で来たのは 1 手前までで、そこから先は確定した
+ * 依存をたどっている
+ */
+watch(
+  () => state.history.length,
+  () => {
+    if (guessedMoveIsCurrent) guessedMoveIsCurrent = false
+    else guessedFrom.value = undefined
+  },
+)
 
 onMounted(() => void loadGraphInto(state))
 
@@ -84,8 +118,9 @@ function onKeydown(event: KeyboardEvent): void {
    * 順に閉じるのが Esc の筋で、下に隠れている図の絞り込みを先に解くと、
    * 閉じたあとに図が変わっている
    */
-  if (overviewShown.value) {
-    closeOverview()
+  if (sheetShown.value) {
+    overview.close()
+    unresolved.close()
     return
   }
   if (!state.narrowedToSelection) return
@@ -94,29 +129,6 @@ function onKeydown(event: KeyboardEvent): void {
 
   state.setNarrowedToSelection(false)
 }
-
-/** 概要を閉じ、開いた口へ焦点を返す */
-function closeOverview(): void {
-  overviewOpen.value = false
-  const button = opener.value
-  opener.value = null
-  // 裏の `inert` が外れてから戻す。外れる前は焦点を受け取れない
-  void nextTick(() => button?.focus())
-}
-
-/*
- * 読めなくなったら閉じる。**「出ていない」と「開いている」を食い違わせない。**
- *
- * 出す条件（`overviewShown`）だけで隠すと、`overviewOpen` は立ったまま残る。
- * Esc も出ていないあいだは効かないので倒せず、読み直して `ready` に戻った
- * 瞬間にシートが独りでに開く。
- */
-watch(
-  () => state.status.kind,
-  (kind) => {
-    if (kind !== 'ready') closeOverview()
-  },
-)
 
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
@@ -153,7 +165,7 @@ const showsOrderNote = computed(
 </script>
 
 <template>
-  <AppShell :sheet-open="overviewShown">
+  <AppShell :sheet-open="sheetShown">
     <template #canvas>
       <GraphCanvas ref="canvas" />
     </template>
@@ -164,6 +176,12 @@ const showsOrderNote = computed(
     -->
     <template #canvas-overlay>
       <!-- 手で動かしたノード（UT-17）。図を見ているあいだも状態が読める -->
+      <GuessedMoveChip
+        v-if="guessedFrom !== undefined"
+        :expression="guessedFrom"
+        @close="guessedFrom = undefined"
+      />
+
       <MovedNodesChip
         :nodes="canvas?.movedNodes ?? []"
         :out-of-view="canvas?.movedOutOfView ?? []"
@@ -241,6 +259,21 @@ const showsOrderNote = computed(
           ▤
         </button>
 
+        <!--
+          追跡できなかった依存（US-21）。**確定した依存とは別の場所に置く** —
+          図の中に混ぜると、描いてあるものが確定なのか推測なのか読めなくなる
+        -->
+        <button
+          type="button"
+          class="rounded-control px-6 py-4 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink disabled:cursor-default disabled:text-line"
+          :disabled="state.status.kind !== 'ready'"
+          aria-label="追跡できなかった依存を開く"
+          title="追跡できなかった依存"
+          @click="openUnresolved"
+        >
+          ?
+        </button>
+
         <button
           type="button"
           class="rounded-control px-6 py-4 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink"
@@ -269,7 +302,14 @@ const showsOrderNote = computed(
     </template>
 
     <template #sheet>
-      <OverviewSheet v-if="overviewShown" @close="closeOverview" />
+      <OverviewSheet v-if="overview.shown.value" @close="overview.close()" />
+
+      <!-- 追跡できなかった依存（UT-19 / US-21）。確定した依存とは別の場所に置く -->
+      <UnresolvedSheet
+        v-if="unresolved.shown.value"
+        @close="unresolved.close()"
+        @move-to-candidate="moveToCandidate"
+      />
     </template>
 
     <template #notice>

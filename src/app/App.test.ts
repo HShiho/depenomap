@@ -1103,3 +1103,119 @@ describe('手で動かした配置（US-17 / US-18 / UT-17）', () => {
     }
   })
 })
+
+describe('追跡できなかった依存（US-21 / UT-19）', () => {
+  const sheet = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+    wrapper.find('[aria-label="追跡できなかった依存"][role="dialog"]')
+
+  const open = async (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) => {
+    await wrapper.find('[aria-label="追跡できなかった依存を開く"]').trigger('click')
+  }
+
+  it('レールから開ける', async () => {
+    const { wrapper } = await setup()
+
+    await open(wrapper)
+
+    expect(sheet(wrapper).exists()).toBe(true)
+  })
+
+  it('呼び出し元・式・理由が分かる', async () => {
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const first = state.viewModel!.unresolved[0]!
+
+    const text = sheet(wrapper).text()
+    expect(text).toContain(first.expression)
+    expect(text).toContain(state.viewModel!.nodeById.get(first.from)!.name)
+    expect(text).toContain('DI コンテナの文字列トークン')
+  })
+
+  it('全件出る', async () => {
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+
+    expect(sheet(wrapper).findAll('[data-unresolved-id]')).toHaveLength(
+      state.viewModel!.unresolved.length,
+    )
+  })
+
+  it('候補が推測であることが分かる', async () => {
+    // 確定した依存と同じ言い方にしない
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const withCandidates = state.viewModel!.unresolved.find((u) => u.candidates.length > 0)!
+
+    const row = sheet(wrapper).find(`[data-unresolved-id="${withCandidates.id}"]`)
+    expect(row.text()).toContain('推測した行き先')
+  })
+
+  it('候補が無いものも破綻しない', async () => {
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const without = state.viewModel!.unresolved.find((u) => u.candidates.length === 0)!
+
+    const row = sheet(wrapper).find(`[data-unresolved-id="${without.id}"]`)
+    expect(row.exists()).toBe(true)
+    expect(row.text()).toContain('絞り込めていません')
+    expect(row.findAll('[data-node-id]')).toHaveLength(0)
+  })
+
+  it('候補から図へ移れる。移動は UT-14 の経路', async () => {
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const guess = state.viewModel!.unresolved.find((u) => u.candidates.length > 0)!
+    const candidate = guess.candidates[0]!
+
+    await sheet(wrapper).find(`[data-node-id="${candidate}"]`).trigger('click')
+
+    expect(state.selectedNodeId).toBe(candidate)
+    expect(state.narrowedToSelection).toBe(true)
+    expect(state.history.at(-1)?.nodeId).toBe(candidate)
+  })
+
+  it('移った先でも、推測で来たことが分かる', async () => {
+    // 確定した依存をたどって来たのかが区別できないと、読み取る構造が実態とずれる
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const guess = state.viewModel!.unresolved.find((u) => u.candidates.length > 0)!
+
+    await sheet(wrapper).find(`[data-node-id="${guess.candidates[0]!}"]`).trigger('click')
+
+    expect(sheet(wrapper).exists()).toBe(false)
+    expect(wrapper.find('.shell-overlay').text()).toContain(guess.expression)
+  })
+
+  it('次に移ると、推測の印は消える', async () => {
+    // 推測で来たのは 1 手前まで
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const guess = state.viewModel!.unresolved.find((u) => u.candidates.length > 0)!
+    await sheet(wrapper).find(`[data-node-id="${guess.candidates[0]!}"]`).trigger('click')
+
+    state.moveTo(state.viewModel!.nodes.file[2]!.id)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.shell-overlay').text()).not.toContain(guess.expression)
+  })
+
+  it('概要と同時には出さない', async () => {
+    // 重ねると、裏のシートが触れないまま残る
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    await wrapper.find('[aria-label="概要を開く"]').trigger('click')
+
+    expect(sheet(wrapper).exists()).toBe(false)
+    expect(wrapper.find('[aria-label="依存関係の概要"]').exists()).toBe(true)
+  })
+
+  it('欠陥として扱わない（N-1）', async () => {
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    for (const word of ['違反', 'エラー', '警告', '修正してください', '問題']) {
+      expect(sheet(wrapper).text()).not.toContain(word)
+    }
+  })
+})
