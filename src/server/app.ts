@@ -6,13 +6,15 @@
  * 検証されないまま dev と本番の振る舞いが割れる。
  */
 
+import { existsSync } from 'node:fs'
 import { relative } from 'node:path'
 
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono, type Context } from 'hono'
 
-import { GRAPH_ENDPOINT } from '../core/graph/api'
+import { GRAPH_ENDPOINT, LOCATE_ENDPOINT } from '../core/graph/api'
 import { loadGraphFromFile } from '../core/graph/loader.node'
+import { locate } from './locate'
 import type { ServerConfig } from './config'
 
 /**
@@ -62,6 +64,20 @@ export function createApp(config: ServerConfig, options: AppOptions = {}): Hono 
     // 差し替えた JSON が中間キャッシュで古いまま返らないようにする
     c.header('Cache-Control', 'no-store')
     return c.json(result)
+  })
+
+  /*
+   * ノードの相対パスから、ホスト側で開ける位置を返す（UT-20 / ADR-004）。
+   *
+   * **解決できないことを失敗として返さない**（N-1）。リポジトリが渡されて
+   * いない・実体が無いのは、どちらも起こりうる状態であって欠陥ではない。
+   * グラフの口と同じく 200 で本文に載せ、何が起きたかは呼び出し側（UT-18）が
+   * 読んで決める。
+   */
+  app.get(LOCATE_ENDPOINT, (c) => {
+    const path = c.req.query('path') ?? ''
+    c.header('Cache-Control', 'no-store')
+    return c.json(locate(config.repo, path, existsSync))
   })
 
   /*

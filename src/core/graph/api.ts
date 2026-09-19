@@ -14,6 +14,14 @@ import type { LoadResult } from './loader'
 export const GRAPH_ENDPOINT = '/api/graph'
 
 /**
+ * ノードの相対パスから、ホスト側で開ける位置を尋ねる場所（UT-20）。
+ *
+ * 相対パスは `?path=` で渡す。**この口はサーバーにしか持てない** — 画面は
+ * 自分が動いている場所しか知らず、実ファイルの在り処を知らない（ADR-004）。
+ */
+export const LOCATE_ENDPOINT = '/api/locate'
+
+/**
  * 取得の結果。
  *
  * **サーバーに届いたかどうか**（`reached`）と、**正本 JSON を読めたかどうか**
