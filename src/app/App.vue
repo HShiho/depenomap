@@ -55,17 +55,24 @@ const sheets = useSheets<'overview' | 'unresolved'>(ready)
  * 来たのか、絞り込めなかった候補へ飛んだのかが区別できないと、そこから読み取る
  * 構造が実態とずれる。
  *
- * **「どこにいるか」で持つ。** 移動の回数で消すと、戻る・進む（履歴の長さが
+ * **「どの移動で来たか」で持つ。** 移動の回数で消すと、戻る・進む（履歴の長さが
  * 変わらない）や、同じノードを選び直したとき（そもそも積まれない）に取り残される。
- * 選択が推測で来たノードから離れた時点で、出す理由が無くなる。
+ * かといってノードだけで持つと、**確定した依存をたどって同じノードへ来たときに
+ * 印が復活する**。履歴の位置まで見れば、戻って帰ってきたとき（位置が同じ）は
+ * 出したまま、選び直したとき（新しい位置になる）は出さない、を両立できる。
  */
-const guessed = ref<{ nodeId: string; expression: string } | undefined>(undefined)
-
-const guessedFrom = computed(() =>
-  guessed.value !== undefined && state.selectedNodeId === guessed.value.nodeId
-    ? guessed.value.expression
-    : undefined,
+const guessed = ref<{ nodeId: string; historyIndex: number; expression: string } | undefined>(
+  undefined,
 )
+
+const guessedFrom = computed(() => {
+  const found = guessed.value
+  if (found === undefined) return undefined
+
+  return state.selectedNodeId === found.nodeId && state.historyIndex === found.historyIndex
+    ? found.expression
+    : undefined
+})
 
 /**
  * 推測の候補へ移る（UT-19 は導線を差し込むだけ）。
@@ -75,7 +82,7 @@ const guessedFrom = computed(() =>
  */
 function moveToCandidate(nodeId: string, expression: string): void {
   state.moveTo(nodeId)
-  guessed.value = { nodeId, expression }
+  guessed.value = { nodeId, historyIndex: state.historyIndex, expression }
   sheets.close()
 }
 

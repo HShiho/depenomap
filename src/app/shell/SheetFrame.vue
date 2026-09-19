@@ -19,7 +19,12 @@ import { onMounted, useTemplateRef } from 'vue'
 defineProps<{
   /** 読み上げ名。何のシートかが分かる言い方にする */
   label: string
-  /** 閉じる口の読み上げ名。開く口（レール）と対になる言い方にする */
+  /**
+   * 閉じる口の名前。開く口（レール）と対になる言い方にする。
+   *
+   * 読み上げにもツールチップにも同じものを出す。片方だけ「閉じる」にすると、
+   * 重なりが 2 つ以上あるとき、どれを閉じるのかがポインタからは分からない。
+   */
   closeLabel: string
 }>()
 
@@ -54,7 +59,7 @@ onMounted(() => sheet.value?.focus())
           type="button"
           class="rounded-control px-6 py-2 leading-none text-ink-3 hover:bg-surface-2 hover:text-ink"
           :aria-label="closeLabel"
-          title="閉じる"
+          :title="closeLabel"
           @click="emit('close')"
         >
           ✕

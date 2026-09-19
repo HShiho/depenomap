@@ -936,6 +936,14 @@ describe('概要の開閉（US-11 / UT-13）', () => {
     expect(sheet(wrapper).exists()).toBe(false)
   })
 
+  it('閉じる口は、どのシートのものかが読める', async () => {
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    const close = sheet(wrapper).find('[aria-label="概要を閉じる"]')
+    expect(close.attributes('title')).toBe('概要を閉じる')
+  })
+
   it('違反件数や指摘を出さない（N-1）', async () => {
     const { wrapper } = await setup()
     await open(wrapper)
@@ -1230,6 +1238,23 @@ describe('追跡できなかった依存（US-21 / UT-19）', () => {
     expect(wrapper.find('.shell-overlay').text()).toContain(guess.expression)
   })
 
+  it('確定した依存で同じノードへ来ても、印は出ない', async () => {
+    // ノードだけで持つと、たどり着いた経路に関わらず印が復活する
+    const { state, wrapper } = await setup()
+    await open(wrapper)
+    const guess = state.viewModel!.unresolved.find((u) => u.candidates.length > 0)!
+    const candidate = guess.candidates[0]!
+    await sheet(wrapper).find(`[data-node-id="${candidate}"]`).trigger('click')
+
+    // いったん離れて、図から同じノードへ入り直す
+    state.setGranularity('method')
+    state.moveTo(state.viewModel!.nodes.method.find((n) => n.id !== candidate)!.id)
+    state.moveTo(candidate)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.shell-overlay').text()).not.toContain(guess.expression)
+  })
+
   it('選択が外れたら、推測の印も消える', async () => {
     const { state, wrapper } = await setup()
     await open(wrapper)
@@ -1242,16 +1267,6 @@ describe('追跡できなかった依存（US-21 / UT-19）', () => {
     expect(wrapper.find('.shell-overlay').text()).not.toContain(guess.expression)
   })
 
-  it('概要を開くと、こちらは引っ込む', async () => {
-    // 出せるのは 1 枚だけ（`use-sheet.ts`）。重ねると裏のシートが触れないまま残る
-    const { wrapper } = await setup()
-    await open(wrapper)
-
-    await wrapper.find('[aria-label="概要を開く"]').trigger('click')
-
-    expect(sheet(wrapper).exists()).toBe(false)
-    expect(wrapper.find('[aria-label="依存関係の概要"]').exists()).toBe(true)
-  })
   it('開いているあいだ、裏は触れない', async () => {
     const { wrapper } = await setup()
 
@@ -1283,6 +1298,18 @@ describe('追跡できなかった依存（US-21 / UT-19）', () => {
     await wrapper.vm.$nextTick()
 
     expect(sheet(wrapper).exists()).toBe(false)
+  })
+
+  it('閉じる口は、どのシートのものかが読める', async () => {
+    /*
+     * 重なりは 2 つある（概要 / 追跡できなかった依存）。読み上げにもポインタにも
+     * 同じ名前を出す。片方だけ「閉じる」にすると、どれを閉じるのかが分からない
+     */
+    const { wrapper } = await setup()
+    await open(wrapper)
+
+    const close = sheet(wrapper).find('[aria-label="追跡できなかった依存を閉じる"]')
+    expect(close.attributes('title')).toBe('追跡できなかった依存を閉じる')
   })
 
   it('読めていないあいだは押せない', async () => {

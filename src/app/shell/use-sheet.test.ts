@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
-import { mount } from '@vue/test-utils'
-import { defineComponent, h, nextTick, ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { describe, expect, it } from 'vitest'
 
 import { useSheets } from './use-sheet'
@@ -18,12 +17,7 @@ function setup(ready = ref(true)) {
   document.body.append(button)
   const event = { currentTarget: button } as unknown as MouseEvent
 
-  // `watch` を動かすため、描画の文脈に載せる
-  const wrapper = mount(
-    defineComponent({ setup: () => () => h('div', String(sheets.shown.value)) }),
-  )
-
-  return { sheets, ready, button, event, wrapper }
+  return { sheets, ready, button, event }
 }
 
 describe('重なるシートの開閉（UT-13 / UT-19）', () => {
