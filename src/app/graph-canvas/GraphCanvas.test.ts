@@ -1461,16 +1461,14 @@ describe('ノードを手で動かす（US-17 / UT-17）', () => {
     to: { x: number; y: number },
     from = { x: 100, y: 100 },
   ) => {
-    wrapper
-      .find(`[data-node-id="${id}"]`)
-      .element.dispatchEvent(
-        new MouseEvent('pointerdown', {
-          bubbles: true,
-          button: 0,
-          clientX: from.x,
-          clientY: from.y,
-        }),
-      )
+    wrapper.find(`[data-node-id="${id}"]`).element.dispatchEvent(
+      new MouseEvent('pointerdown', {
+        bubbles: true,
+        button: 0,
+        clientX: from.x,
+        clientY: from.y,
+      }),
+    )
     window.dispatchEvent(new MouseEvent('pointermove', { clientX: to.x, clientY: to.y }))
     window.dispatchEvent(new MouseEvent('pointerup', {}))
     await wrapper.vm.$nextTick()
@@ -1600,6 +1598,43 @@ describe('ノードを手で動かす（US-17 / UT-17）', () => {
     await wrapper.vm.$nextTick()
 
     expect((wrapper.vm as unknown as { movedNodes: unknown[] }).movedNodes).toHaveLength(0)
+  })
+
+  it('絞り込みで消えて戻ってきても、動かした位置のまま', async () => {
+    // 消えているあいだに既定へ戻ると、絞り込みを解くたびに並べ直しになる
+    const { state, wrapper } = setup()
+    const moved = viewModel.nodes.file[2]!.id
+    await drag(wrapper, moved, { x: 320, y: 260 })
+    const at = positionOf(wrapper, moved)
+
+    // 関係しないノードを選んで絞り込むと、動かしたノードは図から消える
+    const other = viewModel.nodes.file.find(
+      (node) =>
+        node.id !== moved &&
+        !viewModel.edges.file.some(
+          (edge) =>
+            (edge.from === node.id && edge.to === moved) ||
+            (edge.to === node.id && edge.from === moved),
+        ),
+    )!
+    state.moveTo(other.id)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find(`[data-node-id="${moved}"]`).exists()).toBe(false)
+
+    state.setNarrowedToSelection(false)
+    await wrapper.vm.$nextTick()
+
+    expect(positionOf(wrapper, moved)).toEqual(at)
+  })
+
+  it('図を動かす操作とは混ざらない（UT-16）', async () => {
+    // ノードを動かしてもビューポートは動かない
+    const { wrapper } = setup()
+    const before = { ...viewportOf(wrapper) }
+
+    await drag(wrapper, viewModel.nodes.file[2]!.id, { x: 320, y: 260 })
+
+    expect(viewportOf(wrapper)).toEqual(before)
   })
 
   it('右ボタンでは掴まない', async () => {
