@@ -47,8 +47,6 @@ const position = computed(() =>
   }),
 )
 
-const openable = computed(() => props.action.kind === 'ready')
-
 /** 押せない理由。押せるときは出さない */
 const reason = computed(() => (props.action.kind === 'blocked' ? props.action.reason : undefined))
 
@@ -109,12 +107,28 @@ onBeforeUnmount(() => {
       </p>
     </header>
 
+    <!--
+      **開く口はリンクにする。** `vscode://` を OS へ取り次ぐのはブラウザで、
+      こちらは行き先を書くだけでよい（ADR-004）。押した結果は返ってこないので、
+      押せたかどうかを画面の状態に持たない
+    -->
+    <a
+      v-if="action.kind === 'ready'"
+      role="menuitem"
+      class="px-11 py-7 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink"
+      :href="action.uri"
+      @click="emit('open')"
+    >
+      VSCode で開く
+    </a>
+
+    <!-- 開けないときも項目は出す。出さないと「開く機能が無い」と読める -->
     <button
+      v-else
       type="button"
       role="menuitem"
-      class="px-11 py-7 text-left text-ui text-ink-2 hover:bg-surface-2 hover:text-ink disabled:cursor-default disabled:text-line disabled:hover:bg-transparent"
-      :disabled="!openable"
-      @click="emit('open')"
+      class="px-11 py-7 text-left text-ui text-ink-2 disabled:cursor-default disabled:text-line"
+      disabled
     >
       VSCode で開く
     </button>
@@ -123,7 +137,7 @@ onBeforeUnmount(() => {
       押せない理由。**押す前に読める場所へ出す**（UT-18 の決定）。
       押してから知らせると、押した操作が効いたのかどうかが分からない
     -->
-    <p v-if="reason !== undefined" class="px-11 pb-6 text-caption break-words text-ink-3">
+    <p v-if="reason !== undefined" class="px-11 pb-6 text-caption wrap-break-word text-ink-3">
       {{ reason }}
     </p>
 

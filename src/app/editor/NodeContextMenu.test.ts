@@ -38,12 +38,24 @@ describe('ノードの右クリックメニュー（UT-18 / US-19）', () => {
     expect(wrapper.text()).toContain('src/app.ts')
   })
 
-  it('押すと、開くことを伝える', async () => {
+  it('開ける先をリンクとして書く', () => {
+    // vscode:// を OS へ取り次ぐのはブラウザ。こちらは行き先を書くだけでよい
+    expect(item(show()).attributes('href')).toBe('vscode://file/Users/me/app/src/a.ts')
+  })
+
+  it('押すと、開いたことを伝える', async () => {
     const wrapper = show()
 
     await item(wrapper).trigger('click')
 
     expect(wrapper.emitted('open')).toHaveLength(1)
+  })
+
+  it('開けないときは、行き先を書かない', () => {
+    // 押せる見た目のまま行き先だけ無い、という形を作らない
+    const wrapper = show({ kind: 'blocked', reason: 'x' })
+
+    expect(item(wrapper).attributes('href')).toBeUndefined()
   })
 
   it('押した場所に出す', () => {
