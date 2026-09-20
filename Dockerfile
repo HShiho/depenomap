@@ -52,5 +52,13 @@ EXPOSE 5173
 # 見せるかは `docker run -p` が決める。
 ENV DEPENOMAP_HOST=0.0.0.0
 
+# root で待ち受けない。
+#
+# 解析対象リポジトリはマウントで渡す設計であり、`:ro` を付けるかは利用者が
+# 決める。書き込める形で渡されたとき、root だとホスト側のリポジトリを
+# 壊せてしまう。このサーバーは読むだけなので、node 公式イメージに元から
+# いる一般ユーザーで足りる。
+USER node
+
 # 正本 JSON のパスは指定が要る（UT-03）。`--graph` か DEPENOMAP_GRAPH で渡す
 ENTRYPOINT ["node", "dist/server/main.js"]
