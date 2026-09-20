@@ -101,7 +101,7 @@ Node も pnpm も要らない。Docker だけあればよい。
 
 ```console
 $ docker build -t depenomap .
-$ docker run --rm -p 5173:5173 \
+$ docker run --rm -p 127.0.0.1:5173:5173 \
     -v /Users/you/todo-app:/repo:ro \
     -v /Users/you/todo-app/dependency-graph.json:/graph.json:ro \
     depenomap --graph /graph.json --repo /Users/you/todo-app=/repo
@@ -128,9 +128,13 @@ $ docker run --rm -p 5173:5173 \
 図を読むだけなら `--repo` は要らない。VSCode で開くときにだけ使う。
 
 コンテナの中では全インターフェースで待ち受ける（`Dockerfile` の
-`DEPENOMAP_HOST=0.0.0.0`）。コンテナの中のループバックは外から届かないためで、
-**ホスト側のどこに見せるかは `-p` が決める**。他のマシンから触らせたくなければ
-`-p 127.0.0.1:5173:5173` と書く。
+`DEPENOMAP_HOST=0.0.0.0`）。コンテナの中のループバックは外から届かないためである。
+**ホスト側のどこに見せるかは `-p` が決める**ので、ここを `127.0.0.1:5173:5173` と
+書いて、このマシンからだけ開ける形にしている。
+
+`-p 5173:5173` と書くと同じネットワークの誰からでも開ける。この口には認証が無く、
+`/api/graph` は解析対象の構成を、`/api/locate` はマウントしたリポジトリのファイルの
+有無をそのまま返す。他のマシンから見せる必要があるときだけ、そう書く。
 
 ---
 
