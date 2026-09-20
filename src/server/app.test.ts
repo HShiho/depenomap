@@ -6,16 +6,16 @@ import { fileURLToPath, URL } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 
 import type { LoadResult } from '../core/graph/loader'
-import { GRAPH_ENDPOINT } from '../core/graph/api'
+import { GRAPH_ENDPOINT, LOCATE_ENDPOINT } from '../core/graph/api'
 import { createApp } from './app'
-import { DEFAULT_PORT } from './config'
+import { DEFAULT_HOST, DEFAULT_PORT } from './config'
 
 const fixturePath = fileURLToPath(
   new URL('../../test-data/dependency-graph.complex.json', import.meta.url),
 )
 
 function appFor(graphPath: string) {
-  return createApp({ graphPath, port: DEFAULT_PORT })
+  return createApp({ graphPath, port: DEFAULT_PORT, host: DEFAULT_HOST })
 }
 
 /** このファイルが作った一時ディレクトリ。テストの後に消す */
@@ -135,7 +135,7 @@ const HTML_ACCEPT = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q
 describe('画面の配信（本番）', () => {
   it('clientDir を渡すと index.html を返す', async () => {
     const app = createApp(
-      { graphPath: fixturePath, port: DEFAULT_PORT },
+      { graphPath: fixturePath, port: DEFAULT_PORT, host: DEFAULT_HOST },
       {
         clientDir: await writeClientDir(),
       },
@@ -149,7 +149,7 @@ describe('画面の配信（本番）', () => {
 
   it('アセットを返す', async () => {
     const app = createApp(
-      { graphPath: fixturePath, port: DEFAULT_PORT },
+      { graphPath: fixturePath, port: DEFAULT_PORT, host: DEFAULT_HOST },
       {
         clientDir: await writeClientDir(),
       },
@@ -165,7 +165,7 @@ describe('画面の配信（本番）', () => {
     '画面は単一ページなので、直接叩かれた URL にも index.html を返す: %s',
     async (path) => {
       const app = createApp(
-        { graphPath: fixturePath, port: DEFAULT_PORT },
+        { graphPath: fixturePath, port: DEFAULT_PORT, host: DEFAULT_HOST },
         {
           clientDir: await writeClientDir(),
         },
@@ -180,7 +180,7 @@ describe('画面の配信（本番）', () => {
 
   it('画面を求めていない要求はフォールバックしない', async () => {
     const app = createApp(
-      { graphPath: fixturePath, port: DEFAULT_PORT },
+      { graphPath: fixturePath, port: DEFAULT_PORT, host: DEFAULT_HOST },
       {
         clientDir: await writeClientDir(),
       },
@@ -193,7 +193,7 @@ describe('画面の配信（本番）', () => {
 
   it('静的配信より API を先に引き当てる', async () => {
     const app = createApp(
-      { graphPath: fixturePath, port: DEFAULT_PORT },
+      { graphPath: fixturePath, port: DEFAULT_PORT, host: DEFAULT_HOST },
       {
         clientDir: await writeClientDir(),
       },
@@ -206,7 +206,7 @@ describe('画面の配信（本番）', () => {
 
   it('知らない /api/* は 404。画面のフォールバックに巻き込まない', async () => {
     const app = createApp(
-      { graphPath: fixturePath, port: DEFAULT_PORT },
+      { graphPath: fixturePath, port: DEFAULT_PORT, host: DEFAULT_HOST },
       { clientDir: await writeClientDir() },
     )
 
@@ -220,7 +220,7 @@ describe('画面の配信（本番）', () => {
     '無いアセットは 404。index.html を返さない: Accept %s',
     async (accept) => {
       const app = createApp(
-        { graphPath: fixturePath, port: DEFAULT_PORT },
+        { graphPath: fixturePath, port: DEFAULT_PORT, host: DEFAULT_HOST },
         { clientDir: await writeClientDir() },
       )
 
@@ -232,7 +232,7 @@ describe('画面の配信（本番）', () => {
 
   it('index.html は毎回問い合わせさせる', async () => {
     const app = createApp(
-      { graphPath: fixturePath, port: DEFAULT_PORT },
+      { graphPath: fixturePath, port: DEFAULT_PORT, host: DEFAULT_HOST },
       { clientDir: await writeClientDir() },
     )
 
@@ -245,5 +245,114 @@ describe('画面の配信（本番）', () => {
     const response = await appFor(fixturePath).request('/')
 
     expect(response.status).toBe(404)
+  })
+})
+
+describe(`GET ${LOCATE_ENDPOINT}`, () => {
+  /** 実体のあるリポジトリを作る。マウント先＝ホスト側として扱う（Docker 抜き） */
+  async function repoWith(file: string) {
+    const dir = await makeTempDir('depenomap-repo-')
+    await mkdir(join(dir, 'src'), { recursive: true })
+    await writeFile(join(dir, file), 'export {}\n', 'utf8')
+    return dir
+  }
+
+  it('ホスト側で開ける位置を返す', async () => {
+    const repoDir = await repoWith('src/a.ts')
+    const app = createApp({
+      graphPath: fixturePath,
+      port: DEFAULT_PORT,
+      host: DEFAULT_HOST,
+      repo: { hostPath: '/Users/me/app', mountPath: repoDir },
+    })
+
+    const response = await app.request(`${LOCATE_ENDPOINT}?path=src/a.ts`)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      resolved: true,
+      hostPath: '/Users/me/app/src/a.ts',
+      exists: true,
+    })
+  })
+
+  it('実体が無くても位置は返す', async () => {
+    const repoDir = await repoWith('src/a.ts')
+    const app = createApp({
+      graphPath: fixturePath,
+      port: DEFAULT_PORT,
+      host: DEFAULT_HOST,
+      repo: { hostPath: '/Users/me/app', mountPath: repoDir },
+    })
+
+    const response = await app.request(`${LOCATE_ENDPOINT}?path=src/gone.ts`)
+
+    // 無いことを欠陥として扱わない（N-1）。移動した・まだ無い、どちらもありうる
+    expect(await response.json()).toMatchObject({ resolved: true, exists: false })
+  })
+
+  it('リポジトリが渡されていなければ、その旨を返す', async () => {
+    const app = appFor(fixturePath)
+
+    const response = await app.request(`${LOCATE_ENDPOINT}?path=src/a.ts`)
+
+    // 解決できないことを失敗として返さない。何が足りないかは呼び出し側が案内する
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ resolved: false, reason: 'no-repo' })
+  })
+
+  it('リポジトリの外は受け取らない', async () => {
+    const repoDir = await repoWith('src/a.ts')
+    const app = createApp({
+      graphPath: fixturePath,
+      port: DEFAULT_PORT,
+      host: DEFAULT_HOST,
+      repo: { hostPath: '/Users/me/app', mountPath: repoDir },
+    })
+
+    const response = await app.request(`${LOCATE_ENDPOINT}?path=${encodeURIComponent('../secret')}`)
+
+    expect(await response.json()).toEqual({ resolved: false, reason: 'bad-path' })
+  })
+
+  it('符号化された記号を、そのままの名前として受け取る', async () => {
+    // クエリは URL の一部で、`+` は復号すると空白になる。呼び出し側は
+    // encodeURIComponent で渡す（`+` は %2B）。この経路が壊れると、別の
+    // ファイルの位置を `resolved: true` で返すことになる
+    const repoDir = await repoWith('src/a+b.ts')
+    const app = createApp({
+      graphPath: fixturePath,
+      port: DEFAULT_PORT,
+      host: DEFAULT_HOST,
+      repo: { hostPath: '/Users/me/app', mountPath: repoDir },
+    })
+
+    const response = await app.request(
+      `${LOCATE_ENDPOINT}?path=${encodeURIComponent('src/a+b.ts')}`,
+    )
+
+    expect(await response.json()).toEqual({
+      resolved: true,
+      hostPath: '/Users/me/app/src/a+b.ts',
+      exists: true,
+    })
+  })
+
+  it('path を渡さなくても落ちない', async () => {
+    const app = appFor(fixturePath)
+
+    const response = await app.request(LOCATE_ENDPOINT)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ resolved: false })
+  })
+
+  it('結果を中間キャッシュに残さない', async () => {
+    // 実体の有無は起動後にも変わる
+    const app = appFor(fixturePath)
+
+    const response = await app.request(`${LOCATE_ENDPOINT}?path=src/a.ts`)
+
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
   })
 })

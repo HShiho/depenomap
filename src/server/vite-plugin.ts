@@ -16,18 +16,19 @@
 import { getRequestListener } from '@hono/node-server'
 import type { Plugin } from 'vite'
 
-import { GRAPH_PATH_ENV, PORT_ENV, resolveConfig, type ServerConfig } from './config.ts'
+import { GRAPH_PATH_ENV, PORT_ENV, REPO_ENV, resolveConfig, type ServerConfig } from './config.ts'
 
 /** middleware に回す対象。ここに当たらない要求は Vite（画面）に渡す */
 const API_PREFIX = '/api/'
 
 function describeFailure(messages: string[]): string {
   return [
-    '正本 JSON の指定に問題があるため dev server を起動できない。',
+    '起動パラメータに問題があるため dev server を起動できない。',
     ...messages.map((message) => `  - ${message}`),
     '',
     `例: ${GRAPH_PATH_ENV}=test-data/dependency-graph.complex.json pnpm dev`,
     `（待ち受けポートは ${PORT_ENV} で変えられる）`,
+    `（VSCode で開くときは、解析対象リポジトリを ${REPO_ENV} で渡す）`,
   ].join('\n')
 }
 
