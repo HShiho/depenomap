@@ -315,6 +315,29 @@ describe(`GET ${LOCATE_ENDPOINT}`, () => {
     expect(await response.json()).toEqual({ resolved: false, reason: 'bad-path' })
   })
 
+  it('符号化された記号を、そのままの名前として受け取る', async () => {
+    // クエリは URL の一部で、`+` は復号すると空白になる。呼び出し側は
+    // encodeURIComponent で渡す（`+` は %2B）。この経路が壊れると、別の
+    // ファイルの位置を `resolved: true` で返すことになる
+    const repoDir = await repoWith('src/a+b.ts')
+    const app = createApp({
+      graphPath: fixturePath,
+      port: DEFAULT_PORT,
+      host: DEFAULT_HOST,
+      repo: { hostPath: '/Users/me/app', mountPath: repoDir },
+    })
+
+    const response = await app.request(
+      `${LOCATE_ENDPOINT}?path=${encodeURIComponent('src/a+b.ts')}`,
+    )
+
+    expect(await response.json()).toEqual({
+      resolved: true,
+      hostPath: '/Users/me/app/src/a+b.ts',
+      exists: true,
+    })
+  })
+
   it('path を渡さなくても落ちない', async () => {
     const app = appFor(fixturePath)
 
