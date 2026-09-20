@@ -29,11 +29,14 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV HUSKY=0
 
-# 実行に要るのは成果物と、サーバーが読み込む依存だけ。
+# 実行に要るのは成果物と、`dependencies` だけ。
 #
 # `dist/server/main.js` は依存をバンドルせずに import する（`hono` /
-# `@hono/node-server` / `valibot`）。画面側の依存はビルド済みの
-# `dist/client` に入っているので、ここでは要らない。
+# `@hono/node-server` / `valibot`）。`--prod` は `dependencies` をまとめて
+# 入れるので、画面側の依存（`vue` など。ビルド済みの `dist/client` に入って
+# いるので実行には要らない）もここに含まれる。**サーバーの実行に要るものを
+# ここで列挙し直さない** — `package.json` と二重に持つと、依存を足したときに
+# 片方だけ古くなる。
 COPY package.json pnpm-lock.yaml ./
 RUN corepack enable && pnpm install --frozen-lockfile --prod --ignore-scripts
 COPY --from=build /app/dist ./dist
