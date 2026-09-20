@@ -23,7 +23,7 @@ const API_PREFIX = '/api/'
 
 function describeFailure(messages: string[]): string {
   return [
-    '正本 JSON の指定に問題があるため dev server を起動できない。',
+    '起動パラメータに問題があるため dev server を起動できない。',
     ...messages.map((message) => `  - ${message}`),
     '',
     `例: ${GRAPH_PATH_ENV}=test-data/dependency-graph.complex.json pnpm dev`,
