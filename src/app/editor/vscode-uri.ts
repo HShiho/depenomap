@@ -36,14 +36,21 @@ function encodePath(hostPath: string): string {
   return posixAbsolute(hostPath).split('/').map(encodeURIComponent).join('/')
 }
 
+/** ドライブレターで始まる形（`C:\\...` / `C:/...`）。Windows のパスだけに当たる */
+const DRIVE_LETTER = /^[A-Za-z]:[\\/]/
+
 /**
- * 区切りを `/` に揃え、先頭に `/` を置く。
+ * 先頭に `/` を置き、Windows のパスなら区切りも揃える。
  *
  * Windows のパス（`C:\\Users\\me\\app`）をそのまま繋ぐと `vscode://fileC:...` に
  * なり、ホスト名の一部として読まれる。
+ *
+ * **区切りを畳むのは Windows のパスのときだけ。** POSIX では `\` はファイル名に
+ * 使える文字であり、無条件に畳むと `a\\b.ts` が `a/b.ts` という**別の場所**を指す。
+ * しかも「開ける」と言ったまま渡すことになる。
  */
 function posixAbsolute(hostPath: string): string {
-  const slashed = hostPath.replaceAll('\\', '/')
+  const slashed = DRIVE_LETTER.test(hostPath) ? hostPath.replaceAll('\\', '/') : hostPath
   return slashed.startsWith('/') ? slashed : `/${slashed}`
 }
 

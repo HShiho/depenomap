@@ -34,6 +34,14 @@ describe('VSCode で開く URI（UT-18 / US-19）', () => {
     )
   })
 
+  it('POSIX の名前に含まれる \\ は、区切りにしない', () => {
+    /*
+     * POSIX では `\\` はファイル名に使える文字。区切りとして畳むと、別の場所を
+     * 指す URI を「開ける」と言ったまま渡すことになる
+     */
+    expect(vscodeUriOf('/app/a\\b.ts')).toBe('vscode://file/app/a%5Cb.ts')
+  })
+
   it.each([
     ['#', '/app/a#b.ts', 'vscode://file/app/a%23b.ts'],
     ['?', '/app/a?b.ts', 'vscode://file/app/a%3Fb.ts'],
