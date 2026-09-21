@@ -12,6 +12,9 @@ import type { GraphNode } from '@/core/graph/schema'
 import NodeContextMenu from './editor/NodeContextMenu.vue'
 import { openActionOf } from './editor/open-action'
 import { openTargetOf } from './editor/open-target'
+import DrawingNoteChip from './legend/DrawingNoteChip.vue'
+import { emptyNoteOf, viaNoteOf } from './legend/drawing-notes'
+import LegendPanel from './legend/LegendPanel.vue'
 import { callOrder } from './graph-canvas/call-order'
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
 import NarrowingChip from './graph-canvas/NarrowingChip.vue'
@@ -227,6 +230,30 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 /**
+ * インターフェース経由の解決についての断り（UT-26 / UT-07）。
+ *
+ * **本数は粒度によらず同じものを渡す。** ファイル粒度では図に出ないだけで、
+ * 解決そのものは起きている。
+ */
+const viaNote = computed(() => {
+  const edges = state.viewModel?.edges.method ?? []
+  return viaNoteOf({
+    granularity: state.granularity,
+    viaCount: edges.filter((edge) => 'resolution' in edge && edge.resolution === 'via-interface')
+      .length,
+  })
+})
+
+/** 図に出せるノードが無いことの断り（UT-26） */
+const emptyNote = computed(() =>
+  emptyNoteOf({
+    shown: canvas.value?.shownNodeCount ?? 0,
+    narrowed: state.narrowedToSelection,
+    inGranularity: state.viewModel?.nodes[state.granularity].length ?? 0,
+  }),
+)
+
+/**
  * 絞り込み中に出す名前。絞っていなければ `undefined`。
  *
  * 図から消えたノードは、消えたこと自体が画面から読めない。何を中心に絞って
@@ -285,6 +312,15 @@ const showsOrderNote = computed(
         :label="narrowingLabel"
         :order-note="showsOrderNote"
       />
+
+      <!-- 描き方の断り（UT-26）。図がどう描かれているかを言うだけで、操作は持たない -->
+      <DrawingNoteChip v-if="emptyNote !== undefined" :note="emptyNote" />
+      <DrawingNoteChip v-if="viaNote !== undefined" :note="viaNote" />
+    </template>
+
+    <!-- 図の読み方（UT-26）。下端の左。既定は畳んだ状態 -->
+    <template #canvas-legend>
+      <LegendPanel v-if="state.status.kind === 'ready'" :layers="canvas?.shownLayers ?? []" />
     </template>
 
     <template #toolbar>

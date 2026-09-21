@@ -14,7 +14,21 @@
  */
 
 import { CYCLE_LABEL, TYPE_ONLY_LABEL } from '@/app/shell/cycle-mark'
+import type { LayerKey } from '@/core/ir/view-model'
 import { UNRESOLVED_LABEL } from '@/app/shell/node-flag'
+
+/**
+ * 凡例に出す層。**図が渡す**（いま出ている層だけ / UT-26 の決定）。
+ *
+ * 名前と色は層の見せ方を持つ場所（`shell/layer-colour.ts`）から引いたものを
+ * そのまま受け取る。凡例が引き直すと、図と凡例で色がずれうる。
+ */
+export interface LegendLayer {
+  /** 層のキー。層が無いノードのぶんは `NO_LAYER`（Symbol）で来る */
+  key: LayerKey
+  name: string
+  colour: string
+}
 
 /**
  * 線の見本。`kind` は図のエッジに付く class と同じ語で、凡例の見本も同じ

@@ -98,6 +98,14 @@ onBeforeUnmount(() => stopWatching())
         <slot name="notice" />
       </div>
 
+      <!--
+        図の読み方（凡例 / UT-26）。**下端の左**に置く。左上はチップ列、右上は
+        通知、下端中央はツールバーが使っており、そこへ足すと混む
+      -->
+      <div class="shell-legend">
+        <slot name="canvas-legend" />
+      </div>
+
       <div class="shell-toolbar">
         <slot name="toolbar" />
       </div>
@@ -153,6 +161,7 @@ onBeforeUnmount(() => stopWatching())
  */
 .shell-overlay,
 .shell-notice,
+.shell-legend,
 .shell-toolbar {
   position: absolute;
   z-index: 1;
@@ -161,6 +170,7 @@ onBeforeUnmount(() => stopWatching())
 
 .shell-overlay > :deep(*),
 .shell-notice > :deep(*),
+.shell-legend > :deep(*),
 .shell-toolbar > :deep(*) {
   pointer-events: auto;
 }
@@ -173,6 +183,13 @@ onBeforeUnmount(() => stopWatching())
 .shell-notice {
   top: var(--overlay-inset);
   right: var(--overlay-inset);
+}
+
+/* 下端の左。ツールバー（中央）と重ならない */
+.shell-legend {
+  bottom: var(--toolbar-inset);
+  left: var(--overlay-inset);
+  max-width: calc(50% - var(--toolbar-inset));
 }
 
 /* 下端中央に置く。全幅の帯にすると、幅いっぱいがキャンバスの操作を覆う */

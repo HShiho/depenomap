@@ -14,11 +14,12 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import type { GraphEdge, GraphNode } from '@/core/graph/schema'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
 import { useViewState, type ColumnAxis } from '../shell/view-state'
-import { layerColours } from '../shell/layer-colour'
+import { layerColours, layerLabels } from '../shell/layer-colour'
 import { callOrder } from './call-order'
 import { cycleMarkOf, isCycleEdge } from '../shell/cycle-mark'
 import { nodeFlagOf } from '../shell/node-flag'
 import { buildColumnPlan } from './column-axis'
+import type { LegendLayer } from '@/app/legend/legend-items'
 import { narrowedNodeIds } from './narrowing'
 import { edgeMidpoint, edgePath } from './edge-path'
 import { nameLimitFor, subtitleOf, titleOf, tooltipOf } from './node-label'
@@ -148,6 +149,31 @@ const layout = computed(() => {
     columnOf: (node) => columnPlan.value?.columnOf(node) ?? 0,
     sortKeyOf,
   })
+})
+
+/**
+ * いま図に出ている層（UT-26）。凡例はこれを出す。
+ *
+ * **図に出ているものだけ**にする（UT-26 の決定）。絞り込み中や粒度を切り替えた
+ * ときに、画面に無い層の色を並べても引き当てられない。
+ *
+ * 並びは正本 JSON の `layers` の順（ADR-002）。色と名前は層の見せ方を持つ
+ * 場所（`layer-colour.ts`）から引く。
+ */
+/** いま図に描いているノードの数（UT-26 の断りが使う） */
+const shownNodeCount = computed(() => shownNodes.value.length)
+
+const shownLayers = computed<LegendLayer[]>(() => {
+  const viewModel = state.viewModel
+  if (viewModel === undefined) return []
+
+  const colourOf = layerColours(viewModel)
+  const labelOf = layerLabels(viewModel)
+  const present = new Set(shownNodes.value.map((node) => viewModel.layerOf(node.id).key))
+
+  return viewModel.layerKeys
+    .filter((key) => present.has(key))
+    .map((key) => ({ key, name: labelOf(key), colour: colourOf(key) }))
 })
 
 /**
@@ -554,7 +580,16 @@ function focusNode(nodeId: string): void {
   if (placed) viewport.value = centreOn(viewport.value, placed, view.value)
 }
 
-defineExpose({ viewport, fitToContent, focusNode, movedNodes, movedOutOfView, resetPositions })
+defineExpose({
+  viewport,
+  fitToContent,
+  focusNode,
+  movedNodes,
+  movedOutOfView,
+  resetPositions,
+  shownLayers,
+  shownNodeCount,
+})
 
 /**
  * 最後に全体表示を合わせた対象。**グラフ・粒度・並べ方の組につき 1 回だけ**

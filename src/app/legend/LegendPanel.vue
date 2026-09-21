@@ -15,14 +15,7 @@
  */
 import { ref } from 'vue'
 
-import { EDGE_LEGEND, NODE_LEGEND, STAT_LEGEND } from './legend-items'
-
-/** 図に出ている層。名前と色は渡す側（図）が決めたものをそのまま使う */
-export interface LegendLayer {
-  key: string
-  name: string
-  colour: string
-}
+import { EDGE_LEGEND, type LegendLayer, NODE_LEGEND, STAT_LEGEND } from './legend-items'
 
 defineProps<{ layers: readonly LegendLayer[] }>()
 
