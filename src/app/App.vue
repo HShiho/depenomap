@@ -7,6 +7,11 @@
  */
 import { computed, onMounted, onUnmounted, ref, useTemplateRef } from 'vue'
 
+import { fetchLocate, type FetchLocateOutcome } from '@/core/graph/api'
+import type { GraphNode } from '@/core/graph/schema'
+import NodeContextMenu from './editor/NodeContextMenu.vue'
+import { openActionOf } from './editor/open-action'
+import { openTargetOf } from './editor/open-target'
 import { callOrder } from './graph-canvas/call-order'
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
 import NarrowingChip from './graph-canvas/NarrowingChip.vue'
@@ -90,6 +95,70 @@ function moveToCandidate(nodeId: string, expression: string): void {
 onMounted(() => void loadGraphInto(state))
 
 /**
+ * ノードの右クリックメニュー（UT-18 / US-19）。
+ *
+ * 出ているのは 1 つだけ。押した場所と、どのノードを押したかを持つ。
+ */
+const menu = ref<{ node: GraphNode; at: { x: number; y: number }; title: string } | undefined>(
+  undefined,
+)
+
+/** 位置の問い合わせの結果。まだ返ってきていなければ `undefined` */
+const located = ref<FetchLocateOutcome | undefined>(undefined)
+
+/**
+ * 何回目の問い合わせか。
+ *
+ * **返ってきた結果が、いま出しているメニューのものとは限らない。** 続けて別の
+ * ノードを右クリックすると、前の問い合わせが後から返って、別のノードの位置が
+ * 出る。ノードの ID で見分けると、同じノードを開き直したときに区別が付かない
+ * （UT-19 の学び）。出来事そのものに番号を振る。
+ */
+let asked = 0
+
+/** 開く先。メニューが出ていなければ `undefined` */
+const openTarget = computed(() => {
+  const shown = menu.value
+  if (shown === undefined) return undefined
+
+  return openTargetOf(shown.node, (id) => state.viewModel?.fileOfMethod(id))
+})
+
+const openAction = computed(() => openActionOf(openTarget.value, located.value))
+
+/**
+ * ノードを右クリックする（UT-18 / US-19）。
+ *
+ * **ブラウザの既定のメニューを止める。** 代わりに出すものがあるので、両方が
+ * 重なる形にしない（止めるなら代わりを出す、が UT-16 からの取り決め）。
+ */
+async function onNodeContextMenu(node: GraphNode, event: MouseEvent): Promise<void> {
+  event.preventDefault()
+
+  menu.value = { node, at: { x: event.clientX, y: event.clientY }, title: fullTitleOf(node) }
+  located.value = undefined
+
+  const target = openTargetOf(node, (id) => state.viewModel?.fileOfMethod(id))
+  if (target === undefined) return
+
+  const mine = ++asked
+  const outcome = await fetchLocate(target.path)
+  // 自分より後の問い合わせが始まっていれば、この結果は捨てる
+  if (mine === asked) located.value = outcome
+}
+
+/**
+ * メニューを畳む。
+ *
+ * **前の結果を捨てるのは、次に出すとき**（`onNodeContextMenu`）にやる。ここでも
+ * 捨てると同じことを 2 か所に書くことになり、どちらが効いているのかが分からない。
+ * 畳んだあとに遅れて返ってきた結果は、出ていないメニューには映らない。
+ */
+function closeMenu(): void {
+  menu.value = undefined
+}
+
+/**
  * Esc で絞り込みを解く（UT-14 の決定）。
  *
  * 解く口が印の ✕ だけだと、キャンバスを見ている手をそこまで動かすことになる。
@@ -101,6 +170,16 @@ onMounted(() => void loadGraphInto(state))
  */
 function onKeydown(event: KeyboardEvent): void {
   if (event.key !== 'Escape') return
+
+  /*
+   * 右クリックメニューが出ていれば、そちらを先に畳む（UT-18）。重なっている
+   * 面から順に閉じるのが Esc の筋。メニュー自身も Esc を拾うが、焦点が
+   * メニューの外にあるときはそちらへ届かない
+   */
+  if (menu.value !== undefined) {
+    closeMenu()
+    return
+  }
 
   /*
    * 概要が開いていれば、そちらを先に閉じる（UT-13）。重なっている面から
@@ -155,7 +234,7 @@ const showsOrderNote = computed(
 <template>
   <AppShell :sheet-open="sheets.shown.value !== undefined">
     <template #canvas>
-      <GraphCanvas ref="canvas" />
+      <GraphCanvas ref="canvas" @node-context-menu="onNodeContextMenu" />
     </template>
 
     <!--
@@ -290,6 +369,21 @@ const showsOrderNote = computed(
     </template>
 
     <template #sheet>
+      <!--
+        ノードの右クリックメニュー（UT-18 / US-19）。**列の中ではなくシェルの
+        外に置く** — キャンバスの中に入れると、一覧の開閉で幅が変わるたびに
+        位置がずれる
+      -->
+      <NodeContextMenu
+        v-if="menu !== undefined"
+        :at="menu.at"
+        :title="menu.title"
+        :subtitle="openTarget?.path"
+        :action="openAction"
+        @open="closeMenu()"
+        @close="closeMenu()"
+      />
+
       <OverviewSheet v-if="sheets.shown.value === 'overview'" @close="sheets.close()" />
 
       <!-- 追跡できなかった依存（UT-19 / US-21）。確定した依存とは別の場所に置く -->
