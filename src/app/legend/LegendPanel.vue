@@ -48,7 +48,11 @@ const open = ref(false)
           <!-- 見本は図と同じトークンで描く（`LegendPanel.style.node.test.ts` が対応を見る） -->
           <svg class="shrink-0" width="26" height="8" aria-hidden="true">
             <path class="sample" :class="item.kind" d="M1,4 H25" />
-            <circle v-if="item.midpoint" class="sample-dot" cx="13" cy="4" />
+            <!--
+              半径は CSS のジオメトリプロパティでトークンから取る。属性側は、
+              それに対応していないブラウザで印が消えないための控え（図と同じ）
+            -->
+            <circle v-if="item.midpoint" class="sample-dot" cx="13" cy="4" r="3.4" />
           </svg>
           <span>{{ item.label }}</span>
         </p>

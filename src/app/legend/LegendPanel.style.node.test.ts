@@ -47,6 +47,18 @@ describe('凡例の見本と図の対応（UT-26）', () => {
     expect(tokensOf(legend, legendSelector)).toEqual(tokensOf(canvas, canvasSelector))
   })
 
+  it('中点の控えの半径も、図と同じ値を置く', () => {
+    /*
+     * 半径は CSS のジオメトリプロパティで取るが、対応していないブラウザでは
+     * 属性側の控えが効く（`GraphCanvas.vue` のコメント）。**凡例だけ控えが
+     * 無いと、説明したいその印が凡例からだけ消える。** 値はソースから取る
+     */
+    const radiusOf = (source: string) => source.match(/r="([\d.]+)"/)?.[1]
+
+    expect(radiusOf(legend)).toBeDefined()
+    expect(radiusOf(legend)).toBe(radiusOf(canvas))
+  })
+
   it('循環の線も、図と同じトークンで描く', () => {
     /*
      * 図の側は複合セレクタ（`.edge.cyclic, .edge.via.cyclic, ...`）で詳細度を
