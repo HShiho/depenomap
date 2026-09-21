@@ -151,15 +151,6 @@ const layout = computed(() => {
   })
 })
 
-/**
- * いま図に出ている層（UT-26）。凡例はこれを出す。
- *
- * **図に出ているものだけ**にする（UT-26 の決定）。絞り込み中や粒度を切り替えた
- * ときに、画面に無い層の色を並べても引き当てられない。
- *
- * 並びは正本 JSON の `layers` の順（ADR-002）。色と名前は層の見せ方を持つ
- * 場所（`layer-colour.ts`）から引く。
- */
 /** いま図に描いているノードの数（UT-26 の断りが使う） */
 const shownNodeCount = computed(() => shownNodes.value.length)
 
@@ -175,6 +166,15 @@ const shownViaCount = computed(
       .length,
 )
 
+/**
+ * いま図に出ている層（UT-26）。凡例はこれを出す。
+ *
+ * **図に出ているものだけ**にする（UT-26 の決定）。絞り込み中や粒度を切り替えた
+ * ときに、画面に無い層の色を並べても引き当てられない。
+ *
+ * 並びは正本 JSON の `layers` の順（ADR-002）。色と名前は層の見せ方を持つ
+ * 場所（`layer-colour.ts`）から引く。
+ */
 const shownLayers = computed<LegendLayer[]>(() => {
   const viewModel = state.viewModel
   if (viewModel === undefined) return []
