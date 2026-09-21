@@ -24,6 +24,16 @@ describe('VSCode で開く URI（UT-18 / US-19）', () => {
     expect(vscodeUriOf('/Users/me/my app/a.ts')).toBe('vscode://file/Users/me/my%20app/a.ts')
   })
 
+  it('Windows のパスは、区切りを揃えて先頭に / を置く', () => {
+    /*
+     * Docker を経由せず Windows で起動すると、この形のパスが返る。そのまま
+     * 繋ぐと `vscode://fileC:...` になり、ホスト名の一部として読まれる
+     */
+    expect(vscodeUriOf('C:\\Users\\me\\app\\src\\a.ts')).toBe(
+      'vscode://file/C%3A/Users/me/app/src/a.ts',
+    )
+  })
+
   it.each([
     ['#', '/app/a#b.ts', 'vscode://file/app/a%23b.ts'],
     ['?', '/app/a?b.ts', 'vscode://file/app/a%3Fb.ts'],

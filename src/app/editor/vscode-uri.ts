@@ -10,8 +10,13 @@
  * 渡すのは**ホストから見た絶対パス**（`/api/locate` の `hostPath`）。コンテナの
  * 中の位置を渡しても、そのパスはホストには無い。
  *
- * 形は `vscode://file/<絶対パス>[:<行>:<桁>]`。パスは POSIX の絶対パスを前提と
- * する（`--repo` は `node:path` の `isAbsolute` を通っている / UT-20）。
+ * 形は `vscode://file/<絶対パス>[:<行>:<桁>]`。**`vscode://file` の直後は `/` で
+ * 始まらなければならない** — ここが崩れると、オーソリティとパスの境界が消えた
+ * URI になり、ブラウザは黙って何もしない（開けなかったことは返ってこない）。
+ *
+ * Docker を経由せず Windows で起動すると、`--repo` は `C:\\Users\\me\\app` の形で
+ * 通り（`isAbsolute` は真）、ホスト側のパスも区切りが `\\` になる。受け取る側で
+ * 揃える。
  */
 
 /** 行位置。抽出側が 1-based に補正済みの値（スキーマ §3） */
@@ -28,7 +33,18 @@ export interface Position {
  * 区切りまで `%2F` になるため、区切りごとに分けてかける。
  */
 function encodePath(hostPath: string): string {
-  return hostPath.split('/').map(encodeURIComponent).join('/')
+  return posixAbsolute(hostPath).split('/').map(encodeURIComponent).join('/')
+}
+
+/**
+ * 区切りを `/` に揃え、先頭に `/` を置く。
+ *
+ * Windows のパス（`C:\\Users\\me\\app`）をそのまま繋ぐと `vscode://fileC:...` に
+ * なり、ホスト名の一部として読まれる。
+ */
+function posixAbsolute(hostPath: string): string {
+  const slashed = hostPath.replaceAll('\\', '/')
+  return slashed.startsWith('/') ? slashed : `/${slashed}`
 }
 
 /**
