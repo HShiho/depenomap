@@ -337,7 +337,11 @@ const showsOrderNote = computed(
 
     <!-- 図の読み方（UT-26）。下端の左。既定は畳んだ状態 -->
     <template #canvas-legend>
-      <LegendPanel v-if="state.status.kind === 'ready'" :layers="canvas?.shownLayers ?? []" />
+      <LegendPanel
+        v-if="state.status.kind === 'ready'"
+        :layers="canvas?.shownLayers ?? []"
+        :reading="state.viaReading"
+      />
     </template>
 
     <template #toolbar>

@@ -21,14 +21,20 @@ defineProps<{
    * 機能が無いのか、いまは効かないだけなのかが読み手に分からない
    */
   disabled?: boolean
-  /** 効かないときに、その理由をポインタへ出す */
-  title?: string
+  /**
+   * 効かないときの理由。**画面に出して、項目と結び付ける**。
+   *
+   * `title` 属性だけだと、読み上げには届かず、押せない項目には焦点も
+   * 当たらない。理由がポインタの利用者にしか届かない形にしない。
+   */
+  note?: string
 }>()
 
 defineEmits<{ 'update:modelValue': [value: T] }>()
 
 // 同じ切り替えを 2 か所に置いても id が衝突しないようにする
 const labelId = useId()
+const noteId = useId()
 </script>
 
 <template>
@@ -47,7 +53,7 @@ const labelId = useId()
       role="group"
       :aria-labelledby="labelId"
       class="flex rounded-control border border-line p-1"
-      :title="title"
+      :aria-describedby="disabled === true && note !== undefined ? noteId : undefined"
     >
       <button
         v-for="option in options"
@@ -66,5 +72,14 @@ const labelId = useId()
         {{ option.label }}
       </button>
     </div>
+
+    <!-- 効かない理由。見えるところに出し、項目と結び付ける -->
+    <span
+      v-if="disabled === true && note !== undefined"
+      :id="noteId"
+      class="text-caption text-ink-3"
+    >
+      {{ note }}
+    </span>
   </div>
 </template>

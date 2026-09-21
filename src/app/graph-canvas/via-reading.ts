@@ -20,9 +20,9 @@
 
 import type { GraphEdge } from '@/core/graph/schema'
 import { actualTargetsOf } from '@/core/ir/traversal'
+import type { ViaReading } from '@/app/shell/view-state'
 
-/** どちらの行き先で読むか。既定は型検査器の答え（UT-07 の決定を残す） */
-export type ViaReading = 'interface' | 'implementation'
+export type { ViaReading }
 
 /**
  * 描く 1 本ぶん。

@@ -1866,8 +1866,12 @@ describe('経由の行き先を選ぶ（UT-30 / UT-07 の見直し）', () => {
     expect(wrapper.find('.shell-overlay').text()).not.toContain('インターフェース宛に描いています')
   })
 
-  it('ファイル粒度では選べない', async () => {
-    // その粒度のエッジは import で、経由の解決が起きない
+  it('ファイル粒度では選べず、その理由が画面から読める', async () => {
+    /*
+     * その粒度のエッジは import で、経由の解決が起きない。**理由をポインタの
+     * ツールチップだけに置かない** — 押せない項目には焦点も当たらないので、
+     * 読み上げにもキーボードにも届かなくなる
+     */
     const { wrapper } = await setup()
 
     const group = wrapper
@@ -1876,5 +1880,9 @@ describe('経由の行き先を選ぶ（UT-30 / UT-07 の見直し）', () => {
     for (const button of group.findAll('button')) {
       expect(button.attributes('disabled')).toBeDefined()
     }
+
+    const describedBy = group.attributes('aria-describedby')
+    expect(describedBy).toBeDefined()
+    expect(wrapper.find(`[id="${describedBy}"]`).text()).toContain('メソッド粒度')
   })
 })

@@ -15,6 +15,7 @@
 
 import { CYCLE_LABEL, TYPE_ONLY_LABEL } from '@/app/shell/cycle-mark'
 import type { LayerKey } from '@/core/ir/view-model'
+import type { ViaReading } from '@/app/shell/view-state'
 import { UNRESOLVED_LABEL } from '@/app/shell/node-flag'
 
 /**
@@ -42,17 +43,27 @@ export interface EdgeLegendItem {
   midpoint: boolean
 }
 
-/** 線の読み方。並びは「ふつうの依存 → 形の違い」の順 */
-export const EDGE_LEGEND: readonly EdgeLegendItem[] = [
-  { kind: 'plain', label: '確定した依存', midpoint: false },
-  { kind: 'implements', label: 'implements（クラス → インターフェース）', midpoint: false },
-  {
-    kind: 'via',
-    label: 'インターフェース経由の呼び出し（行き先はインターフェース）',
-    midpoint: true,
-  },
-  { kind: 'cyclic', label: '循環に含まれる依存', midpoint: false },
-]
+/**
+ * 線の読み方。並びは「ふつうの依存 → 形の違い」の順。
+ *
+ * **経由の行き先は読み方で変わる**（UT-30）ので、いまの読み方を受け取る。
+ * 固定の文言にすると、実装宛で読んでいるあいだ凡例が図と逆のことを言う。
+ */
+export function edgeLegendOf(reading: ViaReading): readonly EdgeLegendItem[] {
+  return [
+    { kind: 'plain', label: '確定した依存', midpoint: false },
+    { kind: 'implements', label: 'implements（クラス → インターフェース）', midpoint: false },
+    {
+      kind: 'via',
+      label:
+        reading === 'implementation'
+          ? 'インターフェース経由の呼び出し（行き先は実装）'
+          : 'インターフェース経由の呼び出し（行き先はインターフェース）',
+      midpoint: true,
+    },
+    { kind: 'cyclic', label: '循環に含まれる依存', midpoint: false },
+  ]
+}
 
 /** ノードに出る印の読み方 */
 export interface NodeLegendItem {
