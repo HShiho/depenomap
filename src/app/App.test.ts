@@ -1951,6 +1951,33 @@ describe('インターフェースを畳む（UT-29 / UT-30 の後段）', () =>
     expect(wrapper.find('.shell-overlay').text()).toContain('畳んでいます')
   })
 
+  it('断りの件数は、実際に図から外したぶんだけ', async () => {
+    /*
+     * 正本の件数を出すと、絞り込み中に**もともと描かれない interface** まで
+     * 「畳んでいます」と数えることになる
+     */
+    const { state, wrapper } = await readingImplementation()
+    await foldIn(wrapper)
+    const all = wrapper
+      .find('.shell-overlay')
+      .text()
+      .match(/インターフェースの (\d+) 件/)?.[1]
+    expect(all).toBeDefined()
+
+    const target = state.viewModel!.nodes.method.find(
+      (node) => node.kind === 'method' && node.ownerKind !== 'interface',
+    )!
+    state.moveTo(target.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    const narrowed = wrapper
+      .find('.shell-overlay')
+      .text()
+      .match(/インターフェースの (\d+) 件/)?.[1]
+    expect(Number(narrowed ?? 0)).toBeLessThan(Number(all))
+  })
+
   it('interface 宛へ戻すと、畳みは効かない', async () => {
     // その読み方では線が interface を通っている。畳むと呼び出しの事実が消える
     const { state, wrapper } = await readingImplementation()

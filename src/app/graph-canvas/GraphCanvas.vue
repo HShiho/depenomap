@@ -144,10 +144,17 @@ const narrowed = computed(() =>
  * 線が interface を通っているので、畳むと呼び出しの事実そのものが消える。
  *
  * メソッド粒度だけを対象にする。ファイル粒度の `import` は実際の依存である。
+ * **この条件は結果を変えない**（対象はメソッド ID なので、ファイル粒度のノード
+ * には 1 件も当たらない）。無駄に全メソッドを走査しないために早く返す。検査で
+ * 固定できない条件なので、意図をここに書いておく。
  *
- * **粒度の条件は結果を変えない**（対象はメソッド ID なので、ファイル粒度の
- * ノードには 1 件も当たらない）。無駄に全メソッドを走査しないために早く返す。
- * 検査で固定できない条件なので、意図をここに書いておく。
+ * 畳まないものが 2 つある。
+ *
+ * 1. **呼び出しの線がまだ通っている interface。** 実装を 1 件も引けない経由は、
+ *    実装宛で読んでも interface 宛のまま残る（IR の落とし先）。畳むと**その
+ *    呼び出しごと図から消える**。消えてよいのは `implements` の線だけである
+ * 2. **選択中のノード。** 一覧や検索からは畳んだノードも選べる。選んだものが
+ *    図にいないと、絞り込んだ結果が空の図になり、何が起きたのか読めない
  */
 const foldedNodeIds = computed<ReadonlySet<string>>(() => {
   const viewModel = state.viewModel
@@ -159,11 +166,35 @@ const foldedNodeIds = computed<ReadonlySet<string>>(() => {
   ) {
     return new Set()
   }
-  return interfaceMethodIds(viewModel)
+
+  const folded = new Set(interfaceMethodIds(viewModel))
+
+  // 呼び出しの線が端点として使っているなら、畳まない（1）
+  for (const read of readEdgesAll.value) {
+    if (read.edge.kind !== 'call' && read.edge.kind !== 'construct') continue
+    folded.delete(read.from)
+    folded.delete(read.to)
+  }
+
+  // 選択中のノードは畳まない（2）
+  if (state.selectedNodeId !== undefined) folded.delete(state.selectedNodeId)
+
+  return folded
 })
 
-/** 畳んで図から外したノードの数（UT-29 の断りが使う） */
-const foldedCount = computed(() => foldedNodeIds.value.size)
+/**
+ * 畳んで**実際に図から外した**ノードの数（UT-29 の断りが使う）。
+ *
+ * 正本の件数ではない。絞り込み中に正本の件数を出すと、もともと描かれない
+ * interface まで「畳んでいます」と数えることになる（断りが言う対象と数を揃える）。
+ */
+const foldedCount = computed(() => {
+  const kept = narrowed.value
+  const folded = foldedNodeIds.value
+  return (state.viewModel?.nodes[state.granularity] ?? []).filter(
+    (node) => (kept === undefined || kept.has(node.id)) && folded.has(node.id),
+  ).length
+})
 
 /** 描くノード。絞っていなければ全部 */
 const shownNodes = computed(() => {
