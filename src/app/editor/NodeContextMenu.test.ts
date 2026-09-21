@@ -63,6 +63,23 @@ describe('ノードの右クリックメニュー（UT-18 / US-19）', () => {
     expect(show().attributes('style')).toContain('left: 120px')
   })
 
+  it('中身が伸びたら、測り直して収める', async () => {
+    /*
+     * 出した直後は「位置を確認中…」の 1 行で、そこへ理由が入ると高さが伸びる。
+     * 伸びる前の高さで下端に合わせていると、一番読ませたい理由が画面の外へ出る
+     */
+    const wrapper = mount(NodeContextMenu, {
+      props: { at: { x: 100, y: 700 }, title: 'app.ts', action: { kind: 'asking' } as OpenAction },
+      attachTo: document.body,
+    })
+    // jsdom は大きさを測れない。理由が入って高さが伸びた状態を作る
+    Object.defineProperty(wrapper.element, 'offsetHeight', { value: 200, configurable: true })
+
+    await wrapper.setProps({ action: { kind: 'blocked', reason: 'ホスト側に実体が見つからない' } })
+
+    expect(wrapper.attributes('style')).toContain(`top: ${window.innerHeight - 200 - 8}px`)
+  })
+
   it('開けないときも項目は出し、押せなくする', () => {
     // 出さないと「この画面には開く機能が無い」と読める
     const wrapper = show({ kind: 'blocked', reason: '解析対象リポジトリが渡されていない' })

@@ -13,7 +13,7 @@
  * 閉じる口は 3 つ（Esc・外側を押す・図を動かす）。**図を動かしたら閉じる** —
  * メニューは押した瞬間の 1 点に出るので、下の図が動くと別のノードを指す。
  */
-import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 
 import { menuPositionOf, type Point } from './menu-position'
 import type { OpenAction } from './open-action'
@@ -37,6 +37,10 @@ const menu = useTemplateRef<HTMLElement>('menu')
  *
  * 測れるのはマウント後なので、初回は押した場所そのままで出し、測れた時点で
  * 収まる位置へ直す。測れないまま（大きさ 0）でも破綻しない。
+ *
+ * **中身が変わるたびに測り直す。** 出した直後は「位置を確認中…」の 1 行だが、
+ * そこへ理由が入ると高さが伸びる。伸びる前の高さで画面下端に合わせていると、
+ * **一番読ませたい理由が画面の外へ出る**。
  */
 const size = ref({ width: 0, height: 0 })
 
@@ -67,10 +71,18 @@ function onWheel(): void {
   emit('close')
 }
 
+function measure(): void {
+  const element = menu.value
+  if (element) size.value = { width: element.offsetWidth, height: element.offsetHeight }
+}
+
+// 描き終わってから測る（`post`）。描く前の大きさは、変わる前のままである
+watch(() => props.action, measure, { flush: 'post' })
+
 onMounted(() => {
   const element = menu.value
   if (element) {
-    size.value = { width: element.offsetWidth, height: element.offsetHeight }
+    measure()
     /*
      * 焦点を引き取る。右クリックでは焦点が動かないので、引き取らないと
      * Esc もキーボードでの選択も届かない（押した先は SVG の図で、
