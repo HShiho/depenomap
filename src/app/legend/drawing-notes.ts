@@ -55,13 +55,13 @@ export function viaNoteOf(input: {
  * 実装宛で読んでいることの断り（UT-30）。
  *
  * **追従していないものを言う。** 読み方を変えても、被依存数・依存数・列（深度）・
- * 概要は正本の集計（インターフェース宛）のままである。図の線だけが変わる。
- * 黙って食い違わせると、線と数値のどちらが本当か読み手に分からない。
+ * 概要・循環の印は正本の集計（インターフェース宛）のままである。図の線だけが
+ * 変わる。黙って食い違わせると、線と数値のどちらが本当か読み手に分からない。
  */
 export function readingNoteOf(input: { retargeted: number }): string | undefined {
   if (input.retargeted === 0) return undefined
 
-  return `${input.retargeted} 本を実装宛に読み替えて描いています（数値と列は interface 宛のまま）`
+  return `${input.retargeted} 本を実装宛に読み替えて描いています（数値・列・循環の印は interface 宛のまま）`
 }
 
 /**

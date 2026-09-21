@@ -1811,7 +1811,7 @@ describe('経由の行き先を選ぶ（UT-30 / UT-07 の見直し）', () => {
 
     const note = wrapper.find('.shell-overlay').text()
     expect(note).toContain('実装宛に読み替えて')
-    expect(note).toContain('数値と列は interface 宛のまま')
+    expect(note).toContain('数値・列・循環の印は interface 宛のまま')
   })
 
   it('戻せば、型検査器の答えに戻る', async () => {

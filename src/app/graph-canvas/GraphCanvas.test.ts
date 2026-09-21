@@ -1950,10 +1950,14 @@ describe('経由の読み替えと循環の印（UT-30 / UT-10）', () => {
     return buildViewModel(result.graph)
   }
 
-  it('読み替えて分かれた線も、循環の印を保つ', async () => {
+  it('読み替えた線には、循環の印を付けない', async () => {
     /*
-     * 循環の判定は**正本のエッジ**で引く（`cyclesOfEdge`）。派生した ID で
-     * 引くと、実装宛で読んだ瞬間に循環の印が図から消える
+     * 正本の `cycles` は**インターフェース宛の経路で閉じた循環**であり、
+     * 実装宛へ読み替えた線はその経路ではない。付けると、循環の印を持たない
+     * ノードへ向かう線が循環色で描かれ、線とノードの印が食い違う。
+     *
+     * この組み合わせは複雑フィクスチャに 1 件も無い（実測 0/7）ので、その
+     * 形だけを持つ小さなグラフを組む。
      */
     const { state, wrapper } = setup({ viewModel: cyclicViaGraph(), granularity: 'method' })
     expect(wrapper.find('path.edge.via.cyclic').exists()).toBe(true)
@@ -1963,6 +1967,6 @@ describe('経由の読み替えと循環の印（UT-30 / UT-10）', () => {
 
     const retargeted = wrapper.find('path[data-edge-id="e:via→m:b"]')
     expect(retargeted.exists()).toBe(true)
-    expect(retargeted.classes()).toContain('cyclic')
+    expect(retargeted.classes()).not.toContain('cyclic')
   })
 })

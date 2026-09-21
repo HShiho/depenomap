@@ -290,8 +290,18 @@ const edges = computed(() => {
          * 循環かどうかは**形の別（`variant`）とは別の軸**（UT-10）。同じ 1 本が
          * 経由の呼び出しでも実装の対応でもありうるので、置き換えずに重ねる
          */
-        // 循環の判定は**正本のエッジ**で引く。分かれた線も同じ 1 本に由来する
-        inCycle: viewModel === undefined ? false : isCycleEdge(viewModel, read.sourceId),
+        /*
+         * 循環の印（UT-10）は**正本の経路にだけ**付ける。
+         *
+         * 正本の `cycles` はインターフェース宛の経路で閉じた循環であり、
+         * 実装宛へ読み替えた線はその経路ではない。読み替えた線に付けると、
+         * **循環の印を持たないノードへ向かう線が循環色で描かれる**。逆に、
+         * 読み替えた結果できる循環には印が付かない（正本が言っていない）。
+         */
+        inCycle:
+          viewModel === undefined || read.retargeted
+            ? false
+            : isCycleEdge(viewModel, read.sourceId),
         d: edgePath(from, to, options),
         // 経由の印は曲線上に置く。端点の中間だと線から離れて浮く
         midpoint: variant === 'via' ? edgeMidpoint(from, to, options) : undefined,
