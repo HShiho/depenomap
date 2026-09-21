@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -1883,5 +1884,85 @@ describe('ノードを手で動かす（US-17 / UT-17）', () => {
     await wrapper.vm.$nextTick()
 
     expect(positionOf(wrapper, id)).toEqual(before)
+  })
+})
+
+describe('経由の読み替えと循環の印（UT-30 / UT-10）', () => {
+  /**
+   * 経由かつ循環に含まれる呼び出しは、複雑フィクスチャに 1 件も無い（実測で
+   * 0/7）。**組み合わせは起こりうる**ので、その形だけを持つ小さなグラフを組む。
+   */
+  function cyclicViaGraph() {
+    const meta = {
+      generatedAt: '2026-09-21T00:00:00.000Z',
+      rootDir: '/w/app',
+      tsconfig: 'tsconfig.json',
+      snapshot: { label: 'test', commit: 'c', branch: 'b' },
+    }
+    const file = (id: string, path: string) => ({ id, kind: 'file' as const, name: path, path })
+    const method = (id: string, parent: string, name: string, owner: string) => ({
+      id,
+      kind: 'method' as const,
+      parent,
+      name,
+      owner,
+      ownerKind: (owner.startsWith('I') ? 'interface' : 'class') as 'interface' | 'class',
+      loc: { line: 1, column: 1 },
+    })
+
+    const result = loadGraphFromValue({
+      schemaVersion: '1.0.0',
+      meta,
+      layers: [],
+      nodes: [
+        file('f:a', 'a.ts'),
+        file('f:i', 'i.ts'),
+        file('f:b', 'b.ts'),
+        method('m:a', 'f:a', 'run', 'A'),
+        method('m:i', 'f:i', 'save', 'IRepo'),
+        method('m:b', 'f:b', 'save', 'B'),
+      ],
+      edges: [
+        {
+          id: 'e:via',
+          kind: 'call',
+          granularity: 'method',
+          from: 'm:a',
+          to: 'm:i',
+          resolution: 'via-interface',
+          sourceOrder: 0,
+          implementations: ['m:b'],
+        },
+        {
+          id: 'e:back',
+          kind: 'call',
+          granularity: 'method',
+          from: 'm:b',
+          to: 'm:a',
+          resolution: 'static',
+          sourceOrder: 0,
+        },
+      ],
+      unresolved: [],
+      cycles: [{ id: 'c1', nodes: ['m:a', 'm:i'], edges: ['e:via'] }],
+    })
+    if (!result.ok) throw new Error('組んだグラフが読めない')
+    return buildViewModel(result.graph)
+  }
+
+  it('読み替えて分かれた線も、循環の印を保つ', async () => {
+    /*
+     * 循環の判定は**正本のエッジ**で引く（`cyclesOfEdge`）。派生した ID で
+     * 引くと、実装宛で読んだ瞬間に循環の印が図から消える
+     */
+    const { state, wrapper } = setup({ viewModel: cyclicViaGraph(), granularity: 'method' })
+    expect(wrapper.find('path.edge.via.cyclic').exists()).toBe(true)
+
+    state.viaReading = 'implementation'
+    await nextTick()
+
+    const retargeted = wrapper.find('path[data-edge-id="e:via→m:b"]')
+    expect(retargeted.exists()).toBe(true)
+    expect(retargeted.classes()).toContain('cyclic')
   })
 })
