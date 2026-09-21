@@ -64,8 +64,11 @@ function implementationsOf(edge: GraphEdge): readonly string[] {
  * 実装が 1 件も引けなければ `to` に落ちる。ここで空を返すと、logical では
  * 見えている依存が actual でだけ黙って消え、たどり方の切り替えが
  * 依存の有無そのものを変えてしまう。
+ *
+ * **画面（UT-30）もここを使う。** 図の線を実装宛へ読み替えるのは同じ判断で、
+ * 別に書くと重複の畳み方や落とし先が片方でだけずれる。
  */
-function actualTargetsOf(edge: GraphEdge, has: (id: string) => boolean): readonly string[] {
+export function actualTargetsOf(edge: GraphEdge, has: (id: string) => boolean): readonly string[] {
   const resolved = implementationsOf(edge).filter(has)
   return resolved.length > 0 ? resolved : [edge.to]
 }

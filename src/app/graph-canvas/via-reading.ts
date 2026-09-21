@@ -19,6 +19,7 @@
  */
 
 import type { GraphEdge } from '@/core/graph/schema'
+import { actualTargetsOf } from '@/core/ir/traversal'
 
 /** どちらの行き先で読むか。既定は型検査器の答え（UT-07 の決定を残す） */
 export type ViaReading = 'interface' | 'implementation'
@@ -43,12 +44,6 @@ export interface ReadEdge {
   retargeted: boolean
 }
 
-/** 実装の一覧。持たないエッジでは空 */
-function implementationsOf(edge: GraphEdge): readonly string[] {
-  if (!('implementations' in edge)) return []
-  return edge.implementations ?? []
-}
-
 /**
  * 読み方に合わせて、描く線の集合を作る。
  *
@@ -71,11 +66,15 @@ export function readEdges(
     }
 
     if (reading !== 'implementation') return [plain]
-    if (!('resolution' in edge) || edge.resolution !== 'via-interface') return [plain]
 
-    // 図に出ている実装だけへ引く。1 件も引けなければ、型検査器の答えに落ちる（IR と同じ規則）
-    const targets = implementationsOf(edge).filter((id) => drawable(id))
-    if (targets.length === 0) return [plain]
+    /*
+     * 実装の引き当ては **IR の規則をそのまま使う**（`actualTargetsOf`）。
+     * 経由でないエッジを弾くこと、重複を畳むこと、図にいない実装を外すこと、
+     * 1 件も引けなければ `to` に落ちること——どれも同じ判断で、別に書くと
+     * 片方でだけずれる。
+     */
+    const targets = actualTargetsOf(edge, drawable)
+    if (targets.length === 1 && targets[0] === edge.to) return [plain]
 
     return targets.map((to) => ({
       id: `${edge.id}→${to}`,

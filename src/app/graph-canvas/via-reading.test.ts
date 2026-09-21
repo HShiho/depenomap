@@ -78,6 +78,21 @@ describe('経由の読み替え（UT-30 / UT-07 の見直し）', () => {
     expect(read[0]).toMatchObject({ to: 'm:Direct.run', retargeted: false })
   })
 
+  it('同じ実装が 2 度書かれていても、線は 1 本', () => {
+    /*
+     * 整合性検査（UT-01）は配列内の重複を防いでいない。畳まないと同じ線を
+     * 2 本描き、断りの本数も水増しされる（IR も同じ理由で畳んでいる）
+     */
+    const read = readEdges(
+      [call({ implementations: ['m:RepoA.save', 'm:RepoA.save'] })],
+      'implementation',
+      everything,
+    )
+
+    expect(read).toHaveLength(1)
+    expect(read[0]).toMatchObject({ to: 'm:RepoA.save' })
+  })
+
   it('実装が図にいなければ、読み替えない', () => {
     /*
      * 読み替えた先が描けないと、線ごと消えて**呼び出しの事実が失われる**。
