@@ -244,13 +244,21 @@ const viaNote = computed(() => {
   })
 })
 
-/** 図に出せるノードが無いことの断り（UT-26） */
+/**
+ * 図に出せるノードが無いことの断り（UT-26）。
+ *
+ * **読めてから言う。** 読み込み中や、届かなかったとき・正本が読めなかったとき
+ * にも図は空になるが、その理由は右上の通知が持っている。こちらが「正本 JSON に
+ * ありません」と言うと、**届いてすらいない原因を断定する**ことになる。
+ */
 const emptyNote = computed(() =>
-  emptyNoteOf({
-    shown: canvas.value?.shownNodeCount ?? 0,
-    narrowed: state.narrowedToSelection,
-    inGranularity: state.viewModel?.nodes[state.granularity].length ?? 0,
-  }),
+  state.status.kind !== 'ready'
+    ? undefined
+    : emptyNoteOf({
+        shown: canvas.value?.shownNodeCount ?? 0,
+        narrowed: state.narrowedToSelection,
+        inGranularity: state.viewModel?.nodes[state.granularity].length ?? 0,
+      }),
 )
 
 /**

@@ -8,6 +8,7 @@ import { LOCATE_ENDPOINT } from '@/core/graph/api'
 import { loadGraphFromValue } from '@/core/graph/loader'
 import App from './App.vue'
 import { CYCLE_LABEL } from './shell/cycle-mark'
+import DrawingNoteChip from './legend/DrawingNoteChip.vue'
 import MovedNodesChip from './graph-canvas/MovedNodesChip.vue'
 import NarrowingChip from './graph-canvas/NarrowingChip.vue'
 import ViewportControls from './graph-canvas/ViewportControls.vue'
@@ -1645,6 +1646,21 @@ describe('図の読み方（UT-26 / QR-1）', () => {
     expect(legend(wrapper).text()).toBe('')
   })
 
+  it.each([
+    ['読み込み中', { kind: 'loading' } as const],
+    ['届かなかった', { kind: 'unreachable', message: 'ECONNREFUSED' } as const],
+  ])('%s ときは、描き方の断りも出さない', async (_label, outcome) => {
+    /*
+     * 図はどの場合も空になるが、その理由は右上の通知が持っている。ここで
+     * 「正本 JSON にありません」と言うと、届いてすらいない原因を断定する
+     */
+    const { state, wrapper } = await setup()
+    state.applyLoadOutcome(outcome)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findComponent(DrawingNoteChip).exists()).toBe(false)
+  })
+
   it('図に出ている層だけを出す', async () => {
     /*
      * 絞り込むと図から層が消える（UT-14）。画面に無い層の色を並べても、
@@ -1704,6 +1720,8 @@ describe('図の読み方（UT-26 / QR-1）', () => {
     await vi.waitUntil(() => state.status.kind === 'ready')
     await wrapper.vm.$nextTick()
 
+    // **読めたうえで空**であることを見る。読み込み中にも同じ文言が出る形にしない
+    expect(state.status.kind).toBe('ready')
     expect(wrapper.find('.shell-overlay').text()).toContain('正本 JSON')
   })
 })
