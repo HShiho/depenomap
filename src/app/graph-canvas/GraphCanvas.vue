@@ -19,7 +19,7 @@ import { callOrder } from './call-order'
 import { cycleMarkOf, isCycleEdge } from '../shell/cycle-mark'
 import { nodeFlagOf } from '../shell/node-flag'
 import { buildColumnPlan } from './column-axis'
-import type { LegendLayer } from '@/app/legend/legend-items'
+import { FAN_IN_MARK, FAN_OUT_MARK, type LegendLayer } from '@/app/legend/legend-items'
 import { narrowedNodeIds } from './narrowing'
 import { edgeMidpoint, edgePath } from './edge-path'
 import { nameLimitFor, subtitleOf, titleOf, tooltipOf } from './node-label'
@@ -316,7 +316,7 @@ function statsOf(node: GraphNode): string {
   const fanOut = new Set(
     viewModel.dependenciesOf(node.id, state.granularity).map((dependency) => dependency.node.id),
   ).size
-  return `↙${fanIn} ↗${fanOut}`
+  return `${FAN_IN_MARK}${fanIn} ${FAN_OUT_MARK}${fanOut}`
 }
 
 /**

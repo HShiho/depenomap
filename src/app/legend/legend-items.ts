@@ -63,12 +63,20 @@ export const NODE_LEGEND: readonly NodeLegendItem[] = [
 ]
 
 /**
+ * ノードの右下に出る数値の印。**図もここから引く**（`GraphCanvas` の `statsOf`）。
+ * 直書きすると、記号を変えたときに凡例だけ古くなる。
+ */
+
+/**
  * ノードの右下に出る数値の読み方。
  *
  * **数え方まで書く。** 同じ 2 ノード間に何本エッジがあっても 1 と数える
  * （UT-02 の決定）ので、線の本数を数えても一致しない。
  */
+export const FAN_IN_MARK = '↙'
+export const FAN_OUT_MARK = '↗'
+
 export const STAT_LEGEND = {
-  label: '↙ 被依存数 ／ ↗ 依存数',
+  label: `${FAN_IN_MARK} 被依存数 ／ ${FAN_OUT_MARK} 依存数`,
   meaning: '同じ相手との依存は、何本あっても 1 と数える',
 } as const
