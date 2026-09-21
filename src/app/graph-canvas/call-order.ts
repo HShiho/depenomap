@@ -71,6 +71,16 @@ export function callOrder(input: {
   selectedNodeId: string | undefined
   /** 選択の周辺だけに絞っているか（UT-14） */
   narrowed: boolean
+  /**
+   * 経由の呼び出しをどちらの行き先で読んでいるか（UT-30）。
+   *
+   * **図に出ているノードへキーを配る**ため、図と同じ読み方でたどる。
+   * 既定（interface 宛）のままたどると、実装宛で描いているときにキーが
+   * 図にいないインターフェースへ配られ、実際に並んでいる実装ノードは
+   * キーを持たない。「出現順に並んでいる」と書いてあるのに並んでいない、
+   * という形になる（C-7）。
+   */
+  via?: 'logical' | 'actual'
 }): CallOrder {
   if (!input.narrowed || input.viewModel === undefined || input.selectedNodeId === undefined) {
     return NONE
@@ -78,7 +88,7 @@ export function callOrder(input: {
 
   const selected = input.selectedNodeId
   const ordered = input.viewModel
-    .dependenciesOf(selected, input.granularity)
+    .dependenciesOf(selected, input.granularity, { via: input.via })
     // 自分自身への依存（再帰）は数に入れない。並ぶ先が増えるわけではない
     .filter(
       (dependency) =>

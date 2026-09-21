@@ -295,6 +295,7 @@ const showsOrderNote = computed(
       granularity: state.granularity,
       selectedNodeId: state.selectedNodeId,
       narrowed: state.narrowedToSelection,
+      via: state.viaReading === 'implementation' ? 'actual' : 'logical',
     }).applies,
 )
 </script>

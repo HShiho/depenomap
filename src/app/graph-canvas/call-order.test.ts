@@ -282,3 +282,45 @@ describe('呼び出し順の並び（US-05）', () => {
     expect([...keys].sort((a, b) => a.localeCompare(b))).toEqual(keys)
   })
 })
+
+describe('読み方に合わせてキーを配る（UT-30）', () => {
+  it('実装宛で読むと、実装ノードへキーが配られる', () => {
+    /*
+     * 図に出ているのは実装のほう。interface 宛のままたどると、キーは図に
+     * いないノードへ配られ、並んでいる実装は既定のパス順へ落ちる。
+     * 「出現順に並んでいる」と断りながら並んでいない形になる（C-7）
+     */
+    const viaEdge = viewModel.edges.method.find(
+      (edge) => 'resolution' in edge && edge.resolution === 'via-interface',
+    )!
+    const implementations = 'implementations' in viaEdge ? (viaEdge.implementations ?? []) : []
+    expect(implementations.length).toBeGreaterThan(0)
+
+    const actual = callOrder({
+      viewModel,
+      granularity: 'method',
+      selectedNodeId: viaEdge.from,
+      narrowed: true,
+      via: 'actual',
+    })
+
+    expect(actual.applies).toBe(true)
+    expect(actual.keyOf(node(implementations[0]!))).toBeDefined()
+    expect(actual.keyOf(node(viaEdge.to))).toBeUndefined()
+  })
+
+  it('interface 宛で読むと、interface へキーが配られる', () => {
+    const viaEdge = viewModel.edges.method.find(
+      (edge) => 'resolution' in edge && edge.resolution === 'via-interface',
+    )!
+
+    const logical = callOrder({
+      viewModel,
+      granularity: 'method',
+      selectedNodeId: viaEdge.from,
+      narrowed: true,
+    })
+
+    expect(logical.keyOf(node(viaEdge.to))).toBeDefined()
+  })
+})

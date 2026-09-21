@@ -93,6 +93,7 @@ const currentCallOrder = computed(() =>
     granularity: state.granularity,
     selectedNodeId: state.selectedNodeId,
     narrowed: state.narrowedToSelection,
+    via: state.viaReading === 'implementation' ? 'actual' : 'logical',
   }),
 )
 
