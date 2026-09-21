@@ -1361,12 +1361,14 @@ describe('追跡できなかった依存（US-21 / UT-19）', () => {
 
 describe('ノードから VSCode で開く（UT-18 / US-19）', () => {
   /** 位置の問い合わせだけ差し替える。グラフはこれまでどおり返す */
-  function setupWith(locate: () => Promise<unknown>) {
+  function setupWith(locate: (path: string) => Promise<unknown>) {
     vi.stubGlobal(
       'fetch',
       vi.fn((url: string) =>
         url.startsWith(LOCATE_ENDPOINT)
-          ? locate().then((body) => new Response(JSON.stringify(body)))
+          ? locate(decodeURIComponent(url.split('path=')[1] ?? '')).then(
+              (body) => new Response(JSON.stringify(body)),
+            )
           : Promise.resolve(new Response(JSON.stringify(result))),
       ),
     )
@@ -1399,7 +1401,7 @@ describe('ノードから VSCode で開く（UT-18 / US-19）', () => {
     return event
   }
 
-  async function openMenu(locate: () => Promise<unknown>) {
+  async function openMenu(locate: (path: string) => Promise<unknown>) {
     setupWith(locate)
     const state = useViewState()
     const wrapper = mount(App, { attachTo: document.body })
@@ -1438,6 +1440,36 @@ describe('ノードから VSCode で開く（UT-18 / US-19）', () => {
     await vi.waitUntil(() => item(wrapper).attributes('href') !== undefined)
 
     expect(item(wrapper).attributes('href')).toBe('vscode://file/Users/me/app/src/a.ts')
+  })
+
+  it('メソッドノードは、所属ファイルの位置と行で開く', async () => {
+    /*
+     * 完了条件の中心。**期待値は正本 JSON から引く** — 画面と同じ引き当て
+     * （view model）で作ると、引き当てが間違っていても通る
+     */
+    setupWith(async (path) => resolvedAt(`/Users/me/app/${path}`))
+    const state = useViewState()
+    const wrapper = mount(App, { attachTo: document.body })
+    await vi.waitUntil(() => state.status.kind === 'ready')
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    const node = wrapper.findAll('svg g.node')[0]!
+    const id = node.attributes('data-node-id')
+    const method = fixture.nodes.find((n) => n.id === id)
+    expect(method?.kind).toBe('method')
+    const file = fixture.nodes.find((n) => n.id === method?.parent)
+    const loc = method?.loc
+    // 前提が崩れたまま先へ進むと、空の期待値どうしを比べて通ってしまう
+    if (loc === undefined || file?.path === undefined) throw new Error('フィクスチャの前提が崩れた')
+
+    rightClick(node)
+    await wrapper.vm.$nextTick()
+    await vi.waitUntil(() => item(wrapper).attributes('href') !== undefined)
+
+    expect(item(wrapper).attributes('href')).toBe(
+      `vscode://file/Users/me/app/${file.path}:${loc.line}:${loc.column}`,
+    )
   })
 
   it('リポジトリが渡されていなければ、何が足りないかを出す', async () => {
