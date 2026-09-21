@@ -1401,12 +1401,19 @@ describe('ノードから VSCode で開く（UT-18 / US-19）', () => {
     return event
   }
 
-  async function openMenu(locate: (path: string) => Promise<unknown>) {
+  /** 画面を出すだけ。メニューはまだ開かない */
+  async function showApp(locate: (path: string) => Promise<unknown>) {
     setupWith(locate)
     const state = useViewState()
     const wrapper = mount(App, { attachTo: document.body })
     await vi.waitUntil(() => state.status.kind === 'ready')
     await wrapper.vm.$nextTick()
+
+    return wrapper
+  }
+
+  async function openMenu(locate: (path: string) => Promise<unknown>) {
+    const wrapper = await showApp(locate)
 
     const node = wrapper.findAll('svg g.node')
     expect(node.length).toBeGreaterThan(0)
@@ -1542,6 +1549,43 @@ describe('ノードから VSCode で開く（UT-18 / US-19）', () => {
     await wrapper.vm.$nextTick()
 
     expect(menu(wrapper).exists()).toBe(false)
+  })
+
+  it('畳むと、開く前に焦点があった場所へ返す', async () => {
+    // 返さないと、焦点は文書の先頭へ落ち、次の Tab がやり直しになる
+    const wrapper = await showApp(async (path) => resolvedAt(`/Users/me/app/${path}`))
+    const before = wrapper.find('[aria-label="概要を開く"]').element as HTMLElement
+    before.focus()
+
+    rightClick(wrapper.findAll('svg g.node')[0]!)
+    await wrapper.vm.$nextTick()
+    // 右クリックでは焦点が動かないので、メニューが引き取っている
+    expect(document.activeElement).toBe(wrapper.find('[role="menu"]').element)
+
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false)
+    expect(document.activeElement).toBe(before)
+  })
+
+  it('利用者が外の口へ移っていたら、焦点を奪い返さない', async () => {
+    // Tab で出て、そこで押した結果メニューが畳まれる経路がある
+    const wrapper = await showApp(async (path) => resolvedAt(`/Users/me/app/${path}`))
+    // 開く前にも焦点はどこかにある。**そこへ戻されない**ことを見たい
+    const beforeOpening = wrapper.find('[aria-label="一覧を閉じる"]').element as HTMLElement
+    beforeOpening.focus()
+
+    rightClick(wrapper.findAll('svg g.node')[0]!)
+    await wrapper.vm.$nextTick()
+
+    const elsewhere = wrapper.find('[aria-label="概要を開く"]').element as HTMLElement
+    elsewhere.focus()
+    useViewState().setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false)
+    expect(document.activeElement).toBe(elsewhere)
   })
 
   it('欠陥として扱わない（N-1）', async () => {

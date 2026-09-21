@@ -103,6 +103,11 @@ describe('ノードの右クリックメニュー（UT-18 / US-19）', () => {
     expect(wrapper.text()).toContain('確認中')
   })
 
+  /*
+   * 畳んだあとの焦点は、ここでは確かめない。`wrapper.unmount()` は実体を先に
+   * 文書から外すため、**畳む瞬間に焦点がどこにあるか**が実際（`v-if` で消える）
+   * と違ってしまう。実経路での検査は `App.test.ts` に置く
+   */
   it('開いたら焦点を引き取る', () => {
     // 右クリックでは焦点が動かない。引き取らないと Esc が届かない
     const wrapper = show()
@@ -119,20 +124,6 @@ describe('ノードの右クリックメニュー（UT-18 / US-19）', () => {
     expect(document.getElementById(describedBy!)?.textContent).toContain(
       '解析対象リポジトリが渡されていない',
     )
-  })
-
-  it('畳むと、開く前に焦点があった場所へ返す', () => {
-    // 返さないと、焦点は文書の先頭へ落ちる
-    const opener = document.createElement('button')
-    document.body.append(opener)
-    opener.focus()
-
-    const wrapper = show()
-    expect(document.activeElement).toBe(wrapper.element)
-    wrapper.unmount()
-
-    expect(document.activeElement).toBe(opener)
-    opener.remove()
   })
 
   it('Esc で閉じる', async () => {

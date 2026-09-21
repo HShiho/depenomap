@@ -101,9 +101,13 @@ watch(() => props.action, measure, { flush: 'post' })
  */
 let focusedBefore: HTMLElement | null = null
 
+/** 自分の実体。畳むとき、テンプレート参照は既に外れている */
+let root: HTMLElement | null = null
+
 onMounted(() => {
   const element = menu.value
   if (element) {
+    root = element
     measure()
     focusedBefore = document.activeElement instanceof HTMLElement ? document.activeElement : null
     /*
@@ -120,8 +124,17 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  // 畳んだ先が文書から外れていることもある（図が組み換わった場合）
-  if (focusedBefore?.isConnected === true) focusedBefore.focus()
+  /*
+   * 焦点を返すのは、**まだ自分が預かっているとき**だけ。
+   *
+   * 畳む理由は「利用者が別の口へ移った」ことでもある（Tab で出て、そこで
+   * 押した結果に図が組み換わる）。そのとき返すと、いま触っている口から
+   * 焦点を奪い返すことになり、次の Tab が文書の先頭からやり直しになる。
+   *
+   * 返す先が文書から外れていることもある（図が組み換わった場合）。
+   */
+  const holding = root?.contains(document.activeElement) === true
+  if (holding && focusedBefore?.isConnected === true) focusedBefore.focus()
 
   window.removeEventListener('pointerdown', onPointerDownOutside, true)
   window.removeEventListener('wheel', onMoved, true)
