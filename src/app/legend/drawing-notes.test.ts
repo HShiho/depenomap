@@ -4,11 +4,23 @@ import { emptyNoteOf, viaNoteOf } from './drawing-notes'
 
 describe('インターフェース経由の断り（UT-26 / UT-07）', () => {
   it('メソッド粒度では、描いている本数を言う', () => {
-    // 呼び出し元 → interface → 実装 の 2 本は図に無い（UT-07）
+    // 行き先はインターフェース。実装へは implements の線でたどる（UT-07）
     const note = viaNoteOf({ granularity: 'method', totalVia: 12, drawnVia: 5 })
 
     expect(note).toContain('5')
     expect(note).not.toContain('12')
+  })
+
+  it('行き先が実装であるかのように言わない', () => {
+    /*
+     * UT-07 は**インターフェース宛に描く**と決めている（実装へは implements の
+     * 線でたどる）。「実装へ解決して描いています」は、図が描いていないことを
+     * 断言することになる
+     */
+    const note = viaNoteOf({ granularity: 'method', totalVia: 12, drawnVia: 5 })
+
+    expect(note).toContain('インターフェース宛')
+    expect(note).not.toContain('実装へ解決')
   })
 
   it('絞り込んで 1 本も出ていなければ、何も言わない', () => {
@@ -17,7 +29,7 @@ describe('インターフェース経由の断り（UT-26 / UT-07）', () => {
   })
 
   it('ファイル粒度では、どこで見えるかを言う', () => {
-    // 解決した線そのものが、この粒度では図に出ない
+    // 経由かどうかの区別が、この粒度では図に出ない
     const note = viaNoteOf({ granularity: 'file', totalVia: 12, drawnVia: 0 })
 
     expect(note).toContain('メソッド粒度')

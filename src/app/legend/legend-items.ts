@@ -46,7 +46,11 @@ export interface EdgeLegendItem {
 export const EDGE_LEGEND: readonly EdgeLegendItem[] = [
   { kind: 'plain', label: '確定した依存', midpoint: false },
   { kind: 'implements', label: 'implements（クラス → インターフェース）', midpoint: false },
-  { kind: 'via', label: 'インターフェース経由の呼び出し（実装へ解決して描画）', midpoint: true },
+  {
+    kind: 'via',
+    label: 'インターフェース経由の呼び出し（行き先はインターフェース）',
+    midpoint: true,
+  },
   { kind: 'cyclic', label: '循環に含まれる依存', midpoint: false },
 ]
 
