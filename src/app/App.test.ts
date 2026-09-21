@@ -1684,8 +1684,8 @@ describe('図の読み方（UT-26 / QR-1）', () => {
     expect(shownNarrowed.length).toBeLessThan(shownAll.length)
   })
 
-  it('インターフェース経由を実装へ解決して描いていることを断る', async () => {
-    // 呼び出し元 → interface → 実装 の 2 本は図に無い（UT-07）
+  it('インターフェース経由をインターフェース宛に描いていることを断る', async () => {
+    // 行き先はインターフェース。実装へは implements の線でたどる（UT-07）
     const { state, wrapper } = await setup()
     expect(wrapper.find('.shell-overlay').text()).toContain('メソッド粒度')
 
@@ -1713,7 +1713,7 @@ describe('図の読み方（UT-26 / QR-1）', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.findAll('path.edge.via')).toHaveLength(0)
-    expect(wrapper.find('.shell-overlay').text()).not.toContain('実装へ解決して描いています')
+    expect(wrapper.find('.shell-overlay').text()).not.toContain('インターフェース宛に描いています')
   })
 
   it('図が空のときは、その理由を出す', async () => {
