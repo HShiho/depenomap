@@ -17,6 +17,8 @@
 
 import type { Granularity } from '@/core/ir/view-model'
 
+import type { ViaReading } from '@/app/graph-canvas/via-reading'
+
 /**
  * インターフェース経由の解決についての断り。言うことが無ければ `undefined`。
  *
@@ -28,9 +30,11 @@ import type { Granularity } from '@/core/ir/view-model'
  */
 export function viaNoteOf(input: {
   granularity: Granularity
+  /** いまどちらの行き先で読んでいるか（UT-30） */
+  reading: ViaReading
   /** グラフ全体で、インターフェース経由として解決したエッジの本数 */
   totalVia: number
-  /** いま図に描いている、そのうちの本数 */
+  /** いま図に描いている、そのうちの本数（正本のエッジで数える） */
   drawnVia: number
 }): string | undefined {
   if (input.totalVia === 0) return undefined
@@ -38,10 +42,26 @@ export function viaNoteOf(input: {
   if (input.granularity !== 'method')
     return 'インターフェース経由かどうかは、メソッド粒度で見えます'
 
+  // 実装宛で読んでいるあいだは、読み替えの断り（`readingNoteOf`）がその話をする
+  if (input.reading === 'implementation') return undefined
+
   // 絞り込んだ結果 1 本も出ていないなら、描き方の話をする場面ではない
   if (input.drawnVia === 0) return undefined
 
   return `インターフェース経由の ${input.drawnVia} 本は、インターフェース宛に描いています（実装へは implements の線でたどれます）`
+}
+
+/**
+ * 実装宛で読んでいることの断り（UT-30）。
+ *
+ * **追従していないものを言う。** 読み方を変えても、被依存数・依存数・列（深度）・
+ * 概要・循環の印は正本の集計（インターフェース宛）のままである。図の線だけが
+ * 変わる。黙って食い違わせると、線と数値のどちらが本当か読み手に分からない。
+ */
+export function readingNoteOf(input: { retargeted: number }): string | undefined {
+  if (input.retargeted === 0) return undefined
+
+  return `${input.retargeted} 本を実装宛に読み替えて描いています（数値・列・循環の印は interface 宛のまま）`
 }
 
 /**

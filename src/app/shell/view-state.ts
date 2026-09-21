@@ -20,7 +20,7 @@
  *
  * **不変条件を持つ値を getter で公開する代償として、Pinia の `$state` /
  * `$patch` / `$subscribe` はこの器の状態を映さない。** `$state` に残るのは
- * `columnAxis` / `query` / `sidebarOpen` だけで、選択や粒度の変化を
+ * `columnAxis` / `query` / `sidebarOpen` / `viaReading` だけで、選択や粒度の変化を
  * `$subscribe` で待つと**エラーにならず一度も呼ばれない**。変化を購読する側は
  * `watch(() => state.selectedNodeId, …)` を使う。
  *
@@ -40,6 +40,14 @@ import type { Granularity, ViewModel } from '@/core/ir/view-model'
 
 /** 列を並べる軸（US-04）。切り替えそのものは UT-08 */
 export type ColumnAxis = 'layer' | 'depth'
+
+/**
+ * 経由の呼び出しをどちらの行き先で読むか（UT-30）。
+ *
+ * 器が持つ値なので、軸と同じくここに置く。機能側（`graph-canvas`）は器から
+ * 引く（逆向きに import すると、器が機能に依存する形になる）。
+ */
+export type ViaReading = 'interface' | 'implementation'
 
 /**
  * 移動の履歴に積む 1 件。**粒度も一緒に持つ**。
@@ -134,6 +142,14 @@ export const useViewState = defineStore('view-state', () => {
   const theme = useTheme()
 
   const granularity = ref<Granularity>('file')
+
+  /**
+   * 経由の呼び出しをどちらの行き先で読むか（UT-30）。
+   *
+   * 既定は型検査器の答え（UT-07 の決定を残す）。**覚えない** — 粒度や列の軸と
+   * 同じ「その場の見方」として扱う（UT-30 の決定）。
+   */
+  const viaReading = ref<ViaReading>('interface')
   const columnAxis = ref<ColumnAxis>('layer')
   const query = ref('')
   const sidebarOpen = ref(true)
@@ -440,6 +456,9 @@ export const useViewState = defineStore('view-state', () => {
 
     // 読むだけ。切り替えは setGranularity（選択の読み替えを伴う）
     granularity: computed(() => granularity.value),
+
+    // 経由の読み方（UT-30）。軸と同じく整合を取る相手が無いので、直接書く
+    viaReading,
 
     columnAxis,
     query,

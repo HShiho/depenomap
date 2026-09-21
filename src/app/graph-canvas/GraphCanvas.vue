@@ -21,6 +21,7 @@ import { nodeFlagOf } from '../shell/node-flag'
 import { buildColumnPlan } from './column-axis'
 import { FAN_IN_MARK, FAN_OUT_MARK, type LegendLayer } from '@/app/legend/legend-items'
 import { narrowedNodeIds } from './narrowing'
+import { readEdges } from './via-reading'
 import { edgeMidpoint, edgePath } from './edge-path'
 import { nameLimitFor, subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
@@ -92,12 +93,32 @@ const currentCallOrder = computed(() =>
     granularity: state.granularity,
     selectedNodeId: state.selectedNodeId,
     narrowed: state.narrowedToSelection,
+    via: state.viaReading === 'implementation' ? 'actual' : 'logical',
   }),
 )
 
 function sortKeyOf(node: GraphNode): string {
   return currentCallOrder.value.keyOf(node) ?? defaultSortKeyOf(node)
 }
+
+/**
+ * 読み替えたあとの線（UT-30）。**絞り込みも配置も、ここから先は同じ集合を見る。**
+ *
+ * 実装宛で読むと、経由の呼び出し 1 本が実装の数だけ分かれる。絞り込み（UT-14）が
+ * 正本のエッジを見たままだと、**図に出ている線と隣の判定が食い違う**。
+ *
+ * 読み替え先が図にいるかは、その粒度のノードで判断する（絞り込みより前の段）。
+ * 絞り込みの結果を待つと、絞り込み自身がこの集合を必要とするため循環する。
+ */
+const readableNodeIds = computed(
+  () => new Set((state.viewModel?.nodes[state.granularity] ?? []).map((node) => node.id)),
+)
+
+const readEdgesAll = computed(() =>
+  readEdges(state.viewModel?.edges[state.granularity] ?? [], state.viaReading, (id) =>
+    readableNodeIds.value.has(id),
+  ),
+)
 
 /**
  * 絞り込みで残るノード（UT-14 / US-12）。`undefined` は「絞っていない」。
@@ -110,7 +131,7 @@ const narrowed = computed(() =>
     ? undefined
     : narrowedNodeIds({
         nodes: state.viewModel.nodes[state.granularity],
-        edges: state.viewModel.edges[state.granularity],
+        edges: readEdgesAll.value,
         selectedNodeId: state.selectedNodeId,
       }),
 )
@@ -132,12 +153,15 @@ const shownNodes = computed(() => {
  * 並びが画面に出ている線と対応しなくなる。
  */
 const shownEdges = computed(() => {
-  const edges = state.viewModel?.edges[state.granularity] ?? []
+  const edges = readEdgesAll.value
   if (narrowed.value === undefined) return edges
 
   const selected = state.selectedNodeId
   return edges.filter((edge) => edge.from === selected || edge.to === selected)
 })
+
+/** 実装宛へ読み替えて描いている線の数（UT-30 の断りが使う） */
+const retargetedCount = computed(() => shownEdges.value.filter((edge) => edge.retargeted).length)
 
 const layout = computed(() => {
   const viewModel = state.viewModel
@@ -162,8 +186,12 @@ const shownNodeCount = computed(() => shownNodes.value.length)
  */
 const shownViaCount = computed(
   () =>
-    shownEdges.value.filter((edge) => 'resolution' in edge && edge.resolution === 'via-interface')
-      .length,
+    // **正本のエッジで数える。** 実装宛では 1 本の呼び出しが実装の数だけ分かれる
+    new Set(
+      shownEdges.value
+        .filter((read) => 'resolution' in read.edge && read.edge.resolution === 'via-interface')
+        .map((read) => read.sourceId),
+    ).size,
 )
 
 /**
@@ -244,24 +272,37 @@ function markerOf(edge: { variant: EdgeVariant; inCycle: boolean }): string {
 
 const edges = computed(() => {
   const viewModel = state.viewModel
-  return shownEdges.value.flatMap((edge) => {
-    const from = positions.value.get(edge.from)
-    const to = positions.value.get(edge.to)
+  return shownEdges.value.flatMap((read) => {
+    const edge = read.edge
+    const from = positions.value.get(read.from)
+    const to = positions.value.get(read.to)
     // 位置が引けないエッジは描かない。参照整合性は UT-01 が保証済みで、
     // ここに来るのは絞り込み（UT-14）で片側が消えている場合だけ
     if (!from || !to) return []
 
-    const options = { selfLoop: edge.from === edge.to }
+    const options = { selfLoop: read.from === read.to }
     const variant = variantOf(edge)
     return [
       {
-        id: edge.id,
+        // 描く線ごとに固有（実装宛では 1 本の呼び出しが実装の数だけ分かれる）
+        id: read.id,
         variant,
         /*
          * 循環かどうかは**形の別（`variant`）とは別の軸**（UT-10）。同じ 1 本が
          * 経由の呼び出しでも実装の対応でもありうるので、置き換えずに重ねる
          */
-        inCycle: viewModel === undefined ? false : isCycleEdge(viewModel, edge.id),
+        /*
+         * 循環の印（UT-10）は**正本の経路にだけ**付ける。
+         *
+         * 正本の `cycles` はインターフェース宛の経路で閉じた循環であり、
+         * 実装宛へ読み替えた線はその経路ではない。読み替えた線に付けると、
+         * **循環の印を持たないノードへ向かう線が循環色で描かれる**。逆に、
+         * 読み替えた結果できる循環には印が付かない（正本が言っていない）。
+         */
+        inCycle:
+          viewModel === undefined || read.retargeted
+            ? false
+            : isCycleEdge(viewModel, read.sourceId),
         d: edgePath(from, to, options),
         // 経由の印は曲線上に置く。端点の中間だと線から離れて浮く
         midpoint: variant === 'via' ? edgeMidpoint(from, to, options) : undefined,
@@ -602,6 +643,7 @@ defineExpose({
   shownLayers,
   shownNodeCount,
   shownViaCount,
+  retargetedCount,
 })
 
 /**

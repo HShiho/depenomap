@@ -13,11 +13,20 @@
  * **良し悪しを書かない**（N-1）。ここに出るのは記号と意味の対応だけで、
  * 件数も評価も持たない。
  */
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
-import { EDGE_LEGEND, type LegendLayer, NODE_LEGEND, STAT_LEGEND } from './legend-items'
+import type { ViaReading } from '@/app/shell/view-state'
 
-defineProps<{ layers: readonly LegendLayer[] }>()
+import { edgeLegendOf, type LegendLayer, NODE_LEGEND, STAT_LEGEND } from './legend-items'
+
+const props = defineProps<{
+  layers: readonly LegendLayer[]
+  /** いまの経由の読み方（UT-30）。線の説明がこれで変わる */
+  reading: ViaReading
+}>()
+
+/** 線の読み方。読み方が変われば文言も変わる */
+const edgeLegend = computed(() => edgeLegendOf(props.reading))
 
 const open = ref(false)
 </script>
@@ -44,7 +53,7 @@ const open = ref(false)
 
       <div class="flex flex-col gap-3">
         <h2 class="text-overline text-ink-3 uppercase">依存の線</h2>
-        <p v-for="item in EDGE_LEGEND" :key="item.kind" class="flex items-center gap-6">
+        <p v-for="item in edgeLegend" :key="item.kind" class="flex items-center gap-6">
           <!-- 見本は図と同じトークンで描く（`LegendPanel.style.node.test.ts` が対応を見る） -->
           <svg class="shrink-0" width="26" height="8" aria-hidden="true">
             <path class="sample" :class="item.kind" d="M1,4 H25" />

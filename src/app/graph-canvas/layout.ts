@@ -8,7 +8,17 @@
  * 寸法と並べ方は参照仕様（`plan/inception/mockup.html`）から取っている。
  */
 
-import type { GraphEdge, GraphNode } from '@/core/graph/schema'
+import type { GraphNode } from '@/core/graph/schema'
+
+/**
+ * 配置へ渡す線。**配置が見るのは端点だけ**だが、描く線と同じものを渡す約束に
+ * しておく（`id` を持つ）。渡した集合と描いた集合の一致を検査で結べる。
+ */
+export interface EdgeEnds {
+  id: string
+  from: string
+  to: string
+}
 
 /** ノードの実寸。参照仕様の `NW` / `NH` */
 export const NODE_WIDTH = 226
@@ -50,7 +60,11 @@ export interface Layout {
 
 export interface LayoutInput {
   nodes: readonly GraphNode[]
-  edges: readonly GraphEdge[]
+  /**
+   * 交差削減に使う線。**端点しか見ない**ので、正本のエッジとは限らない
+   * （UT-30 は行き先を読み替えた線を渡す）
+   */
+  edges: readonly EdgeEnds[]
   /**
    * ノードを列へ割り当てる規則。UT-08 が層と依存深度を差し替える。
    * 同じ値を返したノードが同じ列に並び、値の小さい順に左から置く
@@ -76,7 +90,7 @@ function defaultSortKey(node: GraphNode): string {
 function reduceCrossings(
   columns: readonly number[],
   byColumn: Map<number, GraphNode[]>,
-  edges: readonly GraphEdge[],
+  edges: readonly EdgeEnds[],
 ): void {
   const neighbours = new Map<string, string[]>()
   const link = (from: string, to: string) => {

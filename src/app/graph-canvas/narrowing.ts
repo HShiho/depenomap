@@ -17,7 +17,8 @@
  * 「残すノードの集合」だけで、良し悪しの印は持たない。
  */
 
-import type { GraphEdge, GraphNode } from '@/core/graph/schema'
+import type { GraphNode } from '@/core/graph/schema'
+import type { EdgeEnds } from './layout'
 
 /**
  * 絞り込んだあとに残るノードの ID。
@@ -27,7 +28,11 @@ import type { GraphEdge, GraphNode } from '@/core/graph/schema'
  */
 export function narrowedNodeIds(input: {
   nodes: readonly GraphNode[]
-  edges: readonly GraphEdge[]
+  /**
+   * 隣を決める線。**端点しか見ない**ので、正本のエッジとは限らない
+   * （UT-30 は行き先を読み替えた線を渡す。図に出ている線と絞り込みを揃える）
+   */
+  edges: readonly EdgeEnds[]
   selectedNodeId: string | undefined
 }): ReadonlySet<string> | undefined {
   const { selectedNodeId } = input

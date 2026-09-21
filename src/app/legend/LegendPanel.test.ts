@@ -3,7 +3,7 @@
 import { enableAutoUnmount, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { EDGE_LEGEND, NODE_LEGEND } from './legend-items'
+import { edgeLegendOf, NODE_LEGEND } from './legend-items'
 import LegendPanel from './LegendPanel.vue'
 
 enableAutoUnmount(afterEach)
@@ -13,8 +13,10 @@ const layers = [
   { key: 'infra', name: 'インフラ', colour: 'var(--color-layer-4)' },
 ]
 
-function show(props: { layers?: typeof layers } = {}) {
-  return mount(LegendPanel, { props: { layers: props.layers ?? layers } })
+function show(props: { layers?: typeof layers; reading?: 'interface' | 'implementation' } = {}) {
+  return mount(LegendPanel, {
+    props: { layers: props.layers ?? layers, reading: props.reading ?? 'interface' },
+  })
 }
 
 const toggle = (wrapper: ReturnType<typeof show>) => wrapper.get('button')
@@ -52,7 +54,7 @@ describe('凡例（UT-26 / QR-1）', () => {
     const wrapper = show()
     await toggle(wrapper).trigger('click')
 
-    for (const item of EDGE_LEGEND) expect(wrapper.text()).toContain(item.label)
+    for (const item of edgeLegendOf('interface')) expect(wrapper.text()).toContain(item.label)
     for (const item of NODE_LEGEND) expect(wrapper.text()).toContain(item.meaning)
   })
 
@@ -61,11 +63,20 @@ describe('凡例（UT-26 / QR-1）', () => {
     const wrapper = show()
     await toggle(wrapper).trigger('click')
 
-    for (const item of EDGE_LEGEND) {
+    for (const item of edgeLegendOf('interface')) {
       expect(
         wrapper.find(`path.sample.${item.kind}, path.sample[class~="${item.kind}"]`).exists(),
       ).toBe(true)
     }
+  })
+
+  it('読み方が変わると、経由の行き先の説明も変わる', async () => {
+    // 固定の文言にすると、実装宛で読んでいるあいだ凡例が図と逆のことを言う
+    const wrapper = show({ reading: 'implementation' })
+    await toggle(wrapper).trigger('click')
+
+    expect(wrapper.text()).toContain('行き先は実装')
+    expect(wrapper.text()).not.toContain('行き先はインターフェース')
   })
 
   it('interface 経由の見本にだけ、中点の印を出す', async () => {

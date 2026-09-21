@@ -1742,3 +1742,147 @@ describe('図の読み方（UT-26 / QR-1）', () => {
     expect(wrapper.find('.shell-overlay').text()).toContain('正本 JSON')
   })
 })
+
+describe('経由の行き先を選ぶ（UT-30 / UT-07 の見直し）', () => {
+  /** 経由の読み方を切り替える。口はツールバー */
+  async function readAs(
+    wrapper: Awaited<ReturnType<typeof setup>>['wrapper'],
+    label: 'interface' | '実装',
+  ) {
+    const group = wrapper
+      .findAll('[role="group"]')
+      .find((candidate) => candidate.text().includes('実装'))
+    expect(group).toBeDefined()
+    const button = group!.findAll('button').find((candidate) => candidate.text() === label)
+    expect(button).toBeDefined()
+    await button!.trigger('click')
+  }
+
+  /** 経由のエッジ 1 本と、その実装 */
+  function someVia(state: Awaited<ReturnType<typeof setup>>['state']) {
+    const edge = state.viewModel!.edges.method.find(
+      (candidate) => 'resolution' in candidate && candidate.resolution === 'via-interface',
+    )!
+    const implementations = 'implementations' in edge ? (edge.implementations ?? []) : []
+    expect(implementations.length).toBeGreaterThan(1)
+    return { edge, implementations }
+  }
+
+  it('既定では、型検査器の答え（interface 宛）で描く', async () => {
+    // UT-07 の決定を既定に残す（起動直後に図が変わらない）
+    const { state, wrapper } = await setup()
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+    const { edge } = someVia(state)
+
+    const drawn = wrapper
+      .findAll('path[data-edge-id]')
+      .map((path) => path.attributes('data-edge-id'))
+    expect(drawn).toContain(edge.id)
+  })
+
+  it('実装宛で読むと、実装の数だけ線が分かれる', async () => {
+    /*
+     * DI 構成では、これが無いと「実際にどの層のどのクラスを使っているか」が
+     * 図から読めない（usecase → domain(interface) しか出ない）
+     */
+    const { state, wrapper } = await setup()
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+    const { edge, implementations } = someVia(state)
+
+    await readAs(wrapper, '実装')
+
+    const drawn = wrapper
+      .findAll('path[data-edge-id]')
+      .map((path) => path.attributes('data-edge-id')!)
+    expect(drawn).not.toContain(edge.id)
+    for (const implementation of implementations) {
+      expect(drawn).toContain(`${edge.id}→${implementation}`)
+    }
+  })
+
+  it('読み替えていることと、追従していないものを断る', async () => {
+    const { state, wrapper } = await setup()
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    await readAs(wrapper, '実装')
+
+    const note = wrapper.find('.shell-overlay').text()
+    expect(note).toContain('実装宛に読み替えて')
+    expect(note).toContain('数値・列・循環の印は interface 宛のまま')
+  })
+
+  it('戻せば、型検査器の答えに戻る', async () => {
+    // どちらか一方に潰さない。正本が持つ事実は消えない
+    const { state, wrapper } = await setup()
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+    const { edge } = someVia(state)
+
+    await readAs(wrapper, '実装')
+    await readAs(wrapper, 'interface')
+
+    const drawn = wrapper
+      .findAll('path[data-edge-id]')
+      .map((path) => path.attributes('data-edge-id'))
+    expect(drawn).toContain(edge.id)
+    expect(wrapper.find('.shell-overlay').text()).not.toContain('実装宛に読み替えて')
+  })
+
+  it('絞り込みも、読み替えたあとの線で隣を決める', async () => {
+    /*
+     * 絞り込み（UT-14）が正本のエッジを見たままだと、**図に出ている線と隣の
+     * 判定が食い違う** — 実装宛で読んでいるのに、絞ると interface が残る
+     */
+    const { state, wrapper } = await setup()
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+    const { edge, implementations } = someVia(state)
+
+    await readAs(wrapper, '実装')
+    state.moveTo(edge.from)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    const drawnNodes = wrapper.findAll('svg g.node').map((node) => node.attributes('data-node-id'))
+    expect(drawnNodes).toContain(implementations[0])
+    expect(drawnNodes).not.toContain(edge.to)
+  })
+
+  it('実装宛で読んでいるあいだ、interface 宛の断りは出さない', async () => {
+    /*
+     * 出すと「インターフェース宛に描いています」と、いま描いていない描き方を
+     * 断ることになる。本数も、分かれた線を数えて水増しされていた
+     */
+    const { state, wrapper } = await setup()
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.shell-overlay').text()).toContain('インターフェース宛に描いています')
+
+    await readAs(wrapper, '実装')
+
+    expect(wrapper.find('.shell-overlay').text()).not.toContain('インターフェース宛に描いています')
+  })
+
+  it('ファイル粒度では選べず、その理由が画面から読める', async () => {
+    /*
+     * その粒度のエッジは import で、経由の解決が起きない。**理由をポインタの
+     * ツールチップだけに置かない** — 押せない項目には焦点も当たらないので、
+     * 読み上げにもキーボードにも届かなくなる
+     */
+    const { wrapper } = await setup()
+
+    const group = wrapper
+      .findAll('[role="group"]')
+      .find((candidate) => candidate.text().includes('実装'))!
+    for (const button of group.findAll('button')) {
+      expect(button.attributes('disabled')).toBeDefined()
+    }
+
+    const describedBy = group.attributes('aria-describedby')
+    expect(describedBy).toBeDefined()
+    expect(wrapper.find(`[id="${describedBy}"]`).text()).toContain('メソッド粒度')
+  })
+})

@@ -16,12 +16,25 @@ defineProps<{
   label: string
   options: readonly { value: T; label: string }[]
   modelValue: T
+  /**
+   * いま効かない切り替えか（UT-30）。**口は残して押せなくする** — 消すと、
+   * 機能が無いのか、いまは効かないだけなのかが読み手に分からない
+   */
+  disabled?: boolean
+  /**
+   * 効かないときの理由。**画面に出して、項目と結び付ける**。
+   *
+   * `title` 属性だけだと、読み上げには届かず、押せない項目には焦点も
+   * 当たらない。理由がポインタの利用者にしか届かない形にしない。
+   */
+  note?: string
 }>()
 
 defineEmits<{ 'update:modelValue': [value: T] }>()
 
 // 同じ切り替えを 2 か所に置いても id が衝突しないようにする
 const labelId = useId()
+const noteId = useId()
 </script>
 
 <template>
@@ -40,22 +53,33 @@ const labelId = useId()
       role="group"
       :aria-labelledby="labelId"
       class="flex rounded-control border border-line p-1"
+      :aria-describedby="disabled === true && note !== undefined ? noteId : undefined"
     >
       <button
         v-for="option in options"
         :key="option.value"
         type="button"
-        class="rounded-inner px-9 py-4 text-ui"
+        class="rounded-inner px-9 py-4 text-ui disabled:cursor-default disabled:text-line disabled:hover:bg-transparent"
         :class="
           modelValue === option.value
             ? 'bg-accent-soft font-semibold text-ink'
             : 'text-ink-2 hover:bg-surface-2'
         "
+        :disabled="disabled"
         :aria-pressed="modelValue === option.value"
         @click="$emit('update:modelValue', option.value)"
       >
         {{ option.label }}
       </button>
     </div>
+
+    <!-- 効かない理由。見えるところに出し、項目と結び付ける -->
+    <span
+      v-if="disabled === true && note !== undefined"
+      :id="noteId"
+      class="text-caption text-ink-3"
+    >
+      {{ note }}
+    </span>
   </div>
 </template>

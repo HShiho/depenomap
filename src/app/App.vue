@@ -13,8 +13,9 @@ import NodeContextMenu from './editor/NodeContextMenu.vue'
 import { openActionOf } from './editor/open-action'
 import { openTargetOf } from './editor/open-target'
 import DrawingNoteChip from './legend/DrawingNoteChip.vue'
-import { emptyNoteOf, viaNoteOf } from './legend/drawing-notes'
+import { emptyNoteOf, readingNoteOf, viaNoteOf } from './legend/drawing-notes'
 import LegendPanel from './legend/LegendPanel.vue'
+import ViaReadingToggle from './graph-canvas/ViaReadingToggle.vue'
 import { callOrder } from './graph-canvas/call-order'
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
 import NarrowingChip from './graph-canvas/NarrowingChip.vue'
@@ -239,11 +240,17 @@ const viaNote = computed(() => {
   const edges = state.viewModel?.edges.method ?? []
   return viaNoteOf({
     granularity: state.granularity,
+    reading: state.viaReading,
     totalVia: edges.filter((edge) => 'resolution' in edge && edge.resolution === 'via-interface')
       .length,
     drawnVia: canvas.value?.shownViaCount ?? 0,
   })
 })
+
+/** 実装宛に読み替えて描いていることの断り（UT-30） */
+const readingNote = computed(() =>
+  readingNoteOf({ retargeted: canvas.value?.retargetedCount ?? 0 }),
+)
 
 /**
  * 図に出せるノードが無いことの断り（UT-26）。
@@ -288,6 +295,7 @@ const showsOrderNote = computed(
       granularity: state.granularity,
       selectedNodeId: state.selectedNodeId,
       narrowed: state.narrowedToSelection,
+      via: state.viaReading === 'implementation' ? 'actual' : 'logical',
     }).applies,
 )
 </script>
@@ -324,11 +332,16 @@ const showsOrderNote = computed(
       <!-- 描き方の断り（UT-26）。図がどう描かれているかを言うだけで、操作は持たない -->
       <DrawingNoteChip v-if="emptyNote !== undefined" :note="emptyNote" />
       <DrawingNoteChip v-if="viaNote !== undefined" :note="viaNote" />
+      <DrawingNoteChip v-if="readingNote !== undefined" :note="readingNote" />
     </template>
 
     <!-- 図の読み方（UT-26）。下端の左。既定は畳んだ状態 -->
     <template #canvas-legend>
-      <LegendPanel v-if="state.status.kind === 'ready'" :layers="canvas?.shownLayers ?? []" />
+      <LegendPanel
+        v-if="state.status.kind === 'ready'"
+        :layers="canvas?.shownLayers ?? []"
+        :reading="state.viaReading"
+      />
     </template>
 
     <template #toolbar>
@@ -342,6 +355,9 @@ const showsOrderNote = computed(
 
         <GranularityToggle />
         <ColumnAxisToggle />
+
+        <!-- 経由の呼び出しをどちらの行き先で読むか（UT-30） -->
+        <ViaReadingToggle />
 
         <span class="h-17 w-px shrink-0 bg-line"></span>
 
