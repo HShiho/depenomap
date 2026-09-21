@@ -101,13 +101,9 @@ watch(() => props.action, measure, { flush: 'post' })
  */
 let focusedBefore: HTMLElement | null = null
 
-/** 自分の実体。畳むとき、テンプレート参照は既に外れている */
-let root: HTMLElement | null = null
-
 onMounted(() => {
   const element = menu.value
   if (element) {
-    root = element
     measure()
     focusedBefore = document.activeElement instanceof HTMLElement ? document.activeElement : null
     /*
@@ -133,7 +129,7 @@ onBeforeUnmount(() => {
    *
    * 返す先が文書から外れていることもある（図が組み換わった場合）。
    */
-  const holding = root?.contains(document.activeElement) === true
+  const holding = menu.value?.contains(document.activeElement) === true
   if (holding && focusedBefore?.isConnected === true) focusedBefore.focus()
 
   window.removeEventListener('pointerdown', onPointerDownOutside, true)
