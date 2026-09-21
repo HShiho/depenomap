@@ -43,20 +43,22 @@ export function viaNoteOf(input: {
 /**
  * 図に出せるノードが無いことの断り。出ていれば `undefined`。
  *
- * **理由まで言う。** 「何も無い」とだけ出すと、絞り込みを解けば戻るのか、
- * 正本 JSON がそもそも空なのかが分からない。
+ * **理由まで言う。** 「何も無い」とだけ出すと、正本 JSON がそもそも空なのか、
+ * この粒度に無いだけなのかが分からない。
+ *
+ * **絞り込み（UT-14）が原因になる経路は無い。** 絞り込みは選択したノードを必ず
+ * 残す（`narrowing.ts`）ので、立っていれば 1 件以上出る。ここで「絞り込んだ
+ * 結果です」と言えるようにしておくと、**起こらない理由を出す枝**が残る。
  */
 export function emptyNoteOf(input: {
   /** いま図に描いているノードの数 */
   shown: number
-  /** 選択による絞り込みが立っているか（UT-14） */
-  narrowed: boolean
   /** その粒度に、正本 JSON が持つノードの数 */
   inGranularity: number
 }): string | undefined {
   if (input.shown > 0) return undefined
 
-  if (input.narrowed) return '絞り込んだ結果、表示できるノードがありません'
-  if (input.inGranularity === 0) return 'この粒度のノードが、正本 JSON にありません'
-  return '表示できるノードがありません'
+  return input.inGranularity === 0
+    ? 'この粒度のノードが、正本 JSON にありません'
+    : '表示できるノードがありません'
 }

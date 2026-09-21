@@ -257,7 +257,6 @@ const emptyNote = computed(() =>
     ? undefined
     : emptyNoteOf({
         shown: canvas.value?.shownNodeCount ?? 0,
-        narrowed: state.narrowedToSelection,
         inGranularity: state.viewModel?.nodes[state.granularity].length ?? 0,
       }),
 )

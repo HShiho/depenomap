@@ -33,36 +33,25 @@ describe('インターフェース経由の断り（UT-26 / UT-07）', () => {
 
 describe('図が空であることの断り（UT-26）', () => {
   it('出ていれば何も言わない', () => {
-    expect(emptyNoteOf({ shown: 3, narrowed: false, inGranularity: 10 })).toBeUndefined()
-  })
-
-  it('絞り込んだ結果なら、そう言う', () => {
-    // 解けば戻ると分かる
-    const note = emptyNoteOf({ shown: 0, narrowed: true, inGranularity: 10 })
-
-    expect(note).toContain('絞り込')
+    expect(emptyNoteOf({ shown: 3, inGranularity: 10 })).toBeUndefined()
   })
 
   it('その粒度にノードが無いなら、そう言う', () => {
-    // メソッドを 1 つも持たない正本 JSON でメソッド粒度にしたとき
-    const note = emptyNoteOf({ shown: 0, narrowed: false, inGranularity: 0 })
-
-    expect(note).toContain('粒度')
-    expect(note).not.toContain('絞り込')
+    // メソッドを 1 つも持たない正本 JSON で、メソッド粒度にしたとき
+    expect(emptyNoteOf({ shown: 0, inGranularity: 0 })).toContain('粒度')
   })
 
   it('理由が分からないときも、空であることは言う', () => {
-    const note = emptyNoteOf({ shown: 0, narrowed: false, inGranularity: 10 })
+    const note = emptyNoteOf({ shown: 0, inGranularity: 10 })
 
     expect(note).toBeDefined()
-    expect(note).not.toContain('絞り込')
     expect(note).not.toContain('粒度')
   })
 
   it('欠陥として扱わない（N-1）', () => {
     const notes = [
-      emptyNoteOf({ shown: 0, narrowed: true, inGranularity: 10 }),
-      emptyNoteOf({ shown: 0, narrowed: false, inGranularity: 0 }),
+      emptyNoteOf({ shown: 0, inGranularity: 0 }),
+      emptyNoteOf({ shown: 0, inGranularity: 10 }),
       viaNoteOf({ granularity: 'method', totalVia: 3, drawnVia: 3 }),
     ]
 
