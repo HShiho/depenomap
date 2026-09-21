@@ -12,7 +12,7 @@
 import type { GraphNode } from '@/core/graph/schema'
 import { computeDepths, DEPTH_UNDEFINED, findRootOrigins } from '@/core/ir/depth'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
-import { layerColours, layerOrder } from '../shell/layer-colour'
+import { layerLabels, layerColours, layerOrder } from '../shell/layer-colour'
 import type { ColumnAxis } from '../shell/view-state'
 
 /**
@@ -72,13 +72,13 @@ export function buildColumnPlan(input: {
 export function layerColumns(viewModel: ViewModel): ColumnPlan {
   const columnOfLayer = layerOrder(viewModel)
   const colourOf = layerColours(viewModel)
+  const labelOf = layerLabels(viewModel)
 
   return {
     columnOf: (node) => columnOfLayer.get(viewModel.layerOf(node.id).key) ?? TRAILING_COLUMN,
     headOf: (column) => {
       const key = viewModel.layerKeys[column]
-      const layer = key === undefined ? undefined : viewModel.layerOfKey(key)
-      return { label: layer?.name ?? '層なし', colour: colourOf(key) }
+      return { label: labelOf(key), colour: colourOf(key) }
     },
   }
 }

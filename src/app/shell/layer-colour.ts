@@ -8,6 +8,22 @@
 
 import { NO_LAYER, type LayerKey, type ViewModel } from '@/core/ir/view-model'
 
+/**
+ * 層が無いノードの呼び名。
+ *
+ * 列の見出し（UT-08）と凡例（UT-26）が同じ語を出す。**層が無いこと自体は
+ * 欠陥ではない**（ADR-002 / N-1）ので、言い方にもその含みを入れない。
+ */
+export const NO_LAYER_LABEL = '層なし'
+
+/** 層の名前を引く口。定義が無ければ `層なし` */
+export function layerLabels(viewModel: ViewModel): (key: LayerKey | undefined) => string {
+  return (key) => {
+    if (key === undefined || key === NO_LAYER) return NO_LAYER_LABEL
+    return viewModel.layerOfKey(key)?.name ?? NO_LAYER_LABEL
+  }
+}
+
 /** 層カラーは 6 色を循環させる。層 ID には結び付けない（UT-04 の決定） */
 const LAYER_COLOURS = 6
 
