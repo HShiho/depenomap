@@ -8,7 +8,9 @@ import { LOCATE_ENDPOINT } from '@/core/graph/api'
 import { loadGraphFromValue } from '@/core/graph/loader'
 import App from './App.vue'
 import { CYCLE_LABEL } from './shell/cycle-mark'
+import DrawingNoteChip from './legend/DrawingNoteChip.vue'
 import MovedNodesChip from './graph-canvas/MovedNodesChip.vue'
+import NarrowingChip from './graph-canvas/NarrowingChip.vue'
 import ViewportControls from './graph-canvas/ViewportControls.vue'
 import { useViewState } from './shell/view-state'
 
@@ -134,13 +136,17 @@ describe('検索の効き方（UT-11）', () => {
 })
 
 describe('絞り込みの印と解除（US-12 / UT-14）', () => {
+  /*
+   * **この印だけを見る。** 左上には描き方の断り（UT-26）も並ぶので、器ごと
+   * 空かどうかを見ると、別の UT が何か出しただけで落ちる
+   */
   const chip = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
-    wrapper.find('.shell-overlay')
+    wrapper.findComponent(NarrowingChip)
 
   it('絞っていないときは、印を出さない', async () => {
     const { wrapper } = await setup()
 
-    expect(chip(wrapper).text()).toBe('')
+    expect(chip(wrapper).exists()).toBe(false)
   })
 
   it('絞ると、何を中心にしているかを出す', async () => {
@@ -1612,5 +1618,127 @@ describe('ノードから VSCode で開く（UT-18 / US-19）', () => {
     for (const word of ['違反', 'エラー', '警告', '修正してください', '問題']) {
       expect(wrapper.find('[role="menu"]').text()).not.toContain(word)
     }
+  })
+})
+
+describe('図の読み方（UT-26 / QR-1）', () => {
+  const legend = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+    wrapper.find('.shell-legend')
+
+  /** 凡例を開く。**既定は畳んである**（UT-26 の決定） */
+  async function openLegend(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
+    await legend(wrapper).get('button').trigger('click')
+    return wrapper.find('[aria-label="凡例"]')
+  }
+
+  it('凡例は下端の左に出る', async () => {
+    // 左上はチップ列、右上は通知、下端中央はツールバーが使っている
+    const { wrapper } = await setup()
+
+    expect(legend(wrapper).get('button').text()).toContain('凡例')
+  })
+
+  it('読めていないあいだは出さない', async () => {
+    const { state, wrapper } = await setup()
+    state.applyLoadOutcome({ kind: 'loading' })
+    await wrapper.vm.$nextTick()
+
+    expect(legend(wrapper).text()).toBe('')
+  })
+
+  it.each([
+    ['読み込み中', { kind: 'loading' } as const],
+    ['届かなかった', { kind: 'unreachable', message: 'ECONNREFUSED' } as const],
+  ])('%s ときは、描き方の断りも出さない', async (_label, outcome) => {
+    /*
+     * 図はどの場合も空になるが、その理由は右上の通知が持っている。ここで
+     * 「正本 JSON にありません」と言うと、届いてすらいない原因を断定する
+     */
+    const { state, wrapper } = await setup()
+    state.applyLoadOutcome(outcome)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findComponent(DrawingNoteChip).exists()).toBe(false)
+  })
+
+  it('図に出ている層だけを出す', async () => {
+    /*
+     * 絞り込むと図から層が消える（UT-14）。画面に無い層の色を並べても、
+     * 引き当てる相手がいない（UT-26 の決定）
+     */
+    const { state, wrapper } = await setup()
+    const all = await openLegend(wrapper)
+    const layerNames = state
+      .viewModel!.layerKeys.map((key) => state.viewModel!.layerOfKey(key)?.name)
+      .filter((name): name is string => name !== undefined)
+    const shownAll = layerNames.filter((name) => all.text().includes(name))
+    expect(shownAll.length).toBeGreaterThan(1)
+
+    const target = state.viewModel!.nodes.file[2]!
+    state.moveTo(target.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    const narrowed = wrapper.find('[aria-label="凡例"]')
+    const shownNarrowed = layerNames.filter((name) => narrowed.text().includes(name))
+    expect(shownNarrowed.length).toBeLessThan(shownAll.length)
+  })
+
+  it('インターフェース経由を実装へ解決して描いていることを断る', async () => {
+    // 呼び出し元 → interface → 実装 の 2 本は図に無い（UT-07）
+    const { state, wrapper } = await setup()
+    expect(wrapper.find('.shell-overlay').text()).toContain('メソッド粒度')
+
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    const viaCount = state.viewModel!.edges.method.filter(
+      (edge) => 'resolution' in edge && edge.resolution === 'via-interface',
+    ).length
+    expect(viaCount).toBeGreaterThan(0)
+    expect(wrapper.find('.shell-overlay').text()).toContain(String(viaCount))
+  })
+
+  it('絞り込んで解決した線が出ていなければ、本数を言わない', async () => {
+    /*
+     * 「描いています」と言う以上、**描いている分**を数える。全体の本数を出すと、
+     * 図に 1 本も出ていないのに「7 本を描いています」と言うことになる
+     */
+    const { state, wrapper } = await setup()
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+    const target = state.viewModel!.nodes.method[0]!
+    state.moveTo(target.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('path.edge.via')).toHaveLength(0)
+    expect(wrapper.find('.shell-overlay').text()).not.toContain('実装へ解決して描いています')
+  })
+
+  it('図が空のときは、その理由を出す', async () => {
+    // 何も出ないだけだと、絞り込みの結果なのか正本が空なのかが分からない
+    const empty = loadGraphFromValue({
+      ...fixture,
+      layers: [],
+      nodes: [],
+      edges: [],
+      unresolved: [],
+      cycles: [],
+    })
+    if (!empty.ok) throw new Error('空のフィクスチャが読めない')
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response(JSON.stringify(empty)))),
+    )
+    const state = useViewState()
+    const wrapper = mount(App, { attachTo: document.body })
+    await vi.waitUntil(() => state.status.kind === 'ready')
+    await wrapper.vm.$nextTick()
+
+    // **読めたうえで空**であることを見る。読み込み中にも同じ文言が出る形にしない
+    expect(state.status.kind).toBe('ready')
+    expect(wrapper.find('.shell-overlay').text()).toContain('正本 JSON')
   })
 })

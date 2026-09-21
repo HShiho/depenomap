@@ -14,11 +14,12 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import type { GraphEdge, GraphNode } from '@/core/graph/schema'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
 import { useViewState, type ColumnAxis } from '../shell/view-state'
-import { layerColours } from '../shell/layer-colour'
+import { layerColours, layerLabels } from '../shell/layer-colour'
 import { callOrder } from './call-order'
 import { cycleMarkOf, isCycleEdge } from '../shell/cycle-mark'
 import { nodeFlagOf } from '../shell/node-flag'
 import { buildColumnPlan } from './column-axis'
+import { FAN_IN_MARK, FAN_OUT_MARK, type LegendLayer } from '@/app/legend/legend-items'
 import { narrowedNodeIds } from './narrowing'
 import { edgeMidpoint, edgePath } from './edge-path'
 import { nameLimitFor, subtitleOf, titleOf, tooltipOf } from './node-label'
@@ -150,6 +151,43 @@ const layout = computed(() => {
   })
 })
 
+/** いま図に描いているノードの数（UT-26 の断りが使う） */
+const shownNodeCount = computed(() => shownNodes.value.length)
+
+/**
+ * いま図に描いている、インターフェース経由として解決した線の本数（UT-26）。
+ *
+ * 断りが「描いています」と言う以上、**グラフ全体ではなく描いている分**を渡す。
+ * 絞り込み中（UT-14）は図に出ている線だけが対象になる。
+ */
+const shownViaCount = computed(
+  () =>
+    shownEdges.value.filter((edge) => 'resolution' in edge && edge.resolution === 'via-interface')
+      .length,
+)
+
+/**
+ * いま図に出ている層（UT-26）。凡例はこれを出す。
+ *
+ * **図に出ているものだけ**にする（UT-26 の決定）。絞り込み中や粒度を切り替えた
+ * ときに、画面に無い層の色を並べても引き当てられない。
+ *
+ * 並びは正本 JSON の `layers` の順（ADR-002）。色と名前は層の見せ方を持つ
+ * 場所（`layer-colour.ts`）から引く。
+ */
+const shownLayers = computed<LegendLayer[]>(() => {
+  const viewModel = state.viewModel
+  if (viewModel === undefined) return []
+
+  const colourOf = layerColours(viewModel)
+  const labelOf = layerLabels(viewModel)
+  const present = new Set(shownNodes.value.map((node) => viewModel.layerOf(node.id).key))
+
+  return viewModel.layerKeys
+    .filter((key) => present.has(key))
+    .map((key) => ({ key, name: labelOf(key), colour: colourOf(key) }))
+})
+
 /**
  * 手で動かした位置（UT-17 / US-17）。**既定の並びに対する差分**として持つ。
  *
@@ -278,7 +316,7 @@ function statsOf(node: GraphNode): string {
   const fanOut = new Set(
     viewModel.dependenciesOf(node.id, state.granularity).map((dependency) => dependency.node.id),
   ).size
-  return `↙${fanIn} ↗${fanOut}`
+  return `${FAN_IN_MARK}${fanIn} ${FAN_OUT_MARK}${fanOut}`
 }
 
 /**
@@ -554,7 +592,17 @@ function focusNode(nodeId: string): void {
   if (placed) viewport.value = centreOn(viewport.value, placed, view.value)
 }
 
-defineExpose({ viewport, fitToContent, focusNode, movedNodes, movedOutOfView, resetPositions })
+defineExpose({
+  viewport,
+  fitToContent,
+  focusNode,
+  movedNodes,
+  movedOutOfView,
+  resetPositions,
+  shownLayers,
+  shownNodeCount,
+  shownViaCount,
+})
 
 /**
  * 最後に全体表示を合わせた対象。**グラフ・粒度・並べ方の組につき 1 回だけ**

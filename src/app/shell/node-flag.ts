@@ -11,8 +11,12 @@
 import type { ViewModel } from '@/core/ir/view-model'
 import { cycleMarkOf } from './cycle-mark'
 
-/** 追跡できなかった依存がある、という印 */
-const UNRESOLVED = '未追跡'
+/**
+ * 追跡できなかった依存がある、という印。
+ *
+ * 凡例（UT-26）もこの語を引く。直書きすると、図と凡例で別のことを言いうる。
+ */
+export const UNRESOLVED_LABEL = '未追跡'
 
 /**
  * 追跡できなかった依存の印。
@@ -26,14 +30,14 @@ const UNRESOLVED = '未追跡'
  * 知りたい。
  */
 function unresolvedMarkOf(viewModel: ViewModel, nodeId: string): string | undefined {
-  if (viewModel.unresolvedFrom(nodeId).length > 0) return UNRESOLVED
+  if (viewModel.unresolvedFrom(nodeId).length > 0) return UNRESOLVED_LABEL
 
   const node = viewModel.nodeById.get(nodeId)
   if (node?.kind !== 'file') return undefined
 
   const methods = viewModel.methodsOfFile.get(node.id) ?? []
   return methods.some((method) => viewModel.unresolvedFrom(method.id).length > 0)
-    ? UNRESOLVED
+    ? UNRESOLVED_LABEL
     : undefined
 }
 

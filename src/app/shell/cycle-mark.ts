@@ -18,8 +18,12 @@
 import { typeOnlyStateOf } from '@/core/ir/indices'
 import type { ViewModel } from '@/core/ir/view-model'
 
-/** 型のみであることを添えた印 */
-const TYPE_ONLY = '循環（型のみ）'
+/**
+ * 型のみであることを添えた印。
+ *
+ * 凡例（UT-26）もこの語を引く。直書きすると、図と凡例で別のことを言いうる。
+ */
+export const TYPE_ONLY_LABEL = '循環（型のみ）'
 /**
  * 添えない印。型のみかどうかを言わない。
  *
@@ -44,7 +48,9 @@ export function cycleMarkOf(viewModel: ViewModel, nodeId: string): string | unde
   const cycles = viewModel.cyclesOf(nodeId)
   if (cycles.length === 0) return undefined
 
-  return cycles.every((cycle) => typeOnlyStateOf(cycle) === 'type-only') ? TYPE_ONLY : CYCLE_LABEL
+  return cycles.every((cycle) => typeOnlyStateOf(cycle) === 'type-only')
+    ? TYPE_ONLY_LABEL
+    : CYCLE_LABEL
 }
 
 /** エッジが循環に含まれるか。線の描き分けに使う */
