@@ -138,7 +138,8 @@ async function onNodeContextMenu(node: GraphNode, event: MouseEvent): Promise<vo
   menu.value = { node, at: { x: event.clientX, y: event.clientY }, title: fullTitleOf(node) }
   located.value = undefined
 
-  const target = openTargetOf(node, (id) => state.viewModel?.fileOfMethod(id))
+  // 引き当ては computed に 1 か所だけ置く。2 か所に書くと、変えたとき片方だけ直る
+  const target = openTarget.value
   if (target === undefined) return
 
   const mine = ++asked
