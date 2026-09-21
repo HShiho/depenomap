@@ -1894,7 +1894,7 @@ describe('インターフェースを畳む（UT-29 / UT-30 の後段）', () =>
   async function foldIn(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
     const toggle = wrapper
       .findAll('button')
-      .find((button) => button.attributes('aria-label')?.includes('インターフェースのノードを畳む'))
+      .find((button) => button.text().includes('interface を畳む'))
     expect(toggle).toBeDefined()
     expect(toggle!.attributes('disabled')).toBeUndefined()
     await toggle!.trigger('click')

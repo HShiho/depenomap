@@ -13,7 +13,7 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 
 import type { GraphEdge, GraphNode } from '@/core/graph/schema'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
-import { useViewState, type ColumnAxis } from '../shell/view-state'
+import { useViewState, type ColumnAxis, type ViaReading } from '../shell/view-state'
 import { layerColours, layerLabels } from '../shell/layer-colour'
 import { callOrder } from './call-order'
 import { cycleMarkOf, isCycleEdge } from '../shell/cycle-mark'
@@ -756,6 +756,14 @@ type FitKey = {
   axis: ColumnAxis
   /** 絞り込みの中心。絞っていなければ `undefined` */
   narrowedTo: string | undefined
+  /**
+   * 経由の読み方（UT-30）と、畳んでいる件数（UT-29）。
+   *
+   * どちらも**描くものの数と列の高さを変える**。入れないと、切り替えても
+   * 前の視点のまま残り、残ったノードだけが手元でずれる。
+   */
+  reading: ViaReading
+  folded: number
 }
 
 let lastFitted: FitKey | undefined
@@ -785,6 +793,8 @@ watch(
       state.columnAxis,
       state.narrowedToSelection ? state.selectedNodeId : undefined,
       state.selectedNodeId,
+      state.viaReading,
+      foldedCount.value,
       layout.value.width,
       layout.value.height,
       view.value.width,
@@ -796,6 +806,8 @@ watch(
     axis,
     narrowedTo,
     selectedNodeId,
+    reading,
+    folded,
     contentWidth,
     contentHeight,
     viewWidth,
@@ -810,10 +822,12 @@ watch(
       fitted.viewModel === viewModel &&
       fitted.granularity === granularity &&
       fitted.axis === axis &&
-      fitted.narrowedTo === narrowedTo
+      fitted.narrowedTo === narrowedTo &&
+      fitted.reading === reading &&
+      fitted.folded === folded
 
     if (!sameFigure) {
-      lastFitted = { viewModel, granularity, axis, narrowedTo }
+      lastFitted = { viewModel, granularity, axis, narrowedTo, reading, folded }
       lastFocused = selectedNodeId
       fitToContent()
       return

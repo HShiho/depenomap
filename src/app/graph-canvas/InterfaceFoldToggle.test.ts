@@ -89,6 +89,42 @@ describe('インターフェースを畳む切り替え（UT-29 / UT-30 の後�
     expect(wrapper.text()).not.toContain('使えます')
   })
 
+  it('効かない場面では、押下状態を出さない', async () => {
+    /*
+     * 覚えた好みは粒度や読み方を変えても保つ。そこでチェックを出すと、
+     * 画面が「畳んでいる」と「畳んでいない」を同時に主張する（断りは出ない）
+     */
+    const { state, wrapper } = setup()
+    state.setInterfacesFolded(true)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('button').attributes('aria-pressed')).toBe('true')
+
+    state.viaReading = 'interface'
+    await wrapper.vm.$nextTick()
+
+    expect(state.interfacesFolded).toBe(true)
+    expect(wrapper.get('button').attributes('aria-pressed')).toBe('false')
+    expect(wrapper.text()).not.toContain('✓')
+  })
+
+  it('覚えたままなら、効いていないことも理由に添える', async () => {
+    const { state, wrapper } = setup()
+    state.setInterfacesFolded(true)
+    state.viaReading = 'interface'
+    await wrapper.vm.$nextTick()
+
+    const describedBy = wrapper.get('button').attributes('aria-describedby')
+    expect(wrapper.get(`[id="${describedBy}"]`).text()).toContain('畳む設定は残っています')
+  })
+
+  it('読み上げ名は、見えている文字に揃える', () => {
+    // 見える名前が読み上げ名に含まれないと、音声で指し示せない
+    const { wrapper } = setup({ granularity: 'file' })
+
+    expect(wrapper.get('button').attributes('aria-label')).toBeUndefined()
+    expect(wrapper.get('button').text()).toContain('interface を畳む')
+  })
+
   it('良し悪しを出さない（N-1）', () => {
     const { wrapper } = setup()
 

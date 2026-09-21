@@ -263,6 +263,27 @@ describe('全体表示のあとの移動', () => {
     expect(canvas.viewport.y).toBeCloseTo(moved.y)
   })
 
+  it('畳む／戻すでも、全体表示に合わせ直す', async () => {
+    /*
+     * 畳むと列の高さと数が変わる（UT-29）。据え置くと、残ったノードだけが
+     * 手元でずれる。参照仕様も interface のトグルで合わせ直している
+     */
+    const { state, wrapper } = setup({ granularity: 'method' })
+    state.viaReading = 'implementation'
+    await nextTick()
+    const canvas = wrapper.vm as unknown as {
+      viewport: { x: number }
+      focusNode: (id: string) => void
+    }
+    canvas.focusNode(viewModel.nodes.method[10]!.id)
+    const moved = canvas.viewport.x
+
+    state.setInterfacesFolded(true)
+    await nextTick()
+
+    expect(canvas.viewport.x).not.toBeCloseTo(moved)
+  })
+
   it('図が入れ替わったら、また全体表示に戻す', async () => {
     const { state, wrapper } = setup()
     const canvas = wrapper.vm as unknown as {
