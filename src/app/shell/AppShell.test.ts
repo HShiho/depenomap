@@ -141,3 +141,29 @@ describe('`inert` の出し方（UT-13 で判明）', () => {
     expect(wrapper.find('aside').attributes()).toHaveProperty('inert')
   })
 })
+
+describe('下端の帯（UT-26）', () => {
+  /**
+   * 凡例とツールバーは**同じ器の中で並ぶ**。それぞれを絶対位置で置くと、幅が
+   * 狭いときに重なり、あとに置いたほうがポインタを奪う。
+   *
+   * jsdom は寸法を持たないので、重ならないこと自体は見られない。**並べる形に
+   * なっていること**（同じ親・列の定義）を見る。
+   */
+  it('凡例とツールバーは、同じ器に並べて置く', () => {
+    const wrapper = mount(AppShell, {
+      slots: { 'canvas-legend': '<p>凡例</p>', toolbar: '<p>道具</p>' },
+    })
+
+    const bottom = wrapper.get('.shell-bottom')
+    expect(bottom.find('.shell-legend').exists()).toBe(true)
+    expect(bottom.find('.shell-toolbar').exists()).toBe(true)
+  })
+
+  it('凡例を差し込まなくても、ツールバーの位置が変わらない', () => {
+    // 釣り合いの列が無いと、凡例が空のときにツールバーが左へ寄る
+    const wrapper = mount(AppShell, { slots: { toolbar: '<p>道具</p>' } })
+
+    expect(wrapper.get('.shell-bottom').element.children).toHaveLength(3)
+  })
+})

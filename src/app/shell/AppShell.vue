@@ -99,15 +99,23 @@ onBeforeUnmount(() => stopWatching())
       </div>
 
       <!--
-        図の読み方（凡例 / UT-26）。**下端の左**に置く。左上はチップ列、右上は
-        通知、下端中央はツールバーが使っており、そこへ足すと混む
-      -->
-      <div class="shell-legend">
-        <slot name="canvas-legend" />
-      </div>
+        下端の帯。左に図の読み方（凡例 / UT-26）、中央にツールバー。
 
-      <div class="shell-toolbar">
-        <slot name="toolbar" />
+        **1 つの器に入れて並べる。** それぞれを絶対位置で置くと、幅が狭いとき
+        に重なり、あとに置いたほうがポインタを奪う。並べておけば、重ならない
+        ことが配置そのもので決まる。
+      -->
+      <div class="shell-bottom">
+        <div class="shell-legend">
+          <slot name="canvas-legend" />
+        </div>
+
+        <div class="shell-toolbar">
+          <slot name="toolbar" />
+        </div>
+
+        <!-- ツールバーを中央に保つための釣り合い。中身は持たない -->
+        <div aria-hidden="true"></div>
       </div>
     </main>
 
@@ -161,8 +169,7 @@ onBeforeUnmount(() => stopWatching())
  */
 .shell-overlay,
 .shell-notice,
-.shell-legend,
-.shell-toolbar {
+.shell-bottom {
   position: absolute;
   z-index: 1;
   pointer-events: none;
@@ -185,19 +192,29 @@ onBeforeUnmount(() => stopWatching())
   right: var(--overlay-inset);
 }
 
-/* 下端の左。ツールバー（中央）と重ならない */
-.shell-legend {
+/*
+ * 下端の帯。**左（凡例）と中央（ツールバー）を並べて置く。**
+ *
+ * 両端の列を同じ幅（`1fr`）にすることで、ツールバーはキャンバスの中央に立つ。
+ * 幅が足りなくなると、まず両端の列が縮み、最後にツールバー自身が縮む。
+ * どの幅でも重ならない。
+ */
+.shell-bottom {
+  right: var(--overlay-inset);
   bottom: var(--toolbar-inset);
   left: var(--overlay-inset);
-  max-width: calc(50% - var(--toolbar-inset));
+  display: grid;
+  grid-template-columns: 1fr max-content 1fr;
+  align-items: end;
+  gap: var(--overlay-inset);
 }
 
-/* 下端中央に置く。全幅の帯にすると、幅いっぱいがキャンバスの操作を覆う */
+.shell-legend {
+  min-width: 0;
+}
+
+/* 全幅の帯にすると、幅いっぱいがキャンバスの操作を覆う */
 .shell-toolbar {
-  bottom: var(--toolbar-inset);
-  left: 50%;
-  width: max-content;
-  max-width: calc(100% - var(--toolbar-inset) * 2);
-  transform: translateX(-50%);
+  min-width: 0;
 }
 </style>
