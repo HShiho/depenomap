@@ -110,6 +110,31 @@ describe('ノードの右クリックメニュー（UT-18 / US-19）', () => {
     expect(document.activeElement).toBe(wrapper.element)
   })
 
+  it('押せない理由を、項目と結び付ける', () => {
+    // メニューの子に置いただけでは、読み上げは項目だけを読む
+    const wrapper = show({ kind: 'blocked', reason: '解析対象リポジトリが渡されていない' })
+
+    const describedBy = item(wrapper).attributes('aria-describedby')
+    expect(describedBy).toBeDefined()
+    expect(document.getElementById(describedBy!)?.textContent).toContain(
+      '解析対象リポジトリが渡されていない',
+    )
+  })
+
+  it('畳むと、開く前に焦点があった場所へ返す', () => {
+    // 返さないと、焦点は文書の先頭へ落ちる
+    const opener = document.createElement('button')
+    document.body.append(opener)
+    opener.focus()
+
+    const wrapper = show()
+    expect(document.activeElement).toBe(wrapper.element)
+    wrapper.unmount()
+
+    expect(document.activeElement).toBe(opener)
+    opener.remove()
+  })
+
   it('Esc で閉じる', async () => {
     const wrapper = show()
 

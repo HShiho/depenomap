@@ -14,7 +14,7 @@
  * **下が動いたら閉じる** — メニューは押した瞬間の 1 点に出るので、図が動くと
  * 別のノードを指し、画面の大きさが変わると画面の外にも出る。
  */
-import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useId, useTemplateRef, watch } from 'vue'
 
 import { menuPositionOf, type Point } from './menu-position'
 import type { OpenAction } from './open-action'
@@ -55,6 +55,18 @@ const position = computed(() =>
 /** 押せない理由。押せるときは出さない */
 const reason = computed(() => (props.action.kind === 'blocked' ? props.action.reason : undefined))
 
+/**
+ * 項目に添える説明の id。
+ *
+ * **理由は項目と結び付ける。** `role="menu"` の子に置いただけでは、読み上げは
+ * 項目だけを読み、隣の段落を読まない。押せない項目に来たとき、なぜ押せないのかが
+ * 読み上げ利用者にだけ届かない形になる。
+ */
+const descriptionId = useId()
+
+/** 説明が出ているか（押せない理由、または問い合わせ中） */
+const described = computed(() => props.action.kind !== 'ready')
+
 /*
  * 外側を押す・図を動かす、で閉じる。
  *
@@ -81,10 +93,19 @@ function measure(): void {
 // 描き終わってから測る（`post`）。描く前の大きさは、変わる前のままである
 watch(() => props.action, measure, { flush: 'post' })
 
+/**
+ * 開く前に焦点があった場所。畳むときに返す。
+ *
+ * **返さないと、焦点は文書の先頭へ落ちる。** 右クリックで焦点は動かないので、
+ * ここに入っているのは利用者が直前に触っていた口（ツールバーのボタンなど）である。
+ */
+let focusedBefore: HTMLElement | null = null
+
 onMounted(() => {
   const element = menu.value
   if (element) {
     measure()
+    focusedBefore = document.activeElement instanceof HTMLElement ? document.activeElement : null
     /*
      * 焦点を引き取る。右クリックでは焦点が動かないので、引き取らないと
      * Esc もキーボードでの選択も届かない（押した先は SVG の図で、
@@ -99,6 +120,9 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  // 畳んだ先が文書から外れていることもある（図が組み換わった場合）
+  if (focusedBefore?.isConnected === true) focusedBefore.focus()
+
   window.removeEventListener('pointerdown', onPointerDownOutside, true)
   window.removeEventListener('wheel', onMoved, true)
   window.removeEventListener('resize', onMoved)
@@ -145,6 +169,7 @@ onBeforeUnmount(() => {
       role="menuitem"
       class="px-11 py-7 text-left text-ui text-ink-2 disabled:cursor-default disabled:text-line"
       disabled
+      :aria-describedby="described ? descriptionId : undefined"
     >
       VSCode で開く
     </button>
@@ -153,11 +178,19 @@ onBeforeUnmount(() => {
       押せない理由。**押す前に読める場所へ出す**（UT-18 の決定）。
       押してから知らせると、押した操作が効いたのかどうかが分からない
     -->
-    <p v-if="reason !== undefined" class="px-11 pb-6 text-caption wrap-break-word text-ink-3">
+    <p
+      v-if="reason !== undefined"
+      :id="descriptionId"
+      class="px-11 pb-6 text-caption wrap-break-word text-ink-3"
+    >
       {{ reason }}
     </p>
 
-    <p v-else-if="action.kind === 'asking'" class="px-11 pb-6 text-caption text-ink-3">
+    <p
+      v-else-if="action.kind === 'asking'"
+      :id="descriptionId"
+      class="px-11 pb-6 text-caption text-ink-3"
+    >
       位置を確認中…
     </p>
   </div>
