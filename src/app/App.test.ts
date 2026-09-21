@@ -1851,6 +1851,21 @@ describe('経由の行き先を選ぶ（UT-30 / UT-07 の見直し）', () => {
     expect(drawnNodes).not.toContain(edge.to)
   })
 
+  it('実装宛で読んでいるあいだ、interface 宛の断りは出さない', async () => {
+    /*
+     * 出すと「インターフェース宛に描いています」と、いま描いていない描き方を
+     * 断ることになる。本数も、分かれた線を数えて水増しされていた
+     */
+    const { state, wrapper } = await setup()
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.shell-overlay').text()).toContain('インターフェース宛に描いています')
+
+    await readAs(wrapper, '実装')
+
+    expect(wrapper.find('.shell-overlay').text()).not.toContain('インターフェース宛に描いています')
+  })
+
   it('ファイル粒度では選べない', async () => {
     // その粒度のエッジは import で、経由の解決が起きない
     const { wrapper } = await setup()

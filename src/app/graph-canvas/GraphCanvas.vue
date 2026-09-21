@@ -185,9 +185,12 @@ const shownNodeCount = computed(() => shownNodes.value.length)
  */
 const shownViaCount = computed(
   () =>
-    shownEdges.value.filter(
-      (read) => 'resolution' in read.edge && read.edge.resolution === 'via-interface',
-    ).length,
+    // **正本のエッジで数える。** 実装宛では 1 本の呼び出しが実装の数だけ分かれる
+    new Set(
+      shownEdges.value
+        .filter((read) => 'resolution' in read.edge && read.edge.resolution === 'via-interface')
+        .map((read) => read.sourceId),
+    ).size,
 )
 
 /**

@@ -17,6 +17,8 @@
 
 import type { Granularity } from '@/core/ir/view-model'
 
+import type { ViaReading } from '@/app/graph-canvas/via-reading'
+
 /**
  * インターフェース経由の解決についての断り。言うことが無ければ `undefined`。
  *
@@ -28,15 +30,20 @@ import type { Granularity } from '@/core/ir/view-model'
  */
 export function viaNoteOf(input: {
   granularity: Granularity
+  /** いまどちらの行き先で読んでいるか（UT-30） */
+  reading: ViaReading
   /** グラフ全体で、インターフェース経由として解決したエッジの本数 */
   totalVia: number
-  /** いま図に描いている、そのうちの本数 */
+  /** いま図に描いている、そのうちの本数（正本のエッジで数える） */
   drawnVia: number
 }): string | undefined {
   if (input.totalVia === 0) return undefined
 
   if (input.granularity !== 'method')
     return 'インターフェース経由かどうかは、メソッド粒度で見えます'
+
+  // 実装宛で読んでいるあいだは、読み替えの断り（`readingNoteOf`）がその話をする
+  if (input.reading === 'implementation') return undefined
 
   // 絞り込んだ結果 1 本も出ていないなら、描き方の話をする場面ではない
   if (input.drawnVia === 0) return undefined
