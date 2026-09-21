@@ -16,6 +16,13 @@ defineProps<{
   label: string
   options: readonly { value: T; label: string }[]
   modelValue: T
+  /**
+   * いま効かない切り替えか（UT-30）。**口は残して押せなくする** — 消すと、
+   * 機能が無いのか、いまは効かないだけなのかが読み手に分からない
+   */
+  disabled?: boolean
+  /** 効かないときに、その理由をポインタへ出す */
+  title?: string
 }>()
 
 defineEmits<{ 'update:modelValue': [value: T] }>()
@@ -40,17 +47,19 @@ const labelId = useId()
       role="group"
       :aria-labelledby="labelId"
       class="flex rounded-control border border-line p-1"
+      :title="title"
     >
       <button
         v-for="option in options"
         :key="option.value"
         type="button"
-        class="rounded-inner px-9 py-4 text-ui"
+        class="rounded-inner px-9 py-4 text-ui disabled:cursor-default disabled:text-line disabled:hover:bg-transparent"
         :class="
           modelValue === option.value
             ? 'bg-accent-soft font-semibold text-ink'
             : 'text-ink-2 hover:bg-surface-2'
         "
+        :disabled="disabled"
         :aria-pressed="modelValue === option.value"
         @click="$emit('update:modelValue', option.value)"
       >
