@@ -1970,3 +1970,35 @@ describe('経由の読み替えと循環の印（UT-30 / UT-10）', () => {
     expect(retargeted.classes()).not.toContain('cyclic')
   })
 })
+
+describe('畳んだノードと配置（UT-29）', () => {
+  it('畳んだノードに繋がる線を、配置へ渡さない', async () => {
+    /*
+     * 描画は位置を引けない線を捨てるので、画面だけ見ていると差が出ない。
+     * **配置（交差削減）には渡ってしまう**ため、行の並びが画面に出ている線と
+     * 対応しなくなる（UT-14 が同じ理由で集合を揃えている）。
+     */
+    const spy = vi.spyOn(layoutModule, 'buildLayout')
+    try {
+      const { state, wrapper } = setup({ granularity: 'method' })
+      state.viaReading = 'implementation'
+      state.setInterfacesFolded(true)
+      await wrapper.vm.$nextTick()
+
+      const folded = new Set(
+        viewModel.nodes.method
+          .filter((node) => node.kind === 'method' && node.ownerKind === 'interface')
+          .map((node) => node.id),
+      )
+      expect(folded.size).toBeGreaterThan(0)
+
+      const passed = spy.mock.calls.at(-1)![0].edges
+      expect(passed.length).toBeGreaterThan(0)
+      for (const edge of passed) {
+        expect(folded.has(edge.from) || folded.has(edge.to), edge.id).toBe(false)
+      }
+    } finally {
+      spy.mockRestore()
+    }
+  })
+})

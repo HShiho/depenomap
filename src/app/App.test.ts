@@ -1886,3 +1886,82 @@ describe('経由の行き先を選ぶ（UT-30 / UT-07 の見直し）', () => {
     expect(wrapper.find(`[id="${describedBy}"]`).text()).toContain('メソッド粒度')
   })
 })
+
+describe('インターフェースを畳む（UT-29 / UT-30 の後段）', () => {
+  beforeEach(() => localStorage.clear())
+
+  /** 実装宛で読み、畳んだ状態にする */
+  async function foldIn(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
+    const toggle = wrapper
+      .findAll('button')
+      .find((button) => button.attributes('aria-label')?.includes('インターフェースのノードを畳む'))
+    expect(toggle).toBeDefined()
+    expect(toggle!.attributes('disabled')).toBeUndefined()
+    await toggle!.trigger('click')
+  }
+
+  const interfaceIdsOf = (state: Awaited<ReturnType<typeof setup>>['state']) =>
+    state
+      .viewModel!.nodes.method.filter(
+        (node) => node.kind === 'method' && node.ownerKind === 'interface',
+      )
+      .map((node) => node.id)
+
+  /** メソッド粒度・実装宛にした画面 */
+  async function readingImplementation() {
+    const { state, wrapper } = await setup()
+    state.setGranularity('method')
+    state.viaReading = 'implementation'
+    await wrapper.vm.$nextTick()
+    return { state, wrapper }
+  }
+
+  it('畳むと、interface のノードが図から消える', async () => {
+    const { state, wrapper } = await readingImplementation()
+    const ids = interfaceIdsOf(state)
+    expect(ids.length).toBeGreaterThan(0)
+    const drawn = () => wrapper.findAll('svg g.node').map((node) => node.attributes('data-node-id'))
+    expect(drawn().some((id) => ids.includes(id!))).toBe(true)
+
+    await foldIn(wrapper)
+
+    expect(drawn().some((id) => ids.includes(id!))).toBe(false)
+  })
+
+  it('畳んでも、実装への呼び出しは図に残る', async () => {
+    /*
+     * 実装宛で読んでいるので、線は interface を通っていない。**残らないなら、
+     * 畳むことが事実を消している**
+     */
+    const { wrapper } = await readingImplementation()
+    const retargeted = () => wrapper.findAll('path.edge.via').length
+    const before = retargeted()
+    expect(before).toBeGreaterThan(0)
+
+    await foldIn(wrapper)
+
+    expect(retargeted()).toBe(before)
+  })
+
+  it('畳んでいることを、常に画面へ出す', async () => {
+    const { wrapper } = await readingImplementation()
+
+    await foldIn(wrapper)
+
+    expect(wrapper.find('.shell-overlay').text()).toContain('畳んでいます')
+  })
+
+  it('interface 宛へ戻すと、畳みは効かない', async () => {
+    // その読み方では線が interface を通っている。畳むと呼び出しの事実が消える
+    const { state, wrapper } = await readingImplementation()
+    await foldIn(wrapper)
+    const ids = interfaceIdsOf(state)
+
+    state.viaReading = 'interface'
+    await wrapper.vm.$nextTick()
+
+    const drawn = wrapper.findAll('svg g.node').map((node) => node.attributes('data-node-id'))
+    expect(drawn.some((id) => ids.includes(id!))).toBe(true)
+    expect(wrapper.find('.shell-overlay').text()).not.toContain('畳んでいます')
+  })
+})

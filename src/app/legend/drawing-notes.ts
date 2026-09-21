@@ -65,6 +65,21 @@ export function readingNoteOf(input: { retargeted: number }): string | undefined
 }
 
 /**
+ * インターフェースを畳んでいることの断り（UT-29）。畳んでいなければ `undefined`。
+ *
+ * **隠していることは、常に画面から読めるようにする。** 読めなければ、図は
+ * 「その依存が無い」と嘘をつく。
+ *
+ * 呼び出しは実装宛に描かれているので畳んでも残る。消えるのは `implements` の線
+ * （誰が実装か）なので、そのことを添える。
+ */
+export function foldNoteOf(input: { foldedCount: number }): string | undefined {
+  if (input.foldedCount === 0) return undefined
+
+  return `インターフェースの ${input.foldedCount} 件を畳んでいます（implements の線も出ません）`
+}
+
+/**
  * 図に出せるノードが無いことの断り。出ていれば `undefined`。
  *
  * **理由まで言う。** 「何も無い」とだけ出すと、正本 JSON がそもそも空なのか、

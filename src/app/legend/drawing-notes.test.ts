@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { emptyNoteOf, readingNoteOf, viaNoteOf } from './drawing-notes'
+import { emptyNoteOf, foldNoteOf, readingNoteOf, viaNoteOf } from './drawing-notes'
 
 describe('インターフェース経由の断り（UT-26 / UT-07）', () => {
   it('メソッド粒度では、描いている本数を言う', () => {
@@ -122,6 +122,30 @@ describe('実装宛で読んでいることの断り（UT-30）', () => {
     const note = readingNoteOf({ retargeted: 7 })
 
     for (const word of ['違反', 'エラー', '警告', '問題', '正しい', '誤り']) {
+      expect(note).not.toContain(word)
+    }
+  })
+})
+
+describe('インターフェースを畳んでいることの断り（UT-29）', () => {
+  it('畳んでいる件数を言う', () => {
+    // 読めなければ、図は「その依存が無い」と嘘をつく
+    expect(foldNoteOf({ foldedCount: 8 })).toContain('8')
+  })
+
+  it('implements の線が出ないことも添える', () => {
+    // 呼び出しは実装宛に描かれていて残る。消えるのは implements のほう
+    expect(foldNoteOf({ foldedCount: 8 })).toContain('implements')
+  })
+
+  it('畳んでいなければ、何も言わない', () => {
+    expect(foldNoteOf({ foldedCount: 0 })).toBeUndefined()
+  })
+
+  it('欠陥として扱わない（N-1）', () => {
+    const note = foldNoteOf({ foldedCount: 8 })
+
+    for (const word of ['違反', 'エラー', '警告', '問題', '多い', '不要']) {
       expect(note).not.toContain(word)
     }
   })

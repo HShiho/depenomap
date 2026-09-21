@@ -13,8 +13,9 @@ import NodeContextMenu from './editor/NodeContextMenu.vue'
 import { openActionOf } from './editor/open-action'
 import { openTargetOf } from './editor/open-target'
 import DrawingNoteChip from './legend/DrawingNoteChip.vue'
-import { emptyNoteOf, readingNoteOf, viaNoteOf } from './legend/drawing-notes'
+import { emptyNoteOf, foldNoteOf, readingNoteOf, viaNoteOf } from './legend/drawing-notes'
 import LegendPanel from './legend/LegendPanel.vue'
+import InterfaceFoldToggle from './graph-canvas/InterfaceFoldToggle.vue'
 import ViaReadingToggle from './graph-canvas/ViaReadingToggle.vue'
 import { callOrder } from './graph-canvas/call-order'
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
@@ -247,6 +248,9 @@ const viaNote = computed(() => {
   })
 })
 
+/** インターフェースを畳んでいることの断り（UT-29） */
+const foldNote = computed(() => foldNoteOf({ foldedCount: canvas.value?.foldedCount ?? 0 }))
+
 /** 実装宛に読み替えて描いていることの断り（UT-30） */
 const readingNote = computed(() =>
   readingNoteOf({ retargeted: canvas.value?.retargetedCount ?? 0 }),
@@ -333,6 +337,7 @@ const showsOrderNote = computed(
       <DrawingNoteChip v-if="emptyNote !== undefined" :note="emptyNote" />
       <DrawingNoteChip v-if="viaNote !== undefined" :note="viaNote" />
       <DrawingNoteChip v-if="readingNote !== undefined" :note="readingNote" />
+      <DrawingNoteChip v-if="foldNote !== undefined" :note="foldNote" />
     </template>
 
     <!-- 図の読み方（UT-26）。下端の左。既定は畳んだ状態 -->
@@ -358,6 +363,9 @@ const showsOrderNote = computed(
 
         <!-- 経由の呼び出しをどちらの行き先で読むか（UT-30） -->
         <ViaReadingToggle />
+
+        <!-- interface のノードを畳む（UT-29。実装宛で読んでいるときだけ効く） -->
+        <InterfaceFoldToggle />
 
         <span class="h-17 w-px shrink-0 bg-line"></span>
 

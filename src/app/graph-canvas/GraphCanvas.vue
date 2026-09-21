@@ -20,6 +20,7 @@ import { cycleMarkOf, isCycleEdge } from '../shell/cycle-mark'
 import { nodeFlagOf } from '../shell/node-flag'
 import { buildColumnPlan } from './column-axis'
 import { FAN_IN_MARK, FAN_OUT_MARK, type LegendLayer } from '@/app/legend/legend-items'
+import { interfaceMethodIds } from './interface-fold'
 import { narrowedNodeIds } from './narrowing'
 import { readEdges } from './via-reading'
 import { edgeMidpoint, edgePath } from './edge-path'
@@ -136,11 +137,40 @@ const narrowed = computed(() =>
       }),
 )
 
+/**
+ * 畳むインターフェースのノード（UT-29）。畳んでいなければ空。
+ *
+ * **実装宛で読んでいるときだけ効く**（UT-30 の後段）。インターフェース宛では
+ * 線が interface を通っているので、畳むと呼び出しの事実そのものが消える。
+ *
+ * メソッド粒度だけを対象にする。ファイル粒度の `import` は実際の依存である。
+ *
+ * **粒度の条件は結果を変えない**（対象はメソッド ID なので、ファイル粒度の
+ * ノードには 1 件も当たらない）。無駄に全メソッドを走査しないために早く返す。
+ * 検査で固定できない条件なので、意図をここに書いておく。
+ */
+const foldedNodeIds = computed<ReadonlySet<string>>(() => {
+  const viewModel = state.viewModel
+  if (
+    viewModel === undefined ||
+    !state.interfacesFolded ||
+    state.granularity !== 'method' ||
+    state.viaReading !== 'implementation'
+  ) {
+    return new Set()
+  }
+  return interfaceMethodIds(viewModel)
+})
+
+/** 畳んで図から外したノードの数（UT-29 の断りが使う） */
+const foldedCount = computed(() => foldedNodeIds.value.size)
+
 /** 描くノード。絞っていなければ全部 */
 const shownNodes = computed(() => {
   const nodes = state.viewModel?.nodes[state.granularity] ?? []
   const kept = narrowed.value
-  return kept === undefined ? nodes : nodes.filter((node) => kept.has(node.id))
+  const folded = foldedNodeIds.value
+  return nodes.filter((node) => (kept === undefined || kept.has(node.id)) && !folded.has(node.id))
 })
 
 /**
@@ -153,7 +183,13 @@ const shownNodes = computed(() => {
  * 並びが画面に出ている線と対応しなくなる。
  */
 const shownEdges = computed(() => {
-  const edges = readEdgesAll.value
+  const folded = foldedNodeIds.value
+  /*
+   * 畳んだノードに繋がる線は描けない（行き先が図にいない）。呼び出しは実装宛へ
+   * 読み替えてあるので消えないが、`implements` は行き先ごと畳まれるため消える。
+   * そのことは断りで伝える（UT-29）。
+   */
+  const edges = readEdgesAll.value.filter((read) => !folded.has(read.from) && !folded.has(read.to))
   if (narrowed.value === undefined) return edges
 
   const selected = state.selectedNodeId
@@ -644,6 +680,7 @@ defineExpose({
   shownNodeCount,
   shownViaCount,
   retargetedCount,
+  foldedCount,
 })
 
 /**
