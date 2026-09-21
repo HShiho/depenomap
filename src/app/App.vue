@@ -5,8 +5,13 @@
  * 各領域の中身は UT-06 以降が差し込む。いまレールと通知に入っているのは、
  * 器が動いていることを目で確かめるための**暫定表示**である。
  */
-import { computed, onMounted, onUnmounted, ref, useTemplateRef } from 'vue'
+import { computed, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
 
+import { fetchLocate, type FetchLocateOutcome } from '@/core/graph/api'
+import type { GraphNode } from '@/core/graph/schema'
+import NodeContextMenu from './editor/NodeContextMenu.vue'
+import { openActionOf } from './editor/open-action'
+import { openTargetOf } from './editor/open-target'
 import { callOrder } from './graph-canvas/call-order'
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
 import NarrowingChip from './graph-canvas/NarrowingChip.vue'
@@ -90,6 +95,96 @@ function moveToCandidate(nodeId: string, expression: string): void {
 onMounted(() => void loadGraphInto(state))
 
 /**
+ * ノードの右クリックメニュー（UT-18 / US-19）。
+ *
+ * 出ているのは 1 つだけ。押した場所と、どのノードを押したかを持つ。
+ */
+const menu = ref<{ node: GraphNode; at: { x: number; y: number }; title: string } | undefined>(
+  undefined,
+)
+
+/** 位置の問い合わせの結果。まだ返ってきていなければ `undefined` */
+const located = ref<FetchLocateOutcome | undefined>(undefined)
+
+/**
+ * 何回目の問い合わせか。
+ *
+ * **返ってきた結果が、いま出しているメニューのものとは限らない。** 続けて別の
+ * ノードを右クリックすると、前の問い合わせが後から返って、別のノードの位置が
+ * 出る。ノードの ID で見分けると、同じノードを開き直したときに区別が付かない
+ * （UT-19 の学び）。出来事そのものに番号を振る。
+ */
+let asked = 0
+
+/** 開く先。メニューが出ていなければ `undefined` */
+const openTarget = computed(() => {
+  const shown = menu.value
+  if (shown === undefined) return undefined
+
+  return openTargetOf(shown.node, (id) => state.viewModel?.fileOfMethod(id))
+})
+
+const openAction = computed(() => openActionOf(openTarget.value, located.value))
+
+/**
+ * ノードを右クリックする（UT-18 / US-19）。
+ *
+ * **ブラウザの既定のメニューを止める。** 代わりに出すものがあるので、両方が
+ * 重なる形にしない（止めるなら代わりを出す、が UT-16 からの取り決め）。
+ */
+async function onNodeContextMenu(node: GraphNode, event: MouseEvent): Promise<void> {
+  event.preventDefault()
+
+  menu.value = { node, at: { x: event.clientX, y: event.clientY }, title: fullTitleOf(node) }
+  located.value = undefined
+
+  // 引き当ては computed に 1 か所だけ置く。2 か所に書くと、変えたとき片方だけ直る
+  const target = openTarget.value
+  if (target === undefined) return
+
+  const mine = ++asked
+  const outcome = await fetchLocate(target.path)
+  // 自分より後の問い合わせが始まっていれば、この結果は捨てる
+  if (mine === asked) located.value = outcome
+}
+
+/**
+ * メニューを畳む。
+ *
+ * **前の結果を捨てるのは、次に出すとき**（`onNodeContextMenu`）にやる。ここでも
+ * 捨てると同じことを 2 か所に書くことになり、どちらが効いているのかが分からない。
+ * 畳んだあとに遅れて返ってきた結果は、出ていないメニューには映らない。
+ */
+function closeMenu(): void {
+  menu.value = undefined
+}
+
+/*
+ * 図が組み換わったら畳む（UT-18）。
+ *
+ * メニューは押した瞬間の 1 点に出る。**ポインタを使わずに図が動く経路がある** —
+ * キーボードで粒度や列の軸を切り替える、一覧や検索から別のノードを選ぶ、
+ * 読み込み直す。動いたあともメニューが残ると、別のノードの上で前のノードの
+ * 行き先を出すことになる。
+ *
+ * 図の側の動き（パン・ズーム・ドラッグ）はメニュー自身が拾う。ここで見るのは
+ * **何を描くかが変わったとき**だけにする。
+ */
+watch(
+  [
+    () => state.granularity,
+    () => state.columnAxis,
+    () => state.selectedNodeId,
+    () => state.narrowedToSelection,
+    () => state.status.kind,
+    // 重なりが出たら畳む。メニューは覆いより前（z-20）に出るので、残ると
+    // 覆いの上に浮いたまま押せてしまう
+    () => sheets.shown.value,
+  ],
+  closeMenu,
+)
+
+/**
  * Esc で絞り込みを解く（UT-14 の決定）。
  *
  * 解く口が印の ✕ だけだと、キャンバスを見ている手をそこまで動かすことになる。
@@ -101,6 +196,16 @@ onMounted(() => void loadGraphInto(state))
  */
 function onKeydown(event: KeyboardEvent): void {
   if (event.key !== 'Escape') return
+
+  /*
+   * 右クリックメニューが出ていれば、そちらを先に畳む（UT-18）。重なっている
+   * 面から順に閉じるのが Esc の筋。メニュー自身も Esc を拾うが、焦点が
+   * メニューの外にあるときはそちらへ届かない
+   */
+  if (menu.value !== undefined) {
+    closeMenu()
+    return
+  }
 
   /*
    * 概要が開いていれば、そちらを先に閉じる（UT-13）。重なっている面から
@@ -155,7 +260,7 @@ const showsOrderNote = computed(
 <template>
   <AppShell :sheet-open="sheets.shown.value !== undefined">
     <template #canvas>
-      <GraphCanvas ref="canvas" />
+      <GraphCanvas ref="canvas" @node-context-menu="onNodeContextMenu" />
     </template>
 
     <!--
@@ -290,6 +395,21 @@ const showsOrderNote = computed(
     </template>
 
     <template #sheet>
+      <!--
+        ノードの右クリックメニュー（UT-18 / US-19）。**列の中ではなくシェルの
+        外に置く** — キャンバスの中に入れると、一覧の開閉で幅が変わるたびに
+        位置がずれる
+      -->
+      <NodeContextMenu
+        v-if="menu !== undefined"
+        :at="menu.at"
+        :title="menu.title"
+        :subtitle="openTarget?.path"
+        :action="openAction"
+        @open="closeMenu()"
+        @close="closeMenu()"
+      />
+
       <OverviewSheet v-if="sheets.shown.value === 'overview'" @close="sheets.close()" />
 
       <!-- 追跡できなかった依存（UT-19 / US-21）。確定した依存とは別の場所に置く -->

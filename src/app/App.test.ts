@@ -4,6 +4,7 @@ import { enableAutoUnmount, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { LOCATE_ENDPOINT } from '@/core/graph/api'
 import { loadGraphFromValue } from '@/core/graph/loader'
 import App from './App.vue'
 import { CYCLE_LABEL } from './shell/cycle-mark'
@@ -1354,6 +1355,262 @@ describe('追跡できなかった依存（US-21 / UT-19）', () => {
 
     for (const word of ['違反', 'エラー', '警告', '修正してください', '問題']) {
       expect(sheet(wrapper).text()).not.toContain(word)
+    }
+  })
+})
+
+describe('ノードから VSCode で開く（UT-18 / US-19）', () => {
+  /** 位置の問い合わせだけ差し替える。グラフはこれまでどおり返す */
+  function setupWith(locate: (path: string) => Promise<unknown>) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        url.startsWith(LOCATE_ENDPOINT)
+          ? locate(decodeURIComponent(url.split('path=')[1] ?? '')).then(
+              (body) => new Response(JSON.stringify(body)),
+            )
+          : Promise.resolve(new Response(JSON.stringify(result))),
+      ),
+    )
+  }
+
+  const resolvedAt = (hostPath: string, exists = true) => ({ resolved: true, hostPath, exists })
+
+  /**
+   * 溜まっている非同期の仕事を吐き出させる。
+   *
+   * `fetch` → `Response.json()` → `await` と続くので、`nextTick` だけでは
+   * 画面まで届かない。**届かないうちに確かめると、映してはいけないものを
+   * 映していても通る**（この検査でいちど作った）
+   */
+  async function flush(wrapper: ReturnType<typeof mount>) {
+    for (let i = 0; i < 5; i += 1) await Promise.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await wrapper.vm.$nextTick()
+  }
+
+  /** 図のノードを右クリックする。既定のメニューを止めたかも見られるようにする */
+  function rightClick(node: { element: Element }) {
+    const event = new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 120,
+      clientY: 80,
+    })
+    node.element.dispatchEvent(event)
+    return event
+  }
+
+  /** 画面を出すだけ。メニューはまだ開かない */
+  async function showApp(locate: (path: string) => Promise<unknown>) {
+    setupWith(locate)
+    const state = useViewState()
+    const wrapper = mount(App, { attachTo: document.body })
+    await vi.waitUntil(() => state.status.kind === 'ready')
+    await wrapper.vm.$nextTick()
+
+    return wrapper
+  }
+
+  async function openMenu(locate: (path: string) => Promise<unknown>) {
+    const wrapper = await showApp(locate)
+
+    const node = wrapper.findAll('svg g.node')
+    expect(node.length).toBeGreaterThan(0)
+    const event = rightClick(node[0]!)
+    await wrapper.vm.$nextTick()
+
+    return { wrapper, event, node }
+  }
+
+  const menu = (wrapper: { find: (selector: string) => unknown }) =>
+    (wrapper as ReturnType<typeof mount>).find('[role="menu"]')
+
+  const item = (wrapper: ReturnType<typeof mount>) => wrapper.find('[role="menuitem"]')
+
+  it('ノードを右クリックすると、開く導線が出る', async () => {
+    const { wrapper } = await openMenu(async () => resolvedAt('/Users/me/app/src/a.ts'))
+
+    expect(menu(wrapper).exists()).toBe(true)
+    expect(wrapper.find('[role="menu"]').text()).toContain('VSCode で開く')
+  })
+
+  it('ブラウザの既定のメニューは出さない', async () => {
+    // 代わりに出すものがあるので、両方が重なる形にしない
+    const { event } = await openMenu(async () => resolvedAt('/Users/me/app/src/a.ts'))
+
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('位置が返ると、ホスト側のパスで開ける', async () => {
+    const { wrapper } = await openMenu(async () => resolvedAt('/Users/me/app/src/a.ts'))
+    await vi.waitUntil(() => item(wrapper).attributes('href') !== undefined)
+
+    expect(item(wrapper).attributes('href')).toBe('vscode://file/Users/me/app/src/a.ts')
+  })
+
+  it('メソッドノードは、所属ファイルの位置と行で開く', async () => {
+    /*
+     * 完了条件の中心。**期待値は正本 JSON から引く** — 画面と同じ引き当て
+     * （view model）で作ると、引き当てが間違っていても通る
+     */
+    setupWith(async (path) => resolvedAt(`/Users/me/app/${path}`))
+    const state = useViewState()
+    const wrapper = mount(App, { attachTo: document.body })
+    await vi.waitUntil(() => state.status.kind === 'ready')
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    const node = wrapper.findAll('svg g.node')[0]!
+    const id = node.attributes('data-node-id')
+    const method = fixture.nodes.find((n) => n.id === id)
+    expect(method?.kind).toBe('method')
+    const file = fixture.nodes.find((n) => n.id === method?.parent)
+    const loc = method?.loc
+    // 前提が崩れたまま先へ進むと、空の期待値どうしを比べて通ってしまう
+    if (loc === undefined || file?.path === undefined) throw new Error('フィクスチャの前提が崩れた')
+
+    rightClick(node)
+    await wrapper.vm.$nextTick()
+    await vi.waitUntil(() => item(wrapper).attributes('href') !== undefined)
+
+    expect(item(wrapper).attributes('href')).toBe(
+      `vscode://file/Users/me/app/${file.path}:${loc.line}:${loc.column}`,
+    )
+  })
+
+  it('リポジトリが渡されていなければ、何が足りないかを出す', async () => {
+    // 図を読むだけなら要らない。欠陥として扱わない（N-1）
+    const { wrapper } = await openMenu(async () => ({ resolved: false, reason: 'no-repo' }))
+    await vi.waitUntil(() => wrapper.find('[role="menu"]').text().includes('--repo'))
+
+    expect(item(wrapper).attributes('href')).toBeUndefined()
+    expect(item(wrapper).attributes('disabled')).toBeDefined()
+  })
+
+  it('実体が無ければ開かせない', async () => {
+    const { wrapper } = await openMenu(async () => resolvedAt('/Users/me/app/src/a.ts', false))
+    await vi.waitUntil(() => wrapper.find('[role="menu"]').text().includes('見つからない'))
+
+    expect(item(wrapper).attributes('href')).toBeUndefined()
+  })
+
+  it('前のノードへの返事を、いま出しているメニューに出さない', async () => {
+    /*
+     * 続けて別のノードを右クリックすると、前の問い合わせが後から返る。
+     * 出来事に番号を振って、いま出しているメニューのものだけを映す
+     */
+    const answers: ((body: unknown) => void)[] = []
+    const { wrapper, node } = await openMenu(() => new Promise((resolve) => answers.push(resolve)))
+
+    rightClick(node[1]!)
+    await vi.waitUntil(() => answers.length === 2)
+
+    // 1 回目（前のノード）の返事が、あとから返ってくる
+    answers[0]!(resolvedAt('/Users/me/app/前のノード.ts'))
+    await flush(wrapper)
+
+    // いま出しているのは 2 つ目のノードのメニュー。返事はまだ来ていない
+    expect(item(wrapper).attributes('href')).toBeUndefined()
+    expect(wrapper.find('[role="menu"]').text()).toContain('確認中')
+  })
+
+  it('畳んだあとに開き直すと、前の返事は映さない', async () => {
+    // 持ち越すと、別のノードのメニューが前のノードの行き先で開ける
+    const answers: ((body: unknown) => void)[] = []
+    const { wrapper, node } = await openMenu(() => new Promise((resolve) => answers.push(resolve)))
+    answers[0]!(resolvedAt('/Users/me/app/src/a.ts'))
+    await vi.waitUntil(() => item(wrapper).attributes('href') !== undefined)
+
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await wrapper.vm.$nextTick()
+    rightClick(node[1]!)
+    await flush(wrapper)
+
+    expect(item(wrapper).attributes('href')).toBeUndefined()
+    expect(wrapper.find('[role="menu"]').text()).toContain('確認中')
+  })
+
+  it('図が組み換わったら畳む', async () => {
+    // ポインタを使わずに図が動く経路がある（キーボードでの粒度切り替えなど）
+    const { wrapper } = await openMenu(async () => resolvedAt('/Users/me/app/src/a.ts'))
+    expect(wrapper.find('[role="menu"]').exists()).toBe(true)
+
+    useViewState().setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false)
+  })
+
+  it('Esc で畳む', async () => {
+    const { wrapper } = await openMenu(async () => resolvedAt('/Users/me/app/src/a.ts'))
+
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await wrapper.vm.$nextTick()
+
+    expect(menu(wrapper).exists()).toBe(false)
+  })
+
+  it('重なりが出たら畳む', async () => {
+    /*
+     * キーボードでシートを開く経路がある（click は pointerdown を出さないので、
+     * メニューの外側判定には掛からない）。メニューは覆いより前に出るので、
+     * 残ると覆いの上に浮いたまま押せてしまう
+     */
+    const wrapper = await showApp(async (path) => resolvedAt(`/Users/me/app/${path}`))
+    rightClick(wrapper.findAll('svg g.node')[0]!)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[role="menu"]').exists()).toBe(true)
+
+    await wrapper.find('[aria-label="概要を開く"]').trigger('click')
+
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false)
+  })
+
+  it('畳むと、開く前に焦点があった場所へ返す', async () => {
+    // 返さないと、焦点は文書の先頭へ落ち、次の Tab がやり直しになる
+    const wrapper = await showApp(async (path) => resolvedAt(`/Users/me/app/${path}`))
+    const before = wrapper.find('[aria-label="概要を開く"]').element as HTMLElement
+    before.focus()
+
+    rightClick(wrapper.findAll('svg g.node')[0]!)
+    await wrapper.vm.$nextTick()
+    // 右クリックでは焦点が動かないので、メニューが引き取っている
+    expect(document.activeElement).toBe(wrapper.find('[role="menu"]').element)
+
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false)
+    expect(document.activeElement).toBe(before)
+  })
+
+  it('利用者が外の口へ移っていたら、焦点を奪い返さない', async () => {
+    // Tab で出て、そこで押した結果メニューが畳まれる経路がある
+    const wrapper = await showApp(async (path) => resolvedAt(`/Users/me/app/${path}`))
+    // 開く前にも焦点はどこかにある。**そこへ戻されない**ことを見たい
+    const beforeOpening = wrapper.find('[aria-label="一覧を閉じる"]').element as HTMLElement
+    beforeOpening.focus()
+
+    rightClick(wrapper.findAll('svg g.node')[0]!)
+    await wrapper.vm.$nextTick()
+
+    const elsewhere = wrapper.find('[aria-label="概要を開く"]').element as HTMLElement
+    elsewhere.focus()
+    useViewState().setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false)
+    expect(document.activeElement).toBe(elsewhere)
+  })
+
+  it('欠陥として扱わない（N-1）', async () => {
+    const { wrapper } = await openMenu(async () => ({ resolved: false, reason: 'no-repo' }))
+    await vi.waitUntil(() => wrapper.find('[role="menu"]').text().includes('--repo'))
+
+    for (const word of ['違反', 'エラー', '警告', '修正してください', '問題']) {
+      expect(wrapper.find('[role="menu"]').text()).not.toContain(word)
     }
   })
 })

@@ -89,3 +89,45 @@ export async function fetchGraph(fetchImpl: typeof fetch = fetch): Promise<Fetch
     return { reached: false, message: `応答を JSON として読めない: ${(cause as Error).message}` }
   }
 }
+
+/**
+ * 位置を尋ねた結果と、そこへ届いたかどうか。
+ *
+ * グラフの取得（`FetchGraphOutcome`）と同じ分け方をする。**届かなかった**
+ * （サーバーが落ちている・経路が違う）と、**届いたが解決できなかった**
+ * （リポジトリが渡されていない）は、読み手が直す場所が違う。
+ */
+export type FetchLocateOutcome =
+  { reached: true; result: LocateResult } | { reached: false; message: string }
+
+/**
+ * ノードの相対パスから、ホスト側で開ける位置を尋ねる（UT-18 が使う）。
+ *
+ * **符号化はここで包む。** 呼び出し側が素の文字列を `?path=` に繋ぐと、
+ * `+` を含む名前が空白に化けたまま `resolved: true` で返る。包んでおけば
+ * その経路を踏めない。
+ */
+export async function fetchLocate(
+  relativePath: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<FetchLocateOutcome> {
+  const url = `${LOCATE_ENDPOINT}?path=${encodeURIComponent(relativePath)}`
+
+  let response: Response
+  try {
+    response = await fetchImpl(url)
+  } catch (cause) {
+    return { reached: false, message: (cause as Error).message }
+  }
+
+  // 解決できないことは 200 の本文で返る（UT-20）。非 200 は口に届いていない
+  if (!response.ok) {
+    return { reached: false, message: `${LOCATE_ENDPOINT} が ${response.status} を返した` }
+  }
+
+  try {
+    return { reached: true, result: (await response.json()) as LocateResult }
+  } catch (cause) {
+    return { reached: false, message: `応答を JSON として読めない: ${(cause as Error).message}` }
+  }
+}
