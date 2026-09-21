@@ -11,6 +11,9 @@
  * しない」という契約が、状態の層で先に破れる。
  *
  * **永続化しない**（C-3）。テーマだけは例外で、依存グラフの見え方ではなく
+ * 例外は**利用者の好み**で、いまは配色（UT-04）と、インターフェースを畳んで
+ * いるか（UT-29）の 2 つ。どちらもグラフから導かれる値ではないので、C-3 の
+ * 対象外にあたる。
  * 閲覧環境の設定であるため UT-04 の口が記憶を持つ。
  *
  * **不変条件を持つ状態は、書き込みの口をアクションに限る。** 粒度と選択と
@@ -35,6 +38,11 @@ import { defineStore } from 'pinia'
 import { computed, readonly, ref, shallowRef } from 'vue'
 
 import { useTheme } from '@/app/design/theme'
+import {
+  readFoldPreference,
+  writeFoldPreference,
+  type FoldStorage,
+} from '@/app/graph-canvas/interface-fold'
 import type { LoadError, LoadWarning } from '@/core/graph/loader'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
 
@@ -141,6 +149,18 @@ export const useViewState = defineStore('view-state', () => {
    */
   const theme = useTheme()
 
+  /**
+   * 好みの記憶先（UT-29）。**参照そのものが投げる環境がある**ので、掴むところ
+   * から囲う（配色と同じ扱い / `theme.ts`）。
+   */
+  const storage = ((): FoldStorage | undefined => {
+    try {
+      return typeof localStorage !== 'undefined' ? localStorage : undefined
+    } catch {
+      return undefined
+    }
+  })()
+
   const granularity = ref<Granularity>('file')
 
   /**
@@ -153,6 +173,30 @@ export const useViewState = defineStore('view-state', () => {
   const columnAxis = ref<ColumnAxis>('layer')
   const query = ref('')
   const sidebarOpen = ref(true)
+
+  /**
+   * インターフェースのノードを畳んでいるか（UT-29）。
+   *
+   * **好みなので覚える**（ADR-006 と同じ扱い。C-3 が禁じているのはグラフに
+   * 由来する状態で、配色に前例がある）。覚える単位は解析対象ごと。
+   *
+   * 既定は「畳まない」。畳んだ状態で始めると、初見では interface の無い
+   * グラフに見える（UT-29 の決定）。
+   */
+  const interfacesFolded = ref(false)
+
+  /** 覚えている好みを読み直す。グラフが入れ替わるたびに呼ぶ */
+  function restoreFoldPreference(): void {
+    const rootDir = viewModel.value?.meta.rootDir
+    interfacesFolded.value = rootDir === undefined ? false : readFoldPreference(storage, rootDir)
+  }
+
+  function setInterfacesFolded(folded: boolean): void {
+    interfacesFolded.value = folded
+
+    const rootDir = viewModel.value?.meta.rootDir
+    if (rootDir !== undefined) writeFoldPreference(storage, rootDir, folded)
+  }
 
   /** キャンバス領域の実寸。描画側（UT-06）はこれを読むだけでよい */
   const canvasWidth = ref(0)
@@ -422,6 +466,8 @@ export const useViewState = defineStore('view-state', () => {
           : { kind: outcome.kind, message: outcome.message }
 
     viewModel.value = outcome.kind === 'ready' ? outcome.viewModel : undefined
+    // 別のグラフを開いたら、そのグラフについての好みを読み直す（UT-29）
+    restoreFoldPreference()
     warnings.value = 'warnings' in outcome ? outcome.warnings : []
     errors.value = outcome.kind === 'invalid' ? outcome.errors : []
 
@@ -459,6 +505,10 @@ export const useViewState = defineStore('view-state', () => {
 
     // 経由の読み方（UT-30）。軸と同じく整合を取る相手が無いので、直接書く
     viaReading,
+
+    // 読むだけ。切り替えは setInterfacesFolded（好みとして覚える）
+    interfacesFolded: computed(() => interfacesFolded.value),
+    setInterfacesFolded,
 
     columnAxis,
     query,

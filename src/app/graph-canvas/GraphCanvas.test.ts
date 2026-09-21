@@ -263,6 +263,27 @@ describe('全体表示のあとの移動', () => {
     expect(canvas.viewport.y).toBeCloseTo(moved.y)
   })
 
+  it('畳む／戻すでも、全体表示に合わせ直す', async () => {
+    /*
+     * 畳むと列の高さと数が変わる（UT-29）。据え置くと、残ったノードだけが
+     * 手元でずれる。参照仕様も interface のトグルで合わせ直している
+     */
+    const { state, wrapper } = setup({ granularity: 'method' })
+    state.viaReading = 'implementation'
+    await nextTick()
+    const canvas = wrapper.vm as unknown as {
+      viewport: { x: number }
+      focusNode: (id: string) => void
+    }
+    canvas.focusNode(viewModel.nodes.method[10]!.id)
+    const moved = canvas.viewport.x
+
+    state.setInterfacesFolded(true)
+    await nextTick()
+
+    expect(canvas.viewport.x).not.toBeCloseTo(moved)
+  })
+
   it('図が入れ替わったら、また全体表示に戻す', async () => {
     const { state, wrapper } = setup()
     const canvas = wrapper.vm as unknown as {
@@ -1968,5 +1989,132 @@ describe('経由の読み替えと循環の印（UT-30 / UT-10）', () => {
     const retargeted = wrapper.find('path[data-edge-id="e:via→m:b"]')
     expect(retargeted.exists()).toBe(true)
     expect(retargeted.classes()).not.toContain('cyclic')
+  })
+})
+
+describe('畳んだノードと配置（UT-29）', () => {
+  it('畳んだノードに繋がる線を、配置へ渡さない', async () => {
+    /*
+     * 描画は位置を引けない線を捨てるので、画面だけ見ていると差が出ない。
+     * **配置（交差削減）には渡ってしまう**ため、行の並びが画面に出ている線と
+     * 対応しなくなる（UT-14 が同じ理由で集合を揃えている）。
+     */
+    const spy = vi.spyOn(layoutModule, 'buildLayout')
+    try {
+      const { state, wrapper } = setup({ granularity: 'method' })
+      state.viaReading = 'implementation'
+      state.setInterfacesFolded(true)
+      await wrapper.vm.$nextTick()
+
+      const folded = new Set(
+        viewModel.nodes.method
+          .filter((node) => node.kind === 'method' && node.ownerKind === 'interface')
+          .map((node) => node.id),
+      )
+      expect(folded.size).toBeGreaterThan(0)
+
+      const passed = spy.mock.calls.at(-1)![0].edges
+      expect(passed.length).toBeGreaterThan(0)
+      for (const edge of passed) {
+        expect(folded.has(edge.from) || folded.has(edge.to), edge.id).toBe(false)
+      }
+    } finally {
+      spy.mockRestore()
+    }
+  })
+})
+
+describe('畳んでも消してはいけないもの（UT-29）', () => {
+  /**
+   * 実装を 1 件も引けない経由を持つグラフ。スキーマは `implementations` の
+   * 空を明示的に許している（「実データにも 0 件がある」）。
+   */
+  function unresolvedViaGraph() {
+    const meta = {
+      generatedAt: '2026-09-21T00:00:00.000Z',
+      rootDir: '/w/app',
+      tsconfig: 'tsconfig.json',
+      snapshot: { label: 'test', commit: 'c', branch: 'b' },
+    }
+    const result = loadGraphFromValue({
+      schemaVersion: '1.0.0',
+      meta,
+      layers: [],
+      nodes: [
+        { id: 'f:a', kind: 'file', name: 'a.ts', path: 'a.ts' },
+        { id: 'f:i', kind: 'file', name: 'i.ts', path: 'i.ts' },
+        {
+          id: 'm:a',
+          kind: 'method',
+          parent: 'f:a',
+          name: 'run',
+          owner: 'A',
+          ownerKind: 'class',
+          loc: { line: 1, column: 1 },
+        },
+        {
+          id: 'm:i',
+          kind: 'method',
+          parent: 'f:i',
+          name: 'save',
+          owner: 'IRepo',
+          ownerKind: 'interface',
+          loc: { line: 1, column: 1 },
+        },
+      ],
+      edges: [
+        {
+          id: 'e:via',
+          kind: 'call',
+          granularity: 'method',
+          from: 'm:a',
+          to: 'm:i',
+          resolution: 'via-interface',
+          sourceOrder: 0,
+          implementations: [],
+        },
+      ],
+      unresolved: [],
+      cycles: [],
+    })
+    if (!result.ok) throw new Error('組んだグラフが読めない')
+    return buildViewModel(result.graph)
+  }
+
+  it('実装を引けない経由の行き先は、畳まない', async () => {
+    /*
+     * その経由は実装宛で読んでも interface 宛のまま残る（IR の落とし先）。
+     * 畳むと**呼び出しごと図から消える**。消えてよいのは implements の線だけ
+     */
+    const { state, wrapper } = setup({ viewModel: unresolvedViaGraph(), granularity: 'method' })
+    state.viaReading = 'implementation'
+    state.setInterfacesFolded(true)
+    await nextTick()
+
+    const drawn = wrapper.findAll('svg g.node').map((node) => node.attributes('data-node-id'))
+    expect(drawn).toContain('m:i')
+    expect(wrapper.findAll('path[data-edge-id="e:via"]')).toHaveLength(1)
+  })
+
+  it('選択中のノードは、畳まない', async () => {
+    // 一覧や検索からは畳んだノードも選べる。選んだものが図にいないと読めない
+    const { state, wrapper } = setup({ granularity: 'method' })
+    state.viaReading = 'implementation'
+    state.setInterfacesFolded(true)
+    await nextTick()
+
+    const folded = viewModel.nodes.method.find(
+      (node) => node.kind === 'method' && node.ownerKind === 'interface',
+    )!
+    expect(
+      wrapper.findAll('svg g.node').map((node) => node.attributes('data-node-id')),
+    ).not.toContain(folded.id)
+
+    state.moveTo(folded.id)
+    await nextTick()
+
+    expect(wrapper.findAll('svg g.node').map((node) => node.attributes('data-node-id'))).toContain(
+      folded.id,
+    )
   })
 })

@@ -13,13 +13,14 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 
 import type { GraphEdge, GraphNode } from '@/core/graph/schema'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
-import { useViewState, type ColumnAxis } from '../shell/view-state'
+import { useViewState, type ColumnAxis, type ViaReading } from '../shell/view-state'
 import { layerColours, layerLabels } from '../shell/layer-colour'
 import { callOrder } from './call-order'
 import { cycleMarkOf, isCycleEdge } from '../shell/cycle-mark'
 import { nodeFlagOf } from '../shell/node-flag'
 import { buildColumnPlan } from './column-axis'
 import { FAN_IN_MARK, FAN_OUT_MARK, type LegendLayer } from '@/app/legend/legend-items'
+import { interfaceMethodIds } from './interface-fold'
 import { narrowedNodeIds } from './narrowing'
 import { readEdges } from './via-reading'
 import { edgeMidpoint, edgePath } from './edge-path'
@@ -136,11 +137,71 @@ const narrowed = computed(() =>
       }),
 )
 
+/**
+ * 畳むインターフェースのノード（UT-29）。畳んでいなければ空。
+ *
+ * **実装宛で読んでいるときだけ効く**（UT-30 の後段）。インターフェース宛では
+ * 線が interface を通っているので、畳むと呼び出しの事実そのものが消える。
+ *
+ * メソッド粒度だけを対象にする。ファイル粒度の `import` は実際の依存である。
+ * **この条件は結果を変えない**（対象はメソッド ID なので、ファイル粒度のノード
+ * には 1 件も当たらない）。無駄に全メソッドを走査しないために早く返す。検査で
+ * 固定できない条件なので、意図をここに書いておく。
+ *
+ * 畳まないものが 2 つある。
+ *
+ * 1. **呼び出しの線がまだ通っている interface。** 実装を 1 件も引けない経由は、
+ *    実装宛で読んでも interface 宛のまま残る（IR の落とし先）。畳むと**その
+ *    呼び出しごと図から消える**。消えてよいのは `implements` の線だけである
+ * 2. **選択中のノード。** 一覧や検索からは畳んだノードも選べる。選んだものが
+ *    図にいないと、絞り込んだ結果が空の図になり、何が起きたのか読めない
+ */
+const foldedNodeIds = computed<ReadonlySet<string>>(() => {
+  const viewModel = state.viewModel
+  if (
+    viewModel === undefined ||
+    !state.interfacesFolded ||
+    state.granularity !== 'method' ||
+    state.viaReading !== 'implementation'
+  ) {
+    return new Set()
+  }
+
+  const folded = new Set(interfaceMethodIds(viewModel))
+
+  // 呼び出しの線が端点として使っているなら、畳まない（1）
+  for (const read of readEdgesAll.value) {
+    if (read.edge.kind !== 'call' && read.edge.kind !== 'construct') continue
+    folded.delete(read.from)
+    folded.delete(read.to)
+  }
+
+  // 選択中のノードは畳まない（2）
+  if (state.selectedNodeId !== undefined) folded.delete(state.selectedNodeId)
+
+  return folded
+})
+
+/**
+ * 畳んで**実際に図から外した**ノードの数（UT-29 の断りが使う）。
+ *
+ * 正本の件数ではない。絞り込み中に正本の件数を出すと、もともと描かれない
+ * interface まで「畳んでいます」と数えることになる（断りが言う対象と数を揃える）。
+ */
+const foldedCount = computed(() => {
+  const kept = narrowed.value
+  const folded = foldedNodeIds.value
+  return (state.viewModel?.nodes[state.granularity] ?? []).filter(
+    (node) => (kept === undefined || kept.has(node.id)) && folded.has(node.id),
+  ).length
+})
+
 /** 描くノード。絞っていなければ全部 */
 const shownNodes = computed(() => {
   const nodes = state.viewModel?.nodes[state.granularity] ?? []
   const kept = narrowed.value
-  return kept === undefined ? nodes : nodes.filter((node) => kept.has(node.id))
+  const folded = foldedNodeIds.value
+  return nodes.filter((node) => (kept === undefined || kept.has(node.id)) && !folded.has(node.id))
 })
 
 /**
@@ -153,7 +214,13 @@ const shownNodes = computed(() => {
  * 並びが画面に出ている線と対応しなくなる。
  */
 const shownEdges = computed(() => {
-  const edges = readEdgesAll.value
+  const folded = foldedNodeIds.value
+  /*
+   * 畳んだノードに繋がる線は描けない（行き先が図にいない）。呼び出しは実装宛へ
+   * 読み替えてあるので消えないが、`implements` は行き先ごと畳まれるため消える。
+   * そのことは断りで伝える（UT-29）。
+   */
+  const edges = readEdgesAll.value.filter((read) => !folded.has(read.from) && !folded.has(read.to))
   if (narrowed.value === undefined) return edges
 
   const selected = state.selectedNodeId
@@ -644,6 +711,7 @@ defineExpose({
   shownNodeCount,
   shownViaCount,
   retargetedCount,
+  foldedCount,
 })
 
 /**
@@ -688,6 +756,14 @@ type FitKey = {
   axis: ColumnAxis
   /** 絞り込みの中心。絞っていなければ `undefined` */
   narrowedTo: string | undefined
+  /**
+   * 経由の読み方（UT-30）と、畳んでいる件数（UT-29）。
+   *
+   * どちらも**描くものの数と列の高さを変える**。入れないと、切り替えても
+   * 前の視点のまま残り、残ったノードだけが手元でずれる。
+   */
+  reading: ViaReading
+  folded: number
 }
 
 let lastFitted: FitKey | undefined
@@ -717,6 +793,8 @@ watch(
       state.columnAxis,
       state.narrowedToSelection ? state.selectedNodeId : undefined,
       state.selectedNodeId,
+      state.viaReading,
+      foldedCount.value,
       layout.value.width,
       layout.value.height,
       view.value.width,
@@ -728,6 +806,8 @@ watch(
     axis,
     narrowedTo,
     selectedNodeId,
+    reading,
+    folded,
     contentWidth,
     contentHeight,
     viewWidth,
@@ -742,10 +822,12 @@ watch(
       fitted.viewModel === viewModel &&
       fitted.granularity === granularity &&
       fitted.axis === axis &&
-      fitted.narrowedTo === narrowedTo
+      fitted.narrowedTo === narrowedTo &&
+      fitted.reading === reading &&
+      fitted.folded === folded
 
     if (!sameFigure) {
-      lastFitted = { viewModel, granularity, axis, narrowedTo }
+      lastFitted = { viewModel, granularity, axis, narrowedTo, reading, folded }
       lastFocused = selectedNodeId
       fitToContent()
       return
