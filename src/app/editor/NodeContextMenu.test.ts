@@ -135,6 +135,16 @@ describe('ノードの右クリックメニュー（UT-18 / US-19）', () => {
     expect(wrapper.emitted('close')).toBeUndefined()
   })
 
+  it('画面の大きさが変わったら閉じる', async () => {
+    // 出した 1 点はビューポート座標。画面が変われば、その点は画面の外にもなる
+    const wrapper = show()
+
+    window.dispatchEvent(new Event('resize'))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+
   it('図を動かしたら閉じる', async () => {
     // メニューは押した瞬間の 1 点に出る。下の図が動くと別のノードを指す
     const wrapper = show()
@@ -155,10 +165,11 @@ describe('ノードの右クリックメニュー（UT-18 / US-19）', () => {
     const removed = vi.spyOn(window, 'removeEventListener')
 
     const wrapper = show()
-    const attached = added.mock.calls.filter(([type]) => type === 'pointerdown' || type === 'wheel')
+    const watched = ['pointerdown', 'wheel', 'resize']
+    const attached = added.mock.calls.filter(([type]) => watched.includes(type))
     wrapper.unmount()
 
-    expect(attached).toHaveLength(2)
+    expect(attached).toHaveLength(watched.length)
     for (const call of attached) expect(removed).toHaveBeenCalledWith(...call)
   })
 })

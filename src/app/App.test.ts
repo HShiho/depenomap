@@ -1492,6 +1492,17 @@ describe('ノードから VSCode で開く（UT-18 / US-19）', () => {
     expect(wrapper.find('[role="menu"]').text()).toContain('確認中')
   })
 
+  it('図が組み換わったら畳む', async () => {
+    // ポインタを使わずに図が動く経路がある（キーボードでの粒度切り替えなど）
+    const { wrapper } = await openMenu(async () => resolvedAt('/Users/me/app/src/a.ts'))
+    expect(wrapper.find('[role="menu"]').exists()).toBe(true)
+
+    useViewState().setGranularity('method')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false)
+  })
+
   it('Esc で畳む', async () => {
     const { wrapper } = await openMenu(async () => resolvedAt('/Users/me/app/src/a.ts'))
 

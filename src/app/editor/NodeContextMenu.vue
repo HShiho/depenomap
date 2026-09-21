@@ -10,8 +10,9 @@
  * 読めてしまう。押せない状態にして、何が足りないかをその場に書く（N-1。
  * 足りないことは欠陥ではない）。
  *
- * 閉じる口は 3 つ（Esc・外側を押す・図を動かす）。**図を動かしたら閉じる** —
- * メニューは押した瞬間の 1 点に出るので、下の図が動くと別のノードを指す。
+ * 閉じる口は 4 つ（Esc・外側を押す・図を動かす・画面の大きさが変わる）。
+ * **下が動いたら閉じる** — メニューは押した瞬間の 1 点に出るので、図が動くと
+ * 別のノードを指し、画面の大きさが変わると画面の外にも出る。
  */
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 
@@ -67,7 +68,8 @@ function onPointerDownOutside(event: PointerEvent): void {
   emit('close')
 }
 
-function onWheel(): void {
+/** 下が動いた・画面の大きさが変わった。出した 1 点が意味を失う */
+function onMoved(): void {
   emit('close')
 }
 
@@ -92,12 +94,14 @@ onMounted(() => {
   }
 
   window.addEventListener('pointerdown', onPointerDownOutside, true)
-  window.addEventListener('wheel', onWheel, true)
+  window.addEventListener('wheel', onMoved, true)
+  window.addEventListener('resize', onMoved)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('pointerdown', onPointerDownOutside, true)
-  window.removeEventListener('wheel', onWheel, true)
+  window.removeEventListener('wheel', onMoved, true)
+  window.removeEventListener('resize', onMoved)
 })
 </script>
 

@@ -5,7 +5,7 @@
  * 各領域の中身は UT-06 以降が差し込む。いまレールと通知に入っているのは、
  * 器が動いていることを目で確かめるための**暫定表示**である。
  */
-import { computed, onMounted, onUnmounted, ref, useTemplateRef } from 'vue'
+import { computed, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
 
 import { fetchLocate, type FetchLocateOutcome } from '@/core/graph/api'
 import type { GraphNode } from '@/core/graph/schema'
@@ -158,6 +158,28 @@ async function onNodeContextMenu(node: GraphNode, event: MouseEvent): Promise<vo
 function closeMenu(): void {
   menu.value = undefined
 }
+
+/*
+ * 図が組み換わったら畳む（UT-18）。
+ *
+ * メニューは押した瞬間の 1 点に出る。**ポインタを使わずに図が動く経路がある** —
+ * キーボードで粒度や列の軸を切り替える、一覧や検索から別のノードを選ぶ、
+ * 読み込み直す。動いたあともメニューが残ると、別のノードの上で前のノードの
+ * 行き先を出すことになる。
+ *
+ * 図の側の動き（パン・ズーム・ドラッグ）はメニュー自身が拾う。ここで見るのは
+ * **何を描くかが変わったとき**だけにする。
+ */
+watch(
+  [
+    () => state.granularity,
+    () => state.columnAxis,
+    () => state.selectedNodeId,
+    () => state.narrowedToSelection,
+    () => state.status.kind,
+  ],
+  closeMenu,
+)
 
 /**
  * Esc で絞り込みを解く（UT-14 の決定）。
