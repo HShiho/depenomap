@@ -239,8 +239,9 @@ const viaNote = computed(() => {
   const edges = state.viewModel?.edges.method ?? []
   return viaNoteOf({
     granularity: state.granularity,
-    viaCount: edges.filter((edge) => 'resolution' in edge && edge.resolution === 'via-interface')
+    totalVia: edges.filter((edge) => 'resolution' in edge && edge.resolution === 'via-interface')
       .length,
+    drawnVia: canvas.value?.shownViaCount ?? 0,
   })
 })
 

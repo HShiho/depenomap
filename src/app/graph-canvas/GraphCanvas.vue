@@ -163,6 +163,18 @@ const layout = computed(() => {
 /** いま図に描いているノードの数（UT-26 の断りが使う） */
 const shownNodeCount = computed(() => shownNodes.value.length)
 
+/**
+ * いま図に描いている、インターフェース経由として解決した線の本数（UT-26）。
+ *
+ * 断りが「描いています」と言う以上、**グラフ全体ではなく描いている分**を渡す。
+ * 絞り込み中（UT-14）は図に出ている線だけが対象になる。
+ */
+const shownViaCount = computed(
+  () =>
+    shownEdges.value.filter((edge) => 'resolution' in edge && edge.resolution === 'via-interface')
+      .length,
+)
+
 const shownLayers = computed<LegendLayer[]>(() => {
   const viewModel = state.viewModel
   if (viewModel === undefined) return []
@@ -589,6 +601,7 @@ defineExpose({
   resetPositions,
   shownLayers,
   shownNodeCount,
+  shownViaCount,
 })
 
 /**

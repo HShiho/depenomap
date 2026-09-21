@@ -1699,6 +1699,23 @@ describe('図の読み方（UT-26 / QR-1）', () => {
     expect(wrapper.find('.shell-overlay').text()).toContain(String(viaCount))
   })
 
+  it('絞り込んで解決した線が出ていなければ、本数を言わない', async () => {
+    /*
+     * 「描いています」と言う以上、**描いている分**を数える。全体の本数を出すと、
+     * 図に 1 本も出ていないのに「7 本を描いています」と言うことになる
+     */
+    const { state, wrapper } = await setup()
+    state.setGranularity('method')
+    await wrapper.vm.$nextTick()
+    const target = state.viewModel!.nodes.method[0]!
+    state.moveTo(target.id)
+    state.setNarrowedToSelection(true)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('path.edge.via')).toHaveLength(0)
+    expect(wrapper.find('.shell-overlay').text()).not.toContain('実装へ解決して描いています')
+  })
+
   it('図が空のときは、その理由を出す', async () => {
     // 何も出ないだけだと、絞り込みの結果なのか正本が空なのかが分からない
     const empty = loadGraphFromValue({

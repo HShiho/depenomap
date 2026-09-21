@@ -3,22 +3,31 @@ import { describe, expect, it } from 'vitest'
 import { emptyNoteOf, viaNoteOf } from './drawing-notes'
 
 describe('インターフェース経由の断り（UT-26 / UT-07）', () => {
-  it('メソッド粒度では、解決した本数を言う', () => {
+  it('メソッド粒度では、描いている本数を言う', () => {
     // 呼び出し元 → interface → 実装 の 2 本は図に無い（UT-07）
-    expect(viaNoteOf({ granularity: 'method', viaCount: 12 })).toContain('12')
+    const note = viaNoteOf({ granularity: 'method', totalVia: 12, drawnVia: 5 })
+
+    expect(note).toContain('5')
+    expect(note).not.toContain('12')
   })
 
-  it('ファイル粒度では、ここでは見えないことを言う', () => {
-    const note = viaNoteOf({ granularity: 'file', viaCount: 12 })
+  it('絞り込んで 1 本も出ていなければ、何も言わない', () => {
+    // 「描いています」と言う以上、描いていないものを数に入れない
+    expect(viaNoteOf({ granularity: 'method', totalVia: 12, drawnVia: 0 })).toBeUndefined()
+  })
+
+  it('ファイル粒度では、どこで見えるかを言う', () => {
+    // 解決した線そのものが、この粒度では図に出ない
+    const note = viaNoteOf({ granularity: 'file', totalVia: 12, drawnVia: 0 })
 
     expect(note).toContain('メソッド粒度')
     expect(note).not.toContain('12')
   })
 
-  it('1 本も無ければ、何も言わない', () => {
+  it('グラフ全体に 1 本も無ければ、何も言わない', () => {
     // 断ること自体が無いグラフで場所を取らない
-    expect(viaNoteOf({ granularity: 'method', viaCount: 0 })).toBeUndefined()
-    expect(viaNoteOf({ granularity: 'file', viaCount: 0 })).toBeUndefined()
+    expect(viaNoteOf({ granularity: 'method', totalVia: 0, drawnVia: 0 })).toBeUndefined()
+    expect(viaNoteOf({ granularity: 'file', totalVia: 0, drawnVia: 0 })).toBeUndefined()
   })
 })
 
@@ -54,7 +63,7 @@ describe('図が空であることの断り（UT-26）', () => {
     const notes = [
       emptyNoteOf({ shown: 0, narrowed: true, inGranularity: 10 }),
       emptyNoteOf({ shown: 0, narrowed: false, inGranularity: 0 }),
-      viaNoteOf({ granularity: 'method', viaCount: 3 }),
+      viaNoteOf({ granularity: 'method', totalVia: 3, drawnVia: 3 }),
     ]
 
     for (const note of notes) {

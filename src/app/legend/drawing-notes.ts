@@ -17,19 +17,27 @@ import type { Granularity } from '@/core/ir/view-model'
 /**
  * インターフェース経由の解決についての断り。言うことが無ければ `undefined`。
  *
- * @param viaCount メソッド粒度で解決したエッジの本数。**粒度によらず同じ数**を
- *   渡す（ファイル粒度では図に出ないだけで、解決そのものは起きている）
+ * **「描いています」と言う以上、描いている本数を言う。** 絞り込み中（UT-14）は
+ * 図に出ている線だけが対象で、グラフ全体の本数とは違う。
+ *
+ * ファイル粒度では解決した線そのものが図に出ない。そこでは本数を言わず、
+ * **どこで見えるか**を言う。グラフ全体に 1 本も無ければ、断ること自体が無い。
  */
 export function viaNoteOf(input: {
   granularity: Granularity
-  viaCount: number
+  /** グラフ全体で、インターフェース経由として解決したエッジの本数 */
+  totalVia: number
+  /** いま図に描いている、そのうちの本数 */
+  drawnVia: number
 }): string | undefined {
-  // 1 本も無いグラフでは、断ること自体が無い
-  if (input.viaCount === 0) return undefined
+  if (input.totalVia === 0) return undefined
 
-  return input.granularity === 'method'
-    ? `インターフェース経由の ${input.viaCount} 本を、実装へ解決して描いています`
-    : 'インターフェース経由の解決は、メソッド粒度で見えます'
+  if (input.granularity !== 'method') return 'インターフェース経由の解決は、メソッド粒度で見えます'
+
+  // 絞り込んだ結果 1 本も出ていないなら、描き方の話をする場面ではない
+  if (input.drawnVia === 0) return undefined
+
+  return `インターフェース経由の ${input.drawnVia} 本を、実装へ解決して描いています`
 }
 
 /**
