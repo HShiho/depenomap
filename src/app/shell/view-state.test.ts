@@ -340,7 +340,12 @@ describe('購読の仕方', () => {
 
     // 選択や粒度は getter で公開しているため $state には無い。
     // 変化を待つ側は watch(() => state.selectedNodeId, …) を使う
-    expect(Object.keys(state.$state).sort()).toEqual(['columnAxis', 'query', 'sidebarOpen'])
+    expect(Object.keys(state.$state).sort()).toEqual([
+      'columnAxis',
+      'query',
+      'sidebarOpen',
+      'viaReading',
+    ])
   })
 })
 

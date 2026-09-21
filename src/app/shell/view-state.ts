@@ -35,6 +35,7 @@ import { defineStore } from 'pinia'
 import { computed, readonly, ref, shallowRef } from 'vue'
 
 import { useTheme } from '@/app/design/theme'
+import type { ViaReading } from '@/app/graph-canvas/via-reading'
 import type { LoadError, LoadWarning } from '@/core/graph/loader'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
 
@@ -134,6 +135,14 @@ export const useViewState = defineStore('view-state', () => {
   const theme = useTheme()
 
   const granularity = ref<Granularity>('file')
+
+  /**
+   * 経由の呼び出しをどちらの行き先で読むか（UT-30）。
+   *
+   * 既定は型検査器の答え（UT-07 の決定を残す）。**覚えない** — 粒度や列の軸と
+   * 同じ「その場の見方」として扱う（UT-30 の決定）。
+   */
+  const viaReading = ref<ViaReading>('interface')
   const columnAxis = ref<ColumnAxis>('layer')
   const query = ref('')
   const sidebarOpen = ref(true)
@@ -440,6 +449,9 @@ export const useViewState = defineStore('view-state', () => {
 
     // 読むだけ。切り替えは setGranularity（選択の読み替えを伴う）
     granularity: computed(() => granularity.value),
+
+    // 経由の読み方（UT-30）。軸と同じく整合を取る相手が無いので、直接書く
+    viaReading,
 
     columnAxis,
     query,
