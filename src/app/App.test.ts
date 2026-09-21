@@ -1551,6 +1551,23 @@ describe('ノードから VSCode で開く（UT-18 / US-19）', () => {
     expect(menu(wrapper).exists()).toBe(false)
   })
 
+  it('重なりが出たら畳む', async () => {
+    /*
+     * キーボードでシートを開く経路がある（click は pointerdown を出さないので、
+     * メニューの外側判定には掛からない）。メニューは覆いより前に出るので、
+     * 残ると覆いの上に浮いたまま押せてしまう
+     */
+    const wrapper = await showApp(async (path) => resolvedAt(`/Users/me/app/${path}`))
+    rightClick(wrapper.findAll('svg g.node')[0]!)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[role="menu"]').exists()).toBe(true)
+
+    await wrapper.find('[aria-label="概要を開く"]').trigger('click')
+
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false)
+  })
+
   it('畳むと、開く前に焦点があった場所へ返す', async () => {
     // 返さないと、焦点は文書の先頭へ落ち、次の Tab がやり直しになる
     const wrapper = await showApp(async (path) => resolvedAt(`/Users/me/app/${path}`))

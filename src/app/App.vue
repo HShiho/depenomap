@@ -177,6 +177,9 @@ watch(
     () => state.selectedNodeId,
     () => state.narrowedToSelection,
     () => state.status.kind,
+    // 重なりが出たら畳む。メニューは覆いより前（z-20）に出るので、残ると
+    // 覆いの上に浮いたまま押せてしまう
+    () => sheets.shown.value,
   ],
   closeMenu,
 )
