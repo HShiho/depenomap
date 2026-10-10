@@ -756,15 +756,23 @@ function onPointerUp(event?: PointerEvent): void {
     return
   }
   const wasDragging = dragging !== undefined
-  dragging = undefined
-  window.removeEventListener('pointermove', onPointerMove)
-  window.removeEventListener('pointerup', onPointerUp)
-  window.removeEventListener('pointercancel', onPointerUp)
+  stopDragging()
   // 運んでいるあいだ留めていた強調を、いまカーソルの下にあるものへ合わせ直す（UT-25）
   if (wasDragging) syncHoverAfterDrag()
 }
 
-onUnmounted(() => onPointerUp())
+function stopDragging(): void {
+  dragging = undefined
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', onPointerUp)
+  window.removeEventListener('pointercancel', onPointerUp)
+}
+
+/*
+ * 破棄するときは購読を外すだけ。強調を合わせ直すと、解除の待ちが破棄のあとに
+ * 残る（待ちを取り消す処理は先に走り終えている）
+ */
+onUnmounted(stopDragging)
 
 /**
  * 手で動かしたノード。

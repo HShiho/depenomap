@@ -2423,3 +2423,27 @@ describe('隣へ移るときのイベントの順（UT-25）', () => {
     }
   })
 })
+
+describe('掴んだまま破棄されたとき（UT-25 / UT-17）', () => {
+  it('強調を解く待ちを残さない', async () => {
+    vi.useFakeTimers()
+    try {
+      const { wrapper } = setup()
+      const id = viewModel.nodes.file[0]!.id
+      const node = wrapper.find(`g.node[data-node-id="${id}"]`)
+      await node.trigger('pointerenter')
+      node.element.dispatchEvent(
+        new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }),
+      )
+      window.dispatchEvent(new MouseEvent('pointermove', { clientX: 300, clientY: 300 }))
+      // カーソルがどの要素の上にも無い
+      await node.trigger('pointerleave')
+
+      wrapper.unmount()
+
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
