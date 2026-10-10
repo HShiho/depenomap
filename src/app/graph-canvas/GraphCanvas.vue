@@ -429,12 +429,33 @@ function cancelLeave(): void {
  *
  * 運んでいる先に描かれたノードがカーソルを受けるので、そのまま従うと、運んで
  * いるノード自身が退いたり、ノードから外れた瞬間に強調が消えたりする。
+ *
+ * ただし**カーソルの出入りは捨てずに覚えておく**（`underPointer`）。離した
+ * ときにそれを反映しないと、別のものの上で離した場合にその enter が失われ、
+ * 何も無いところへ外しても掴んでいたノードの強調が残り続ける。
  */
 function isDraggingNode(): boolean {
   return dragging !== undefined
 }
 
+/** いまカーソルの下にあるもの。掴んでいるあいだも更新する */
+let underPointer: EmphasisTarget | undefined
+
+function isSameTarget(a: EmphasisTarget | undefined, b: EmphasisTarget): boolean {
+  return a?.kind === b.kind && a.id === b.id
+}
+
+/** 離したとき、運んでいるあいだのカーソルの出入りを反映する */
+function syncHoverAfterDrag(): void {
+  if (underPointer !== undefined) {
+    onHoverEnter(underPointer)
+    return
+  }
+  if (hovered.value !== undefined) onHoverLeave(hovered.value)
+}
+
 function onHoverEnter(target: EmphasisTarget): void {
+  underPointer = target
   if (isDraggingNode()) return
   // 前の外れの待ちが、あとから新しい強調を消さないように
   cancelLeave()
@@ -446,10 +467,10 @@ function onHoverEnter(target: EmphasisTarget): void {
  * 猶予のうちに次へ入れば、そのまま切り替わる。
  */
 function onHoverLeave(target: EmphasisTarget): void {
-  if (isDraggingNode()) return
   // 隣へ移ったとき、新しい側の enter が先に来ることがある。自分の分だけ外す
-  const current = hovered.value
-  if (current?.kind !== target.kind || current.id !== target.id) return
+  if (isSameTarget(underPointer, target)) underPointer = undefined
+  if (isDraggingNode()) return
+  if (!isSameTarget(hovered.value, target)) return
 
   cancelLeave()
   leaveTimer = setTimeout(() => {
@@ -734,10 +755,13 @@ function onPointerUp(event?: PointerEvent): void {
   if (event !== undefined && dragging !== undefined && event.pointerId !== dragging.pointerId) {
     return
   }
+  const wasDragging = dragging !== undefined
   dragging = undefined
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', onPointerUp)
   window.removeEventListener('pointercancel', onPointerUp)
+  // 運んでいるあいだ留めていた強調を、いまカーソルの下にあるものへ合わせ直す（UT-25）
+  if (wasDragging) syncHoverAfterDrag()
 }
 
 onUnmounted(() => onPointerUp())

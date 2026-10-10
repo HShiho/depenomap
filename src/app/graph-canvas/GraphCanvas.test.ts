@@ -2330,6 +2330,44 @@ describe('動かしているあいだの強調（UT-25 / UT-17）', () => {
 
     expect(nodeEl(wrapper, hub.id).classes()).toContain('dimmed')
   })
+
+  /** 掴んで、別のノードの上まで運び、そこで離す（運んでいる最中に enter/leave が来る） */
+  const dropOnto = async (wrapper: Wrapper, target: string) => {
+    await nodeEl(wrapper, hub.id).trigger('pointerenter')
+    nodeEl(wrapper, hub.id).element.dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }),
+    )
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 300, clientY: 300 }))
+    await nodeEl(wrapper, target).trigger('pointerenter')
+    await nodeEl(wrapper, hub.id).trigger('pointerleave')
+    window.dispatchEvent(new MouseEvent('pointerup', {}))
+    await nextTick()
+  }
+
+  it('別のノードの上で離すと、その場で合わせ直す', async () => {
+    // 運んでいる最中のカーソルの出入りは捨てずに覚えておき、離したときに反映する
+    const { wrapper } = setup()
+    await dropOnto(wrapper, stranger.id)
+
+    expect(nodeEl(wrapper, stranger.id).classes()).not.toContain('dimmed')
+    expect(nodeEl(wrapper, hub.id).classes()).toContain('dimmed')
+  })
+
+  it('離したあと何も無いところへ外せば、強調は戻る', async () => {
+    vi.useFakeTimers()
+    try {
+      const { wrapper } = setup()
+      await dropOnto(wrapper, stranger.id)
+      await nodeEl(wrapper, stranger.id).trigger('pointerleave')
+
+      vi.advanceTimersByTime(EMPHASIS_LEAVE_GRACE_MS)
+      await nextTick()
+
+      expect(wrapper.findAll('.dimmed, .related, .emphasized')).toHaveLength(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe('選択と強調（UT-25 / UT-14）', () => {
