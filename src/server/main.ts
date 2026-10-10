@@ -12,7 +12,14 @@ import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
 
 import { createApp } from './app'
-import { GRAPH_PATH_ENV, HOST_ENV, PORT_ENV, REPO_ENV, resolveConfig } from './config'
+import {
+  COMPOSITION_ROOT_ENV,
+  GRAPH_PATH_ENV,
+  HOST_ENV,
+  PORT_ENV,
+  REPO_ENV,
+  resolveConfig,
+} from './config'
 
 const USAGE = [
   '使い方: node dist/server/main.js --graph <正本 JSON のパス> [--port <ポート>] [--repo <リポジトリ>]',
@@ -21,9 +28,11 @@ const USAGE = [
   `  --port   待ち受けポート（環境変数 ${PORT_ENV} でも指定できる）`,
   `  --repo   解析対象リポジトリ <ホスト側>[=<マウント先>]（環境変数 ${REPO_ENV} でも指定できる）`,
   `  --host   待ち受ける宛先（既定はループバックだけ。環境変数 ${HOST_ENV} でも指定できる）`,
+  `  --composition-root  合成ルート（DI の組み立て）の層 ID（環境変数 ${COMPOSITION_ROOT_ENV} でも指定できる）`,
   '',
   '  --repo のホスト側には、正本 JSON の meta.rootDir に対応する位置を渡す。',
   '  --repo は VSCode で開く（UT-18）ときに使う。図を読むだけなら要らない。',
+  '  --composition-root を渡すと、その層を図から隠せるようになる。層 ID は正本 JSON の layers[].id。',
 ].join('\n')
 
 /**
@@ -66,6 +75,9 @@ const server = serve({ fetch: app.fetch, port: config.port, hostname: config.hos
   console.log(`  正本 JSON: ${config.graphPath}`)
   if (config.repo !== undefined) {
     console.log(`  リポジトリ: ${config.repo.hostPath}（この中からは ${config.repo.mountPath}）`)
+  }
+  if (config.compositionRootLayer !== undefined) {
+    console.log(`  合成ルートの層: ${config.compositionRootLayer}`)
   }
 })
 
