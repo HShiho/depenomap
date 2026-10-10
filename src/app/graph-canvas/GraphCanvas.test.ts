@@ -2118,3 +2118,109 @@ describe('畳んでも消してはいけないもの（UT-29）', () => {
     )
   })
 })
+
+describe('カーソルを合わせたノードの関係（UT-25）', () => {
+  /** 依存先も依存元も持つファイル */
+  const hub = viewModel.nodes.file.find(
+    (node) =>
+      viewModel.dependenciesOf(node.id, 'file').length > 0 &&
+      viewModel.fanInOf(node.id, 'file') > 0,
+  )!
+  const touching = (id: string) =>
+    viewModel.edges.file.filter((edge) => edge.from === id || edge.to === id)
+  const neighbours = new Set(touching(hub.id).flatMap((edge) => [edge.from, edge.to]))
+
+  type Wrapper = ReturnType<typeof setup>['wrapper']
+  const nodeEl = (wrapper: Wrapper, id: string) => wrapper.find(`g.node[data-node-id="${id}"]`)
+  const dimmedNodes = (wrapper: Wrapper) =>
+    wrapper.findAll('g.node.dimmed').map((node) => node.attributes('data-node-id')!)
+  const edgeIdsWith = (wrapper: Wrapper, cls: string) =>
+    wrapper.findAll(`path.edge.${cls}`).map((path) => path.attributes('data-edge-id')!)
+
+  it('繋がるノードと線は浮かび、それ以外は退く', async () => {
+    const { wrapper } = setup()
+    await nodeEl(wrapper, hub.id).trigger('pointerenter')
+
+    for (const node of viewModel.nodes.file) {
+      expect(dimmedNodes(wrapper).includes(node.id), node.id).toBe(!neighbours.has(node.id))
+    }
+    const hot = new Set(touching(hub.id).map((edge) => edge.id))
+    expect(new Set(edgeIdsWith(wrapper, 'emphasized'))).toEqual(hot)
+    for (const id of edgeIdsWith(wrapper, 'dimmed')) expect(hot.has(id), id).toBe(false)
+  })
+
+  it('合わせたノードと、繋がって浮かんだノードを見分けられる', async () => {
+    const { wrapper } = setup()
+    await nodeEl(wrapper, hub.id).trigger('pointerenter')
+
+    expect(nodeEl(wrapper, hub.id).classes()).not.toContain('related')
+    const other = [...neighbours].find((id) => id !== hub.id)!
+    expect(nodeEl(wrapper, other).classes()).toContain('related')
+  })
+
+  it('何も消さない', async () => {
+    const { wrapper } = setup()
+    await nodeEl(wrapper, hub.id).trigger('pointerenter')
+
+    expect(wrapper.findAll('g.node')).toHaveLength(viewModel.nodes.file.length)
+    expect(wrapper.findAll('path[data-edge-id]')).toHaveLength(viewModel.edges.file.length)
+  })
+
+  it('カーソルが外れると元に戻る', async () => {
+    const { wrapper } = setup()
+    await nodeEl(wrapper, hub.id).trigger('pointerenter')
+    await nodeEl(wrapper, hub.id).trigger('pointerleave')
+
+    expect(wrapper.findAll('.dimmed, .related, .emphasized')).toHaveLength(0)
+  })
+
+  it('線に合わせると、その線と両端だけが浮かぶ', async () => {
+    const { wrapper } = setup()
+    const edge = touching(hub.id)[0]!
+    await wrapper.find(`path.edge-hit[data-hit-edge-id="${edge.id}"]`).trigger('pointerenter')
+
+    expect(edgeIdsWith(wrapper, 'emphasized')).toEqual([edge.id])
+    const lit = viewModel.nodes.file
+      .map((node) => node.id)
+      .filter((id) => !dimmedNodes(wrapper).includes(id))
+    expect(new Set(lit)).toEqual(new Set([edge.from, edge.to]))
+  })
+
+  it('線の当たり判定は、描いた線 1 本につき 1 本', () => {
+    const { wrapper } = setup()
+
+    expect(wrapper.findAll('path.edge-hit')).toHaveLength(wrapper.findAll('path.edge').length)
+  })
+
+  it('絞り込み中に合わせても、消えたものは戻ってこない', async () => {
+    const { state, wrapper } = setup()
+    state.select(hub.id)
+    state.setNarrowedToSelection(true)
+    await nextTick()
+    const before = wrapper.findAll('g.node').length
+
+    const other = wrapper
+      .findAll('g.node')
+      .map((node) => node.attributes('data-node-id')!)
+      .find((id) => id !== hub.id)!
+    await nodeEl(wrapper, other).trigger('pointerenter')
+
+    expect(wrapper.findAll('g.node')).toHaveLength(before)
+  })
+
+  it('合わせたまま図が組み替わり、合わせた先が消えたら、強調は残らない', async () => {
+    const { state, wrapper } = setup()
+    await nodeEl(wrapper, hub.id).trigger('pointerenter')
+    state.setGranularity('method')
+    await nextTick()
+
+    expect(wrapper.findAll('.dimmed, .related, .emphasized')).toHaveLength(0)
+  })
+
+  it('説明表示は素の title 1 つのまま（二重にしない）', async () => {
+    const { wrapper } = setup()
+    await nodeEl(wrapper, hub.id).trigger('pointerenter')
+
+    expect(nodeEl(wrapper, hub.id).findAll('title')).toHaveLength(1)
+  })
+})

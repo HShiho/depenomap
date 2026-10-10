@@ -24,6 +24,7 @@ import { interfaceMethodIds } from './interface-fold'
 import { narrowedNodeIds } from './narrowing'
 import { readEdges } from './via-reading'
 import { edgeMidpoint, edgePath } from './edge-path'
+import { emphasisOf, type EmphasisTarget } from './emphasis'
 import { nameLimitFor, subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import { centreOn, fitBounds, transformOf, type Viewport } from './viewport'
@@ -353,6 +354,9 @@ const edges = computed(() => {
       {
         // 描く線ごとに固有（実装宛では 1 本の呼び出しが実装の数だけ分かれる）
         id: read.id,
+        // 両端は描いている向き（読み替えたあと）。関係の強調（UT-25）が使う
+        from: read.from,
+        to: read.to,
         variant,
         /*
          * 循環かどうかは**形の別（`variant`）とは別の軸**（UT-10）。同じ 1 本が
@@ -377,6 +381,63 @@ const edges = computed(() => {
     ]
   })
 })
+
+/**
+ * カーソルを合わせているもの（UT-25）。外れれば `undefined`。
+ *
+ * 選択（UT-14）とは別に持つ。こちらは触れているあいだだけの見分けで、図を
+ * 絞らず、履歴にも積まない。
+ */
+const hovered = ref<EmphasisTarget | undefined>()
+
+/**
+ * 浮かぶノードと線。**図に描いているものだけ**から引く。
+ *
+ * 絞り込み（UT-14）や畳み（UT-29）で消えたものは、ここに渡らないので戻って
+ * こない。「薄い」はカーソルが触れているあいだだけの状態で、「消えた」は図を
+ * 絞った結果である。前者は外せば必ず戻る。
+ */
+const emphasis = computed(() =>
+  emphasisOf(hovered.value, {
+    nodeIds: new Set(positions.value.keys()),
+    edges: edges.value,
+  }),
+)
+
+/*
+ * 合わせたまま図が組み替わり、合わせた先が消えたら、合わせていたことも忘れる。
+ * 要素ごと消えると `pointerleave` は来ない。覚えたままにすると、あとで同じ
+ * ノードが図に戻ったとき、カーソルがどこにあっても強調が復活する。
+ */
+watch(emphasis, (current) => {
+  if (current === undefined) hovered.value = undefined
+})
+
+function onHoverEnter(target: EmphasisTarget): void {
+  hovered.value = target
+}
+
+function onHoverLeave(target: EmphasisTarget): void {
+  // 隣へ移ったとき、新しい側の enter が先に来ることがある。自分の分だけ外す
+  const current = hovered.value
+  if (current?.kind === target.kind && current.id === target.id) hovered.value = undefined
+}
+
+/** ノードの強調の状態。強調していなければ空 */
+function nodeEmphasisOf(nodeId: string): { dimmed?: boolean; related?: boolean } {
+  const current = emphasis.value
+  if (current === undefined) return {}
+  if (!current.nodes.has(nodeId)) return { dimmed: true }
+  const isTarget = current.target.kind === 'node' && current.target.id === nodeId
+  return { related: !isTarget }
+}
+
+/** 線の強調の状態。強調していなければ空 */
+function edgeEmphasisOf(edgeId: string): { dimmed?: boolean; emphasized?: boolean } {
+  const current = emphasis.value
+  if (current === undefined) return {}
+  return current.edges.has(edgeId) ? { emphasized: true } : { dimmed: true }
+}
 
 /**
  * 列見出し。**中身は軸で変わる**ので、文言と色は `columnPlan.headOf` に委ねる
@@ -914,7 +975,7 @@ watch(
             :data-edge-id="edge.id"
             :d="edge.d"
             class="edge"
-            :class="[edge.variant, { cyclic: edge.inCycle }]"
+            :class="[edge.variant, { cyclic: edge.inCycle }, edgeEmphasisOf(edge.id)]"
             :marker-end="markerOf(edge)"
           />
           <!-- 経由であることの印。インターフェース宛であることを線の上で示す -->
@@ -925,9 +986,22 @@ watch(
           <circle
             v-if="edge.midpoint"
             class="via-dot"
+            :class="edgeEmphasisOf(edge.id)"
             :cx="edge.midpoint.x"
             :cy="edge.midpoint.y"
             r="3.4"
+          />
+          <!--
+            線の当たり判定（UT-25）。描いた線は細く、そのままでは合わせられない。
+            透明な太い線を重ねる。ノードより下に置くので、ノードの操作は奪わない。
+            `data-edge-id` は付けない（描いた線を数える側が、これを数えないように）
+          -->
+          <path
+            :data-hit-edge-id="edge.id"
+            :d="edge.d"
+            class="edge-hit"
+            @pointerenter="onHoverEnter({ kind: 'edge', id: edge.id })"
+            @pointerleave="onHoverLeave({ kind: 'edge', id: edge.id })"
           />
         </template>
       </g>
@@ -937,21 +1011,28 @@ watch(
         :key="placed.node.id"
         :data-node-id="placed.node.id"
         class="node"
-        :class="{
-          selected: placed.node.id === state.selectedNodeId,
-          'in-cycle': nodeVisuals.get(placed.node.id)?.inCycle === true,
-        }"
+        :class="[
+          {
+            selected: placed.node.id === state.selectedNodeId,
+            'in-cycle': nodeVisuals.get(placed.node.id)?.inCycle === true,
+          },
+          nodeEmphasisOf(placed.node.id),
+        ]"
         :style="{ '--lc': nodeVisuals.get(placed.node.id)?.colour }"
         :transform="`translate(${placed.x},${placed.y})`"
         @click.stop="onNodeClick(placed.node)"
         @pointerdown="onNodePointerDown(placed.node, $event)"
         @contextmenu="emit('nodeContextMenu', placed.node, $event)"
+        @pointerenter="onHoverEnter({ kind: 'node', id: placed.node.id })"
+        @pointerleave="onHoverLeave({ kind: 'node', id: placed.node.id })"
       >
         <!--
-          参照仕様に無い追加。ノードのホバー表示を所有する UT は無く、mockup の
-          `.tip` は概要シート（UT-13）にしか結ばれていない。素のツールチップは
-          遅延して出るうえ抑止できないので、ノードにスタイル付きのホバーカードを
-          載せる UT は、これを外すかそちらへ統合すること。
+          ノードの説明は素のツールチップのまま（UT-25 の決定）。UT-25 は関係の
+          強調だけを足し、説明カード（参照仕様の `nodeTip`）は作らなかった。
+          被依存数・依存数はノードの中に既に出ており、カードにすると重なる。
+          選んだノードの詳細を 1 か所に集める話（UT-27）でまとめて判断する。
+          スタイル付きのカードを載せる UT は、これを外すかそちらへ統合すること
+          （素のツールチップは遅延して出るうえ抑止できない）。
         -->
         <title>{{ nodeVisuals.get(placed.node.id)?.tooltip }}</title>
         <rect class="box" :width="NODE_WIDTH" :height="NODE_HEIGHT" rx="9" />
@@ -1048,6 +1129,47 @@ watch(
   r: var(--via-dot-radius);
 }
 
+/*
+ * カーソルを合わせたものの関係（UT-25）。
+ *
+ * **形の別（経由・実装・循環）は変えない。** 色と破線は残し、太さと濃さだけを
+ * 動かす。浮かんだ線が循環なのか経由なのかは、強調中も読めるようにする。
+ *
+ * 形の別の規則は詳細度が最大 (0,3,0) なので、それより強い組み合わせを並べる。
+ * 書いた順に頼ると、規則を並べ替えただけで見た目が静かに入れ替わる。
+ */
+.edge.emphasized,
+.edge.emphasized.via,
+.edge.emphasized.implements,
+.edge.emphasized.cyclic,
+.edge.emphasized.via.cyclic,
+.edge.emphasized.implements.cyclic {
+  stroke-width: var(--edge-stroke-emphasis);
+  opacity: 1;
+}
+
+/* 退いた線。消さずに、そこに在ることは読める濃さに留める */
+.edge.dimmed,
+.edge.dimmed.via,
+.edge.dimmed.implements,
+.edge.dimmed.cyclic,
+.edge.dimmed.via.cyclic,
+.edge.dimmed.implements.cyclic,
+.via-dot.dimmed {
+  opacity: var(--edge-opacity-dimmed);
+}
+
+/*
+ * 線の当たり判定。見えないが、線の上でだけカーソルを受ける。
+ * 線を押しても何も起きないので、指の形にはしない。
+ */
+.edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: var(--edge-stroke-hit);
+  pointer-events: stroke;
+}
+
 /* ノード。塗りは層の色を混ぜ、状態は枠線だけで表す（参照仕様） */
 .node {
   cursor: pointer;
@@ -1078,16 +1200,35 @@ watch(
  * 強弱は**詳細度で決める**。書いた順に頼ると、規則を並べ替えただけで
  * 見た目が静かに入れ替わる。
  */
-.node.in-cycle .box {
+/*
+ * カーソルを合わせたノードに繋がっているノード（UT-25）。
+ *
+ * **循環と選択より弱くする**（参照仕様の順）。強調は触れているあいだだけの
+ * 見分けで、循環（事実）と選択（操作の状態）を上書きしてはいけない。
+ */
+.node.related .box {
+  stroke: var(--color-accent);
+  stroke-width: var(--node-stroke-related);
+}
+
+.node.in-cycle .box,
+.node.in-cycle.related .box {
   stroke: var(--color-warn);
   stroke-width: var(--node-stroke-cyclic);
   stroke-dasharray: var(--node-dash-cyclic);
 }
 
 .node.selected .box,
-.node.selected.in-cycle .box {
+.node.selected.in-cycle .box,
+.node.selected.related .box,
+.node.selected.in-cycle.related .box {
   stroke: var(--color-accent);
   stroke-width: var(--node-stroke-selected);
+}
+
+/* 退いたノード。消さずに、そこに在ることは読める濃さに留める */
+.node.dimmed {
+  opacity: var(--node-opacity-dimmed);
 }
 
 .node .flag {

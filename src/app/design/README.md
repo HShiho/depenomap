@@ -138,6 +138,7 @@
 
 ```
     ノード      --node-stroke / --node-stroke-selected / --node-stroke-cyclic
+                --node-stroke-related
                 --node-dash-cyclic / --node-opacity-dimmed
     経由の印    --via-dot-stroke / --via-dot-radius
                 （半径は CSS のジオメトリプロパティ経由。未対応ブラウザ向けに
