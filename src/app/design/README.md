@@ -148,6 +148,7 @@
                 --edge-dash-implements / --edge-dash-cyclic / --edge-dash-unresolved
                 --edge-opacity / --edge-opacity-implements / --edge-opacity-via
                 --edge-opacity-dimmed
+    動き        --duration-emphasis（強調の濃さが変わるときのフェード）
 ```
 
 状態は**枠線の色・太さ・破線パターン**だけで表し、塗りは変えない。

@@ -24,7 +24,7 @@ import { interfaceMethodIds } from './interface-fold'
 import { narrowedNodeIds } from './narrowing'
 import { readEdges } from './via-reading'
 import { edgeMidpoint, edgePath } from './edge-path'
-import { emphasisOf, type EmphasisTarget } from './emphasis'
+import { EMPHASIS_LEAVE_GRACE_MS, emphasisOf, type EmphasisTarget } from './emphasis'
 import { nameLimitFor, subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import { centreOn, fitBounds, transformOf, type Viewport } from './viewport'
@@ -410,18 +410,43 @@ const emphasis = computed(() =>
  * ノードが図に戻ったとき、カーソルがどこにあっても強調が復活する。
  */
 watch(emphasis, (current) => {
-  if (current === undefined) hovered.value = undefined
+  if (current !== undefined) return
+  cancelLeave()
+  hovered.value = undefined
 })
 
+/** 外れたあと、強調を解くまでの待ち（`EMPHASIS_LEAVE_GRACE_MS`） */
+let leaveTimer: ReturnType<typeof setTimeout> | undefined
+
+function cancelLeave(): void {
+  if (leaveTimer === undefined) return
+  clearTimeout(leaveTimer)
+  leaveTimer = undefined
+}
+
 function onHoverEnter(target: EmphasisTarget): void {
+  // 前の外れの待ちが、あとから新しい強調を消さないように
+  cancelLeave()
   hovered.value = target
 }
 
+/**
+ * 外れても**すぐには解かない**。隙間を横切るたびに全部戻すと、図全体が明滅する。
+ * 猶予のうちに次へ入れば、そのまま切り替わる。
+ */
 function onHoverLeave(target: EmphasisTarget): void {
   // 隣へ移ったとき、新しい側の enter が先に来ることがある。自分の分だけ外す
   const current = hovered.value
-  if (current?.kind === target.kind && current.id === target.id) hovered.value = undefined
+  if (current?.kind !== target.kind || current.id !== target.id) return
+
+  cancelLeave()
+  leaveTimer = setTimeout(() => {
+    leaveTimer = undefined
+    hovered.value = undefined
+  }, EMPHASIS_LEAVE_GRACE_MS)
 }
+
+onUnmounted(cancelLeave)
 
 /** ノードの強調の状態。強調していなければ空 */
 function nodeEmphasisOf(nodeId: string): { dimmed?: boolean; related?: boolean } {
@@ -1146,6 +1171,17 @@ watch(
 .edge.emphasized.implements.cyclic {
   stroke-width: var(--edge-stroke-emphasis);
   opacity: 1;
+}
+
+/*
+ * 濃さの切り替えは短くフェードさせる。動かすたびに図の広い範囲の濃さが
+ * 変わるので、段差のままだと明滅に見える。動きを減らす設定では消える
+ * （`tokens.css` の `prefers-reduced-motion`）
+ */
+.edge,
+.via-dot,
+.node {
+  transition: opacity var(--duration-emphasis) ease;
 }
 
 /* 退いた線。消さずに、そこに在ることは読める濃さに留める */

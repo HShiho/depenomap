@@ -12,6 +12,7 @@ import { useViewState } from '../shell/view-state'
 import * as columnAxis from './column-axis'
 import * as layoutModule from './layout'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
+import { EMPHASIS_LEAVE_GRACE_MS } from './emphasis'
 import { LABEL_GEOMETRY, NAME_LIMIT } from './node-label'
 import { MAX_SCALE, MIN_SCALE, toWorld } from './viewport'
 import GraphCanvas from './GraphCanvas.vue'
@@ -2166,12 +2167,46 @@ describe('カーソルを合わせたノードの関係（UT-25）', () => {
     expect(wrapper.findAll('path[data-edge-id]')).toHaveLength(viewModel.edges.file.length)
   })
 
-  it('カーソルが外れると元に戻る', async () => {
-    const { wrapper } = setup()
-    await nodeEl(wrapper, hub.id).trigger('pointerenter')
-    await nodeEl(wrapper, hub.id).trigger('pointerleave')
+  it('カーソルが外れると、少し待って元に戻る', async () => {
+    vi.useFakeTimers()
+    try {
+      const { wrapper } = setup()
+      await nodeEl(wrapper, hub.id).trigger('pointerenter')
+      await nodeEl(wrapper, hub.id).trigger('pointerleave')
 
-    expect(wrapper.findAll('.dimmed, .related, .emphasized')).toHaveLength(0)
+      // 外れた直後はまだ戻さない（隙間を横切っただけかもしれない）
+      expect(wrapper.findAll('.dimmed').length).toBeGreaterThan(0)
+
+      vi.advanceTimersByTime(EMPHASIS_LEAVE_GRACE_MS)
+      await nextTick()
+      expect(wrapper.findAll('.dimmed, .related, .emphasized')).toHaveLength(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('隙間を横切って次へ移っても、いったん全部戻る瞬間を挟まない', async () => {
+    /*
+     * ノードとノードの隙間、列の間の線を横切るたびに「全部戻る」を挟むと、
+     * 図全体が明滅する
+     */
+    vi.useFakeTimers()
+    try {
+      const { wrapper } = setup()
+      const other = [...neighbours].find((id) => id !== hub.id)!
+      await nodeEl(wrapper, hub.id).trigger('pointerenter')
+      await nodeEl(wrapper, hub.id).trigger('pointerleave')
+      vi.advanceTimersByTime(EMPHASIS_LEAVE_GRACE_MS - 1)
+      await nodeEl(wrapper, other).trigger('pointerenter')
+      expect(nodeEl(wrapper, other).classes()).not.toContain('related')
+
+      // 前の外れの待ちが、あとから新しい強調を消さない
+      vi.advanceTimersByTime(EMPHASIS_LEAVE_GRACE_MS)
+      await nextTick()
+      expect(wrapper.findAll('.dimmed').length).toBeGreaterThan(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('線に合わせると、その線と両端だけが浮かぶ', async () => {
