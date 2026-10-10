@@ -2343,3 +2343,32 @@ describe('選択と強調（UT-25 / UT-14）', () => {
     expect(wrapper.find(`g.node[data-node-id="${stranger.id}"]`).classes()).not.toContain('dimmed')
   })
 })
+
+describe('隣へ移るときのイベントの順（UT-25）', () => {
+  const hub = viewModel.nodes.file.find(
+    (node) =>
+      viewModel.dependenciesOf(node.id, 'file').length > 0 &&
+      viewModel.fanInOf(node.id, 'file') > 0,
+  )!
+  const other = viewModel.nodes.file.find((node) => node.id !== hub.id)!
+
+  it('新しい側の enter が古い側の leave より先に来ても、新しい側の強調は消えない', async () => {
+    vi.useFakeTimers()
+    try {
+      const { wrapper } = setup()
+      const nodeEl = (id: string) => wrapper.find(`g.node[data-node-id="${id}"]`)
+      await nodeEl(hub.id).trigger('pointerenter')
+      await nodeEl(other.id).trigger('pointerenter')
+      await nodeEl(hub.id).trigger('pointerleave')
+
+      vi.advanceTimersByTime(EMPHASIS_LEAVE_GRACE_MS * 2)
+      await nextTick()
+
+      // other に合わせたまま。何かが退いている（強調が生きている）
+      expect(wrapper.findAll('g.node.dimmed').length).toBeGreaterThan(0)
+      expect(nodeEl(other.id).classes()).not.toContain('dimmed')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
