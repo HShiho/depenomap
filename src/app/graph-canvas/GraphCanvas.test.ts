@@ -2250,6 +2250,16 @@ describe('カーソルを合わせたノードの関係（UT-25）', () => {
     await nextTick()
 
     expect(wrapper.findAll('.dimmed, .related, .emphasized')).toHaveLength(0)
+
+    /*
+     * 同じノードが図に戻っても、強調は復活しない。要素ごと消えたときは
+     * `pointerleave` が来ないので、合わせていたことを忘れていないと、
+     * カーソルがどこにあっても戻ってくる
+     */
+    state.setGranularity('file')
+    await nextTick()
+
+    expect(wrapper.findAll('.dimmed, .related, .emphasized')).toHaveLength(0)
   })
 
   it('説明表示は素の title 1 つのまま（二重にしない）', async () => {
