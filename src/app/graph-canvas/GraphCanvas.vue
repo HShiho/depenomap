@@ -20,6 +20,7 @@ import { cycleMarkOf, isCycleEdge } from '../shell/cycle-mark'
 import { nodeFlagOf } from '../shell/node-flag'
 import { buildColumnPlan } from './column-axis'
 import { FAN_IN_MARK, FAN_OUT_MARK, type LegendLayer } from '@/app/legend/legend-items'
+import { compositionRootNodeIds } from './composition-root'
 import { interfaceMethodIds } from './interface-fold'
 import { narrowedNodeIds } from './narrowing'
 import { readEdges } from './via-reading'
@@ -197,35 +198,101 @@ const foldedCount = computed(() => {
   ).length
 })
 
+/**
+ * 隠す合成ルートのノード（UT-31 / ADR-006）。隠していなければ空。
+ *
+ * **起動時に層が指定され、それがグラフに在り、隠す好みが立っているときだけ**
+ * 効く。好みが立っていても、層が指定されていない・グラフに無いときは隠さない
+ * （何を隠しているのか言えない）。
+ *
+ * 粒度を問わず効く。合成ルートはファイル粒度でも全層へ線を伸ばす。
+ *
+ * **選択中のノードは隠さない**（UT-29 と同じ）。一覧や検索からは隠した層の
+ * ノードも選べる。選んだものが図にいないと、絞り込んだ結果が空の図になる。
+ */
+const compositionRootIds = computed<ReadonlySet<string>>(() => {
+  const viewModel = state.viewModel
+  const root = state.compositionRoot
+  if (viewModel === undefined || !state.compositionRootHidden || root.kind !== 'present') {
+    return new Set()
+  }
+
+  const hidden = new Set(compositionRootNodeIds(viewModel, state.granularity, root.layerId))
+  if (state.selectedNodeId !== undefined) hidden.delete(state.selectedNodeId)
+  return hidden
+})
+
+/** 図から外すノード。畳み（UT-29）と、合成ルートの非表示（UT-31） */
+const removedNodeIds = computed<ReadonlySet<string>>(() => {
+  const folded = foldedNodeIds.value
+  const root = compositionRootIds.value
+  if (root.size === 0) return folded
+  if (folded.size === 0) return root
+  return new Set([...folded, ...root])
+})
+
+/**
+ * 隠して**実際に図から外した**合成ルートのノードの数（UT-31 の断りが使う）。
+ * 数え方は畳みと同じ（絞り込みで元から描かれないものは数えない）。
+ */
+const compositionRootHiddenCount = computed(() => {
+  const kept = narrowed.value
+  const hidden = compositionRootIds.value
+  return (state.viewModel?.nodes[state.granularity] ?? []).filter(
+    (node) => (kept === undefined || kept.has(node.id)) && hidden.has(node.id),
+  ).length
+})
+
 /** 描くノード。絞っていなければ全部 */
 const shownNodes = computed(() => {
   const nodes = state.viewModel?.nodes[state.granularity] ?? []
   const kept = narrowed.value
-  const folded = foldedNodeIds.value
-  return nodes.filter((node) => (kept === undefined || kept.has(node.id)) && !folded.has(node.id))
+  const removed = removedNodeIds.value
+  return nodes.filter((node) => (kept === undefined || kept.has(node.id)) && !removed.has(node.id))
 })
 
 /**
- * 描く線。絞り込み中は**選んだノードに繋がる線だけ**。
+ * 絞り込みだけを効かせた線。絞り込み中は**選んだノードに繋がる線だけ**。
  *
  * 残った 2 つが互いに依存していても、選んだノードを介さない線は「このノードの
  * 周り」の話ではない。
+ */
+const narrowedEdges = computed(() => {
+  if (narrowed.value === undefined) return readEdgesAll.value
+
+  const selected = state.selectedNodeId
+  return readEdgesAll.value.filter((edge) => edge.from === selected || edge.to === selected)
+})
+
+/**
+ * 描く線。図から外したノードに繋がる線は描けない（行き先が図にいない）。
+ *
+ * 畳み（UT-29）では、呼び出しは実装宛へ読み替えてあるので消えないが、
+ * `implements` は行き先ごと畳まれるため消える。合成ルートの非表示（UT-31）では、
+ * 合成ルートに出入りする線がすべて消える。どちらも断りで伝える。
  *
  * 配置（交差削減）にも同じ集合を渡す。描かない線で行の順を決めると、列の中の
  * 並びが画面に出ている線と対応しなくなる。
  */
 const shownEdges = computed(() => {
-  const folded = foldedNodeIds.value
-  /*
-   * 畳んだノードに繋がる線は描けない（行き先が図にいない）。呼び出しは実装宛へ
-   * 読み替えてあるので消えないが、`implements` は行き先ごと畳まれるため消える。
-   * そのことは断りで伝える（UT-29）。
-   */
-  const edges = readEdgesAll.value.filter((read) => !folded.has(read.from) && !folded.has(read.to))
-  if (narrowed.value === undefined) return edges
+  const removed = removedNodeIds.value
+  return narrowedEdges.value.filter((read) => !removed.has(read.from) && !removed.has(read.to))
+})
 
-  const selected = state.selectedNodeId
-  return edges.filter((edge) => edge.from === selected || edge.to === selected)
+/**
+ * 合成ルートを隠したために描かなくなった線の本数（UT-31 の断りが使う）。
+ *
+ * **隠していなければ描いていた線だけを数える**（絞り込み・畳みで元から描かない
+ * 線は数えない）。ファイル粒度では、合成ルートを経由していた `import` も入る。
+ */
+const compositionRootHiddenEdgeCount = computed(() => {
+  const root = compositionRootIds.value
+  if (root.size === 0) return 0
+  const folded = foldedNodeIds.value
+  return narrowedEdges.value.filter(
+    (read) =>
+      !folded.has(read.from) && !folded.has(read.to) && (root.has(read.from) || root.has(read.to)),
+  ).length
 })
 
 /** 実装宛へ読み替えて描いている線の数（UT-30 の断りが使う） */
@@ -847,6 +914,8 @@ defineExpose({
   shownViaCount,
   retargetedCount,
   foldedCount,
+  compositionRootHiddenCount,
+  compositionRootHiddenEdgeCount,
 })
 
 /**
@@ -899,6 +968,8 @@ type FitKey = {
    */
   reading: ViaReading
   folded: number
+  /** 隠している合成ルートの件数（UT-31）。畳みと同じく列の高さと数を変える */
+  hidden: number
 }
 
 let lastFitted: FitKey | undefined
@@ -930,6 +1001,7 @@ watch(
       state.selectedNodeId,
       state.viaReading,
       foldedCount.value,
+      compositionRootHiddenCount.value,
       layout.value.width,
       layout.value.height,
       view.value.width,
@@ -943,6 +1015,7 @@ watch(
     selectedNodeId,
     reading,
     folded,
+    hidden,
     contentWidth,
     contentHeight,
     viewWidth,
@@ -959,10 +1032,11 @@ watch(
       fitted.axis === axis &&
       fitted.narrowedTo === narrowedTo &&
       fitted.reading === reading &&
-      fitted.folded === folded
+      fitted.folded === folded &&
+      fitted.hidden === hidden
 
     if (!sameFigure) {
-      lastFitted = { viewModel, granularity, axis, narrowedTo, reading, folded }
+      lastFitted = { viewModel, granularity, axis, narrowedTo, reading, folded, hidden }
       lastFocused = selectedNodeId
       fitToContent()
       return
