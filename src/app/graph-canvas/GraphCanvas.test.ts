@@ -2232,15 +2232,28 @@ describe('カーソルを合わせたノードの関係（UT-25）', () => {
     state.select(hub.id)
     state.setNarrowedToSelection(true)
     await nextTick()
-    const before = wrapper.findAll('g.node').length
+    const drawn = wrapper.findAll('g.node').map((node) => node.attributes('data-node-id')!)
 
-    const other = wrapper
-      .findAll('g.node')
-      .map((node) => node.attributes('data-node-id')!)
-      .find((id) => id !== hub.id)!
-    await nodeEl(wrapper, other).trigger('pointerenter')
+    /*
+     * 絞り込みで描かなくなった線（hub を介さない線）を持つ相手を選ぶ。
+     * 正本の全体から引くと、その線の先まで浮かんでしまう
+     */
+    const other = drawn.find(
+      (id) =>
+        id !== hub.id &&
+        viewModel.edges.file.some(
+          (edge) =>
+            (edge.from === id && edge.to !== hub.id && drawn.includes(edge.to)) ||
+            (edge.to === id && edge.from !== hub.id && drawn.includes(edge.from)),
+        ),
+    )
+    expect(other, '検査の前提: 描かなくなった線を持つ相手がいる').toBeDefined()
+    await nodeEl(wrapper, other!).trigger('pointerenter')
 
-    expect(wrapper.findAll('g.node')).toHaveLength(before)
+    // 描いている線は hub を介すものだけなので、浮かぶのは合わせた先と hub だけ
+    expect(wrapper.findAll('g.node')).toHaveLength(drawn.length)
+    const lit = drawn.filter((id) => !nodeEl(wrapper, id).classes().includes('dimmed'))
+    expect(new Set(lit)).toEqual(new Set([other, hub.id]))
   })
 
   it('合わせたまま図が組み替わり、合わせた先が消えたら、強調は残らない', async () => {
