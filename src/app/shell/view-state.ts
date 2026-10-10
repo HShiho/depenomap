@@ -39,6 +39,11 @@ import { computed, readonly, ref, shallowRef } from 'vue'
 
 import { useTheme } from '@/app/design/theme'
 import {
+  compositionRootOf,
+  readHidePreference,
+  writeHidePreference,
+} from '@/app/graph-canvas/composition-root'
+import {
   readFoldPreference,
   writeFoldPreference,
   type FoldStorage,
@@ -185,10 +190,45 @@ export const useViewState = defineStore('view-state', () => {
    */
   const interfacesFolded = ref(false)
 
+  /**
+   * 合成ルートとして扱う層の ID（UT-31 / ADR-006）。起動パラメータ由来で、
+   * `/api/config` から届く。**グラフに由来しないので、読み直しでは落とさない。**
+   */
+  const compositionRootLayer = ref<string | undefined>()
+
+  /** 指定された層が、いま読んでいるグラフに在るか（照らし合わせは画面が行う） */
+  const compositionRoot = computed(() =>
+    compositionRootOf(viewModel.value, compositionRootLayer.value),
+  )
+
+  function setCompositionRootLayer(layerId: string | undefined): void {
+    compositionRootLayer.value = layerId
+  }
+
+  /**
+   * 合成ルートの層を隠しているか（UT-31）。**好みとして覚える**（ADR-006 決定 3）。
+   *
+   * 層が指定されていない・グラフに無いときも、好みそのものは保つ。効くかどうかは
+   * 描く側が `compositionRoot` と合わせて決める。好みを消すと、起動パラメータを
+   * 付け忘れた 1 回で、覚えていた判断が失われる。
+   *
+   * 既定は「隠さない」。隠した状態で始めると、初見では合成ルートの無いグラフに見える。
+   */
+  const compositionRootHidden = ref(false)
+
+  function setCompositionRootHidden(hidden: boolean): void {
+    compositionRootHidden.value = hidden
+
+    const rootDir = viewModel.value?.meta.rootDir
+    if (rootDir !== undefined) writeHidePreference(storage, rootDir, hidden)
+  }
+
   /** 覚えている好みを読み直す。グラフが入れ替わるたびに呼ぶ */
   function restoreFoldPreference(): void {
     const rootDir = viewModel.value?.meta.rootDir
     interfacesFolded.value = rootDir === undefined ? false : readFoldPreference(storage, rootDir)
+    compositionRootHidden.value =
+      rootDir === undefined ? false : readHidePreference(storage, rootDir)
   }
 
   function setInterfacesFolded(folded: boolean): void {
@@ -509,6 +549,12 @@ export const useViewState = defineStore('view-state', () => {
     // 読むだけ。切り替えは setInterfacesFolded（好みとして覚える）
     interfacesFolded: computed(() => interfacesFolded.value),
     setInterfacesFolded,
+
+    // 合成ルート（UT-31）。層は設定（/api/config）から、隠すかは好みとして覚える
+    compositionRoot,
+    setCompositionRootLayer,
+    compositionRootHidden: computed(() => compositionRootHidden.value),
+    setCompositionRootHidden,
 
     columnAxis,
     query,
