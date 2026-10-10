@@ -460,11 +460,16 @@ function onHoverLeave(target: EmphasisTarget): void {
 
 onUnmounted(cancelLeave)
 
-/** ノードの強調の状態。強調していなければ空 */
+/**
+ * ノードの強調の状態。強調していなければ空。
+ *
+ * **選択中のノードは退かせない。** 選択は操作の状態で、触れているあいだだけの
+ * 見分けで上書きしない。退かせると、図を眺めるあいだ何を選んでいるかを見失う。
+ */
 function nodeEmphasisOf(nodeId: string): { dimmed?: boolean; related?: boolean } {
   const current = emphasis.value
   if (current === undefined) return {}
-  if (!current.nodes.has(nodeId)) return { dimmed: true }
+  if (!current.nodes.has(nodeId)) return nodeId === state.selectedNodeId ? {} : { dimmed: true }
   const isTarget = current.target.kind === 'node' && current.target.id === nodeId
   return { related: !isTarget }
 }

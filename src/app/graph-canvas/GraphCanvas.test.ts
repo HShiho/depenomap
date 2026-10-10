@@ -2308,3 +2308,28 @@ describe('動かしているあいだの強調（UT-25 / UT-17）', () => {
     expect(nodeEl(wrapper, hub.id).classes()).toContain('dimmed')
   })
 })
+
+describe('選択と強調（UT-25 / UT-14）', () => {
+  const hub = viewModel.nodes.file.find(
+    (node) =>
+      viewModel.dependenciesOf(node.id, 'file').length > 0 &&
+      viewModel.fanInOf(node.id, 'file') > 0,
+  )!
+  const neighbours = new Set(
+    viewModel.edges.file
+      .filter((edge) => edge.from === hub.id || edge.to === hub.id)
+      .flatMap((edge) => [edge.from, edge.to]),
+  )
+  const stranger = viewModel.nodes.file.find((node) => !neighbours.has(node.id))!
+
+  it('繋がらないノードに合わせても、選択中のノードは退かない', async () => {
+    // 選択は操作の状態で、触れているあいだの見分けで上書きしない
+    const { state, wrapper } = setup()
+    state.select(stranger.id)
+    await nextTick()
+
+    await wrapper.find(`g.node[data-node-id="${hub.id}"]`).trigger('pointerenter')
+
+    expect(wrapper.find(`g.node[data-node-id="${stranger.id}"]`).classes()).not.toContain('dimmed')
+  })
+})
