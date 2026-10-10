@@ -12,6 +12,7 @@ import { useViewState } from '../shell/view-state'
 import * as columnAxis from './column-axis'
 import * as layoutModule from './layout'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
+import { EMPHASIS_LEAVE_GRACE_MS } from './emphasis'
 import { LABEL_GEOMETRY, NAME_LIMIT } from './node-label'
 import { MAX_SCALE, MIN_SCALE, toWorld } from './viewport'
 import GraphCanvas from './GraphCanvas.vue'
@@ -2116,5 +2117,333 @@ describe('畳んでも消してはいけないもの（UT-29）', () => {
     expect(wrapper.findAll('svg g.node').map((node) => node.attributes('data-node-id'))).toContain(
       folded.id,
     )
+  })
+})
+
+describe('カーソルを合わせたノードの関係（UT-25）', () => {
+  /** 依存先も依存元も持つファイル */
+  const hub = viewModel.nodes.file.find(
+    (node) =>
+      viewModel.dependenciesOf(node.id, 'file').length > 0 &&
+      viewModel.fanInOf(node.id, 'file') > 0,
+  )!
+  const touching = (id: string) =>
+    viewModel.edges.file.filter((edge) => edge.from === id || edge.to === id)
+  const neighbours = new Set(touching(hub.id).flatMap((edge) => [edge.from, edge.to]))
+
+  type Wrapper = ReturnType<typeof setup>['wrapper']
+  const nodeEl = (wrapper: Wrapper, id: string) => wrapper.find(`g.node[data-node-id="${id}"]`)
+  const dimmedNodes = (wrapper: Wrapper) =>
+    wrapper.findAll('g.node.dimmed').map((node) => node.attributes('data-node-id')!)
+  const edgeIdsWith = (wrapper: Wrapper, cls: string) =>
+    wrapper.findAll(`path.edge.${cls}`).map((path) => path.attributes('data-edge-id')!)
+
+  it('繋がるノードと線は浮かび、それ以外は退く', async () => {
+    const { wrapper } = setup()
+    await nodeEl(wrapper, hub.id).trigger('pointerenter')
+
+    for (const node of viewModel.nodes.file) {
+      expect(dimmedNodes(wrapper).includes(node.id), node.id).toBe(!neighbours.has(node.id))
+    }
+    const hot = new Set(touching(hub.id).map((edge) => edge.id))
+    expect(new Set(edgeIdsWith(wrapper, 'emphasized'))).toEqual(hot)
+    for (const id of edgeIdsWith(wrapper, 'dimmed')) expect(hot.has(id), id).toBe(false)
+  })
+
+  it('合わせたノードと、繋がって浮かんだノードを見分けられる', async () => {
+    const { wrapper } = setup()
+    await nodeEl(wrapper, hub.id).trigger('pointerenter')
+
+    expect(nodeEl(wrapper, hub.id).classes()).not.toContain('related')
+    const other = [...neighbours].find((id) => id !== hub.id)!
+    expect(nodeEl(wrapper, other).classes()).toContain('related')
+  })
+
+  it('何も消さない', async () => {
+    const { wrapper } = setup()
+    await nodeEl(wrapper, hub.id).trigger('pointerenter')
+
+    expect(wrapper.findAll('g.node')).toHaveLength(viewModel.nodes.file.length)
+    expect(wrapper.findAll('path[data-edge-id]')).toHaveLength(viewModel.edges.file.length)
+  })
+
+  it('カーソルが外れると、少し待って元に戻る', async () => {
+    vi.useFakeTimers()
+    try {
+      const { wrapper } = setup()
+      await nodeEl(wrapper, hub.id).trigger('pointerenter')
+      await nodeEl(wrapper, hub.id).trigger('pointerleave')
+
+      // 外れた直後はまだ戻さない（隙間を横切っただけかもしれない）
+      expect(wrapper.findAll('.dimmed').length).toBeGreaterThan(0)
+
+      vi.advanceTimersByTime(EMPHASIS_LEAVE_GRACE_MS)
+      await nextTick()
+      expect(wrapper.findAll('.dimmed, .related, .emphasized')).toHaveLength(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('隙間を横切って次へ移っても、いったん全部戻る瞬間を挟まない', async () => {
+    /*
+     * ノードとノードの隙間、列の間の線を横切るたびに「全部戻る」を挟むと、
+     * 図全体が明滅する
+     */
+    vi.useFakeTimers()
+    try {
+      const { wrapper } = setup()
+      const other = [...neighbours].find((id) => id !== hub.id)!
+      await nodeEl(wrapper, hub.id).trigger('pointerenter')
+      await nodeEl(wrapper, hub.id).trigger('pointerleave')
+      vi.advanceTimersByTime(EMPHASIS_LEAVE_GRACE_MS - 1)
+      await nodeEl(wrapper, other).trigger('pointerenter')
+      expect(nodeEl(wrapper, other).classes()).not.toContain('related')
+
+      // 前の外れの待ちが、あとから新しい強調を消さない
+      vi.advanceTimersByTime(EMPHASIS_LEAVE_GRACE_MS)
+      await nextTick()
+      expect(wrapper.findAll('.dimmed').length).toBeGreaterThan(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('線に合わせると、その線と両端だけが浮かぶ', async () => {
+    const { wrapper } = setup()
+    const edge = touching(hub.id)[0]!
+    await wrapper.find(`path.edge-hit[data-hit-edge-id="${edge.id}"]`).trigger('pointerenter')
+
+    expect(edgeIdsWith(wrapper, 'emphasized')).toEqual([edge.id])
+    const lit = viewModel.nodes.file
+      .map((node) => node.id)
+      .filter((id) => !dimmedNodes(wrapper).includes(id))
+    expect(new Set(lit)).toEqual(new Set([edge.from, edge.to]))
+  })
+
+  it('線の当たり判定は、描いた線 1 本につき 1 本', () => {
+    const { wrapper } = setup()
+
+    expect(wrapper.findAll('path.edge-hit')).toHaveLength(wrapper.findAll('path.edge').length)
+  })
+
+  it('絞り込み中に合わせても、消えたものは戻ってこない', async () => {
+    const { state, wrapper } = setup()
+    state.select(hub.id)
+    state.setNarrowedToSelection(true)
+    await nextTick()
+    const drawn = wrapper.findAll('g.node').map((node) => node.attributes('data-node-id')!)
+
+    /*
+     * 絞り込みで描かなくなった線（hub を介さない線）を持つ相手を選ぶ。
+     * 正本の全体から引くと、その線の先まで浮かんでしまう
+     */
+    const other = drawn.find(
+      (id) =>
+        id !== hub.id &&
+        viewModel.edges.file.some(
+          (edge) =>
+            (edge.from === id && edge.to !== hub.id && drawn.includes(edge.to)) ||
+            (edge.to === id && edge.from !== hub.id && drawn.includes(edge.from)),
+        ),
+    )
+    expect(other, '検査の前提: 描かなくなった線を持つ相手がいる').toBeDefined()
+    await nodeEl(wrapper, other!).trigger('pointerenter')
+
+    // 描いている線は hub を介すものだけなので、浮かぶのは合わせた先と hub だけ
+    expect(wrapper.findAll('g.node')).toHaveLength(drawn.length)
+    const lit = drawn.filter((id) => !nodeEl(wrapper, id).classes().includes('dimmed'))
+    expect(new Set(lit)).toEqual(new Set([other, hub.id]))
+  })
+
+  it('合わせたまま図が組み替わり、合わせた先が消えたら、強調は残らない', async () => {
+    const { state, wrapper } = setup()
+    await nodeEl(wrapper, hub.id).trigger('pointerenter')
+    state.setGranularity('method')
+    await nextTick()
+
+    expect(wrapper.findAll('.dimmed, .related, .emphasized')).toHaveLength(0)
+
+    /*
+     * 同じノードが図に戻っても、強調は復活しない。要素ごと消えたときは
+     * `pointerleave` が来ないので、合わせていたことを忘れていないと、
+     * カーソルがどこにあっても戻ってくる
+     */
+    state.setGranularity('file')
+    await nextTick()
+
+    expect(wrapper.findAll('.dimmed, .related, .emphasized')).toHaveLength(0)
+  })
+
+  it('説明表示は素の title 1 つのまま（二重にしない）', async () => {
+    const { wrapper } = setup()
+    await nodeEl(wrapper, hub.id).trigger('pointerenter')
+
+    expect(nodeEl(wrapper, hub.id).findAll('title')).toHaveLength(1)
+  })
+})
+
+describe('動かしているあいだの強調（UT-25 / UT-17）', () => {
+  const hub = viewModel.nodes.file.find(
+    (node) =>
+      viewModel.dependenciesOf(node.id, 'file').length > 0 &&
+      viewModel.fanInOf(node.id, 'file') > 0,
+  )!
+  const neighbours = new Set(
+    viewModel.edges.file
+      .filter((edge) => edge.from === hub.id || edge.to === hub.id)
+      .flatMap((edge) => [edge.from, edge.to]),
+  )
+  const stranger = viewModel.nodes.file.find((node) => !neighbours.has(node.id))!
+
+  type Wrapper = ReturnType<typeof setup>['wrapper']
+  const nodeEl = (wrapper: Wrapper, id: string) => wrapper.find(`g.node[data-node-id="${id}"]`)
+
+  it('掴んだノードを別のノードの上へ運んでも、強調は掴んだノードのまま', async () => {
+    const { wrapper } = setup()
+    await nodeEl(wrapper, hub.id).trigger('pointerenter')
+    nodeEl(wrapper, hub.id).element.dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }),
+    )
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 300, clientY: 300 }))
+
+    // 運んでいる先に描かれていたノードがカーソルを受ける
+    await nodeEl(wrapper, stranger.id).trigger('pointerenter')
+    await nodeEl(wrapper, hub.id).trigger('pointerleave')
+
+    expect(nodeEl(wrapper, hub.id).classes()).not.toContain('dimmed')
+    expect(nodeEl(wrapper, stranger.id).classes()).toContain('dimmed')
+
+    window.dispatchEvent(new MouseEvent('pointerup', {}))
+  })
+
+  it('離したあとは、また合わせた先に従う', async () => {
+    const { wrapper } = setup()
+    await nodeEl(wrapper, hub.id).trigger('pointerenter')
+    nodeEl(wrapper, hub.id).element.dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }),
+    )
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 300, clientY: 300 }))
+    window.dispatchEvent(new MouseEvent('pointerup', {}))
+
+    await nodeEl(wrapper, stranger.id).trigger('pointerenter')
+
+    expect(nodeEl(wrapper, hub.id).classes()).toContain('dimmed')
+  })
+
+  /** 掴んで、別のノードの上まで運び、そこで離す（運んでいる最中に enter/leave が来る） */
+  const dropOnto = async (wrapper: Wrapper, target: string) => {
+    await nodeEl(wrapper, hub.id).trigger('pointerenter')
+    nodeEl(wrapper, hub.id).element.dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }),
+    )
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 300, clientY: 300 }))
+    await nodeEl(wrapper, target).trigger('pointerenter')
+    await nodeEl(wrapper, hub.id).trigger('pointerleave')
+    window.dispatchEvent(new MouseEvent('pointerup', {}))
+    await nextTick()
+  }
+
+  it('別のノードの上で離すと、その場で合わせ直す', async () => {
+    // 運んでいる最中のカーソルの出入りは捨てずに覚えておき、離したときに反映する
+    const { wrapper } = setup()
+    await dropOnto(wrapper, stranger.id)
+
+    expect(nodeEl(wrapper, stranger.id).classes()).not.toContain('dimmed')
+    expect(nodeEl(wrapper, hub.id).classes()).toContain('dimmed')
+  })
+
+  it('離したあと何も無いところへ外せば、強調は戻る', async () => {
+    vi.useFakeTimers()
+    try {
+      const { wrapper } = setup()
+      await dropOnto(wrapper, stranger.id)
+      await nodeEl(wrapper, stranger.id).trigger('pointerleave')
+
+      vi.advanceTimersByTime(EMPHASIS_LEAVE_GRACE_MS)
+      await nextTick()
+
+      expect(wrapper.findAll('.dimmed, .related, .emphasized')).toHaveLength(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('選択と強調（UT-25 / UT-14）', () => {
+  const hub = viewModel.nodes.file.find(
+    (node) =>
+      viewModel.dependenciesOf(node.id, 'file').length > 0 &&
+      viewModel.fanInOf(node.id, 'file') > 0,
+  )!
+  const neighbours = new Set(
+    viewModel.edges.file
+      .filter((edge) => edge.from === hub.id || edge.to === hub.id)
+      .flatMap((edge) => [edge.from, edge.to]),
+  )
+  const stranger = viewModel.nodes.file.find((node) => !neighbours.has(node.id))!
+
+  it('繋がらないノードに合わせても、選択中のノードは退かない', async () => {
+    // 選択は操作の状態で、触れているあいだの見分けで上書きしない
+    const { state, wrapper } = setup()
+    state.select(stranger.id)
+    await nextTick()
+
+    await wrapper.find(`g.node[data-node-id="${hub.id}"]`).trigger('pointerenter')
+
+    expect(wrapper.find(`g.node[data-node-id="${stranger.id}"]`).classes()).not.toContain('dimmed')
+  })
+})
+
+describe('隣へ移るときのイベントの順（UT-25）', () => {
+  const hub = viewModel.nodes.file.find(
+    (node) =>
+      viewModel.dependenciesOf(node.id, 'file').length > 0 &&
+      viewModel.fanInOf(node.id, 'file') > 0,
+  )!
+  const other = viewModel.nodes.file.find((node) => node.id !== hub.id)!
+
+  it('新しい側の enter が古い側の leave より先に来ても、新しい側の強調は消えない', async () => {
+    vi.useFakeTimers()
+    try {
+      const { wrapper } = setup()
+      const nodeEl = (id: string) => wrapper.find(`g.node[data-node-id="${id}"]`)
+      await nodeEl(hub.id).trigger('pointerenter')
+      await nodeEl(other.id).trigger('pointerenter')
+      await nodeEl(hub.id).trigger('pointerleave')
+
+      vi.advanceTimersByTime(EMPHASIS_LEAVE_GRACE_MS * 2)
+      await nextTick()
+
+      // other に合わせたまま。何かが退いている（強調が生きている）
+      expect(wrapper.findAll('g.node.dimmed').length).toBeGreaterThan(0)
+      expect(nodeEl(other.id).classes()).not.toContain('dimmed')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('掴んだまま破棄されたとき（UT-25 / UT-17）', () => {
+  it('強調を解く待ちを残さない', async () => {
+    vi.useFakeTimers()
+    try {
+      const { wrapper } = setup()
+      const id = viewModel.nodes.file[0]!.id
+      const node = wrapper.find(`g.node[data-node-id="${id}"]`)
+      await node.trigger('pointerenter')
+      node.element.dispatchEvent(
+        new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }),
+      )
+      window.dispatchEvent(new MouseEvent('pointermove', { clientX: 300, clientY: 300 }))
+      // カーソルがどの要素の上にも無い
+      await node.trigger('pointerleave')
+
+      wrapper.unmount()
+
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
