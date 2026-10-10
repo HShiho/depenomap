@@ -424,7 +424,18 @@ function cancelLeave(): void {
   leaveTimer = undefined
 }
 
+/**
+ * ノードを掴んでいるあいだ（UT-17）は、強調を**掴んだノードに留める**。
+ *
+ * 運んでいる先に描かれたノードがカーソルを受けるので、そのまま従うと、運んで
+ * いるノード自身が退いたり、ノードから外れた瞬間に強調が消えたりする。
+ */
+function isDraggingNode(): boolean {
+  return dragging !== undefined
+}
+
 function onHoverEnter(target: EmphasisTarget): void {
+  if (isDraggingNode()) return
   // 前の外れの待ちが、あとから新しい強調を消さないように
   cancelLeave()
   hovered.value = target
@@ -435,6 +446,7 @@ function onHoverEnter(target: EmphasisTarget): void {
  * 猶予のうちに次へ入れば、そのまま切り替わる。
  */
 function onHoverLeave(target: EmphasisTarget): void {
+  if (isDraggingNode()) return
   // 隣へ移ったとき、新しい側の enter が先に来ることがある。自分の分だけ外す
   const current = hovered.value
   if (current?.kind !== target.kind || current.id !== target.id) return

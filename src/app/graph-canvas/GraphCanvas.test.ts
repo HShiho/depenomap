@@ -2259,3 +2259,52 @@ describe('カーソルを合わせたノードの関係（UT-25）', () => {
     expect(nodeEl(wrapper, hub.id).findAll('title')).toHaveLength(1)
   })
 })
+
+describe('動かしているあいだの強調（UT-25 / UT-17）', () => {
+  const hub = viewModel.nodes.file.find(
+    (node) =>
+      viewModel.dependenciesOf(node.id, 'file').length > 0 &&
+      viewModel.fanInOf(node.id, 'file') > 0,
+  )!
+  const neighbours = new Set(
+    viewModel.edges.file
+      .filter((edge) => edge.from === hub.id || edge.to === hub.id)
+      .flatMap((edge) => [edge.from, edge.to]),
+  )
+  const stranger = viewModel.nodes.file.find((node) => !neighbours.has(node.id))!
+
+  type Wrapper = ReturnType<typeof setup>['wrapper']
+  const nodeEl = (wrapper: Wrapper, id: string) => wrapper.find(`g.node[data-node-id="${id}"]`)
+
+  it('掴んだノードを別のノードの上へ運んでも、強調は掴んだノードのまま', async () => {
+    const { wrapper } = setup()
+    await nodeEl(wrapper, hub.id).trigger('pointerenter')
+    nodeEl(wrapper, hub.id).element.dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }),
+    )
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 300, clientY: 300 }))
+
+    // 運んでいる先に描かれていたノードがカーソルを受ける
+    await nodeEl(wrapper, stranger.id).trigger('pointerenter')
+    await nodeEl(wrapper, hub.id).trigger('pointerleave')
+
+    expect(nodeEl(wrapper, hub.id).classes()).not.toContain('dimmed')
+    expect(nodeEl(wrapper, stranger.id).classes()).toContain('dimmed')
+
+    window.dispatchEvent(new MouseEvent('pointerup', {}))
+  })
+
+  it('離したあとは、また合わせた先に従う', async () => {
+    const { wrapper } = setup()
+    await nodeEl(wrapper, hub.id).trigger('pointerenter')
+    nodeEl(wrapper, hub.id).element.dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }),
+    )
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 300, clientY: 300 }))
+    window.dispatchEvent(new MouseEvent('pointerup', {}))
+
+    await nodeEl(wrapper, stranger.id).trigger('pointerenter')
+
+    expect(nodeEl(wrapper, hub.id).classes()).toContain('dimmed')
+  })
+})
