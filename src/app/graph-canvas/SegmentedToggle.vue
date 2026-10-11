@@ -74,13 +74,17 @@ const noteId = useId()
       効いているのか分からない（参照仕様の拡張ルール）
     -->
     <!--
+      帯がごく狭いときは、ボタンの並びも折り返す（UT-32）。縮まない塊が残ると、
+      それがキャンバスの右端を越えて切れる
+    -->
+    <!--
       群に名前を与える。`aria-pressed` だけだと「ファイル、押されていません」と
       しか読まれず、何の切り替えなのかが分からない
     -->
     <div
       role="group"
       :aria-labelledby="labelId"
-      class="flex rounded-control border border-line p-1"
+      class="flex flex-wrap rounded-control border border-line p-1"
       :aria-describedby="disabled === true && note !== undefined ? noteId : undefined"
     >
       <button
