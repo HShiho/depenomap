@@ -38,9 +38,18 @@ const noteId = useId()
 </script>
 
 <template>
-  <div class="flex items-center gap-9">
+  <!--
+    幅が足りなければ、効かない理由を次の行へ折り返す（「表示」メニューの中で
+    見切れないように / UT-31）。ツールバーに置く粒度・並べ方は理由を持たない
+  -->
+  <div class="flex flex-wrap items-center gap-9">
     <span :id="labelId" class="text-label text-ink-3 uppercase">{{ label }}</span>
 
+    <!--
+      ホバーの反応は**押せるボタンにだけ**付ける（`enabled:`）。押せないときに
+      ホバーで背景を透明にする指定を全ボタンへ付けると、選択中の項目まで背景が
+      抜け、いまどちらが効いているのかが一瞬読めなくなる
+    -->
     <!--
       選択中は `aria-pressed` で示す。見た目だけで表すと、読み上げでどちらが
       効いているのか分からない（参照仕様の拡張ルール）
@@ -59,11 +68,11 @@ const noteId = useId()
         v-for="option in options"
         :key="option.value"
         type="button"
-        class="rounded-inner px-9 py-4 text-ui disabled:cursor-default disabled:text-line disabled:hover:bg-transparent"
+        class="rounded-inner px-9 py-4 text-ui disabled:cursor-default disabled:text-line"
         :class="
           modelValue === option.value
             ? 'bg-accent-soft font-semibold text-ink'
-            : 'text-ink-2 hover:bg-surface-2'
+            : 'text-ink-2 enabled:hover:bg-surface-2'
         "
         :disabled="disabled"
         :aria-pressed="modelValue === option.value"
