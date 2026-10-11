@@ -3,6 +3,10 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 
+import { createPinia, setActivePinia } from 'pinia'
+
+import ColumnAxisToggle from './ColumnAxisToggle.vue'
+import GranularityToggle from './GranularityToggle.vue'
 import SegmentedToggle from './SegmentedToggle.vue'
 
 const options = [
@@ -71,5 +75,48 @@ describe('効かない理由の頭の印', () => {
 
     expect(note.text().startsWith('※')).toBe(true)
     expect(note.get('[aria-hidden="true"]').text()).toBe('※')
+  })
+})
+
+describe('狭いときに見出しを落とす（UT-32）', () => {
+  const labelOf = (wrapper: ReturnType<typeof mount>) =>
+    wrapper.get(`[id="${wrapper.get('[role="group"]').attributes('aria-labelledby')}"]`)
+
+  it('指定すると、帯が狭いときに見出しを画面から落とす。読み上げの名前は残す', () => {
+    // 見出しの要素は残し、群の名前（aria-labelledby）として読まれ続ける
+    const wrapper = mount(SegmentedToggle, {
+      props: { label: '粒度', options, modelValue: 'a', compactLabel: true },
+    })
+
+    expect(labelOf(wrapper).text()).toBe('粒度')
+    expect(labelOf(wrapper).classes()).toContain('@max-toolbar:sr-only')
+  })
+
+  it('指定しなければ、狭くても見出しを出す（「表示」の板の中など）', () => {
+    const wrapper = mount(SegmentedToggle, {
+      props: { label: '経由の行き先', options, modelValue: 'a' },
+    })
+
+    expect(labelOf(wrapper).classes()).not.toContain('@max-toolbar:sr-only')
+  })
+})
+
+describe('ツールバーの切り替えは、狭いときに見出しを落とす（UT-32）', () => {
+  /*
+   * 指定を外しても、SegmentedToggle 単体の検査は通る。ツールバーに置く 2 つに
+   * 指定が付いていることをここで見る。配置そのものは jsdom では測れない
+   */
+  it.each([
+    ['粒度', GranularityToggle],
+    ['並べ方', ColumnAxisToggle],
+  ])('%s', (label, component) => {
+    setActivePinia(createPinia())
+    const wrapper = mount(component)
+    const name = wrapper.get(
+      `[id="${wrapper.get('[role="group"]').attributes('aria-labelledby')}"]`,
+    )
+
+    expect(name.text()).toBe(label)
+    expect(name.classes()).toContain('@max-toolbar:sr-only')
   })
 })

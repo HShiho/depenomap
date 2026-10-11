@@ -24,7 +24,8 @@ defineEmits<{ fit: []; resetPositions: [] }>()
 </script>
 
 <template>
-  <div class="flex items-center gap-7">
+  <!-- 帯がごく狭いときは中でも折り返す（UT-32）。これ以上縮まない塊にしない -->
+  <div class="flex flex-wrap items-center gap-7">
     <span class="w-44 text-right font-mono text-caption text-ink-3 tabular-nums">
       <span class="sr-only">拡大率</span>{{ Math.round(scale * 100) }}%
     </span>

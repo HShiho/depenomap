@@ -381,13 +381,19 @@ const showsOrderNote = computed(
     </template>
 
     <template #toolbar>
+      <!--
+        帯が狭いときは、まず粒度・並べ方の見出しを落とし（@max-toolbar:）、それでも
+        足りなければ折り返す（UT-32）。はみ出して右端が切れる形にしない
+        区切り線も狭いときは消す。折り返したかは CSS で判定できず、残すと行の端に
+        取り残される。群の間は余白だけで分ける
+      -->
       <div
         v-if="state.status.kind === 'ready'"
-        class="flex items-center gap-9 rounded-panel border border-line bg-surface px-11 py-7 shadow-float"
+        class="relative flex flex-wrap items-center gap-9 rounded-panel border border-line bg-surface px-11 py-7 shadow-float"
       >
         <HistoryNav />
 
-        <span class="h-17 w-px shrink-0 bg-line"></span>
+        <span class="h-17 w-px shrink-0 bg-line @max-toolbar:hidden"></span>
 
         <GranularityToggle />
         <ColumnAxisToggle />
@@ -399,7 +405,7 @@ const showsOrderNote = computed(
         -->
         <DisplayMenu />
 
-        <span class="h-17 w-px shrink-0 bg-line"></span>
+        <span class="h-17 w-px shrink-0 bg-line @max-toolbar:hidden"></span>
 
         <ViewportControls
           :scale="canvas?.viewport.scale ?? 1"

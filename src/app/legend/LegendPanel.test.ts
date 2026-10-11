@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
 
 import { enableAutoUnmount, mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { edgeLegendOf, NODE_LEGEND } from './legend-items'
 import LegendPanel from './LegendPanel.vue'
+
+// 板の高さの上限を測るのに、キャンバスの実寸（器）を読む（UT-32）
+beforeEach(() => setActivePinia(createPinia()))
 
 enableAutoUnmount(afterEach)
 

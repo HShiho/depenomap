@@ -21,6 +21,7 @@
  */
 import { computed, onBeforeUnmount, ref, useId, useTemplateRef, watch } from 'vue'
 
+import { useFitAbove } from '../shell/fit-above'
 import { useViewState } from '../shell/view-state'
 import CompositionRootToggle from './CompositionRootToggle.vue'
 import InterfaceFoldToggle from './InterfaceFoldToggle.vue'
@@ -29,6 +30,13 @@ import ViaReadingToggle from './ViaReadingToggle.vue'
 const state = useViewState()
 
 const open = ref(false)
+
+/**
+ * 板の高さの上限（UT-32）。ツールバーが折り返すと板は押し上げられ、窓が低いと
+ * 上が切れる。キャンバスの上端までに収め、収まらない分は板の中でスクロールする
+ */
+const panel = useTemplateRef<HTMLElement>('panel')
+const panelMaxHeight = useFitAbove(panel, () => open.value)
 const panelId = useId()
 const root = useTemplateRef<HTMLElement>('root')
 const button = useTemplateRef<HTMLButtonElement>('button')
@@ -98,7 +106,15 @@ onBeforeUnmount(unlisten)
 </script>
 
 <template>
-  <div ref="root" class="relative flex shrink-0" @focusout="onFocusOut">
+  <!--
+    位置の基準。広いときは口そのもの、**帯が狭いとき（`@max-toolbar:`）はツールバー全体**
+    （`App.vue` のツールバーの枠）にする（UT-32）。狭いとツールバーが折り返して口が
+    左寄りに来ることがあり、口の右端から左へ伸ばすと板がキャンバスの左端で切れる。
+    ツールバーの右端は口のすぐ右（倍率と 2 つのボタンの分）にあり、折り返したときは
+    帯いっぱいに広がるので、その右端に揃えれば切れず、口から離れすぎもしない
+    （帯の右端に揃えると、1 段に収まっている幅で板が口から遠くへ飛ぶ）
+  -->
+  <div ref="root" class="relative flex shrink-0 @max-toolbar:static" @focusout="onFocusOut">
     <button
       ref="button"
       type="button"
@@ -129,10 +145,12 @@ onBeforeUnmount(unlisten)
     <div
       v-show="open"
       :id="panelId"
+      ref="panel"
       data-display-panel
       role="group"
       aria-label="表示"
-      class="absolute right-0 bottom-full mb-8 flex w-max max-w-(--panel-width) flex-col divide-y divide-line-2 rounded-panel border border-line bg-surface px-11 py-3 shadow-float"
+      :style="{ maxHeight: panelMaxHeight }"
+      class="display-panel absolute right-0 bottom-full mb-8 flex w-max flex-col divide-y divide-line-2 overflow-y-auto rounded-panel border border-line bg-surface px-11 py-3 shadow-float"
     >
       <!--
         切り替えごとに区切る。効かない理由は各切り替えの真下に詰めて置くので、
@@ -148,3 +166,30 @@ onBeforeUnmount(unlisten)
     </div>
   </div>
 </template>
+
+<style scoped>
+/*
+ * 板の幅の上限（UT-32）。一覧のパネルと同じ幅を超えず、**位置の基準からも
+ * はみ出さない**。
+ *
+ * 広いときの基準は口そのもの（50px ほど）なので、`100%` は使えない。下端の帯の
+ * 幅（`100cqw`。帯をコンテナにしてある）で抑える。
+ */
+.display-panel {
+  max-width: min(var(--panel-width), 100cqw);
+}
+
+/*
+ * 帯が狭いとき、基準はツールバー全体になる（`@max-toolbar:static`）。ツールバーは
+ * 帯より狭く、その右端から左へ伸ばすので、帯の幅で抑えると左で切れる。ツールバーの
+ * 幅（`100%`）で抑える。
+ *
+ * 境目は `--container-toolbar` と同じ値。コンテナクエリの条件には変数を書けないので
+ * 数値で持ち、ずれていないことは `tokens.node.test.ts` が見る
+ */
+@container (width < 700px) {
+  .display-panel {
+    max-width: min(var(--panel-width), 100%);
+  }
+}
+</style>

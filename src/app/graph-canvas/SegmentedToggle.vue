@@ -28,6 +28,14 @@ defineProps<{
    * 当たらない。理由がポインタの利用者にしか届かない形にしない。
    */
   note?: string
+  /**
+   * 下端の帯が狭いとき、見出しを画面から落とすか（UT-32）。
+   *
+   * ツールバーに置く切り替え（粒度・並べ方）で使う。見出しの要素は残して
+   * 読み上げの名前（`aria-labelledby`）にし続け、見えなくするだけにする。
+   * 「表示」の板の中のように幅に余裕がある場所では指定しない
+   */
+  compactLabel?: boolean
 }>()
 
 defineEmits<{ 'update:modelValue': [value: T] }>()
@@ -45,7 +53,13 @@ const noteId = useId()
     粒度・並べ方は理由を持たない
   -->
   <div class="flex flex-wrap items-center gap-x-9 gap-y-3">
-    <span :id="labelId" class="text-label text-ink-3 uppercase">{{ label }}</span>
+    <span
+      :id="labelId"
+      class="text-label text-ink-3 uppercase"
+      :class="{ '@max-toolbar:sr-only': compactLabel === true }"
+    >
+      {{ label }}
+    </span>
 
     <!--
       ホバーの反応は**押せるボタンにだけ**付ける（`enabled:`）。押せないときに
@@ -60,13 +74,17 @@ const noteId = useId()
       効いているのか分からない（参照仕様の拡張ルール）
     -->
     <!--
+      帯がごく狭いときは、ボタンの並びも折り返す（UT-32）。縮まない塊が残ると、
+      それがキャンバスの右端を越えて切れる
+    -->
+    <!--
       群に名前を与える。`aria-pressed` だけだと「ファイル、押されていません」と
       しか読まれず、何の切り替えなのかが分からない
     -->
     <div
       role="group"
       :aria-labelledby="labelId"
-      class="flex rounded-control border border-line p-1"
+      class="flex flex-wrap rounded-control border border-line p-1"
       :aria-describedby="disabled === true && note !== undefined ? noteId : undefined"
     >
       <button

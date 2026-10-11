@@ -13,8 +13,9 @@
  * **良し悪しを書かない**（N-1）。ここに出るのは記号と意味の対応だけで、
  * 件数も評価も持たない。
  */
-import { computed, ref } from 'vue'
+import { computed, ref, useTemplateRef } from 'vue'
 
+import { useFitAbove } from '@/app/shell/fit-above'
 import type { ViaReading } from '@/app/shell/view-state'
 
 import { edgeLegendOf, type LegendLayer, NODE_LEGEND, STAT_LEGEND } from './legend-items'
@@ -29,10 +30,17 @@ const props = defineProps<{
 const edgeLegend = computed(() => edgeLegendOf(props.reading))
 
 const open = ref(false)
+
+/**
+ * 板の高さの上限（UT-32）。ツールバーが折り返すと板は押し上げられ、窓が低いと
+ * 上が切れる。キャンバスの上端までに収め、収まらない分は板の中でスクロールする
+ */
+const board = useTemplateRef<HTMLElement>('board')
+const boardMaxHeight = useFitAbove(board, () => open.value)
 </script>
 
 <template>
-  <div class="relative flex flex-col items-start">
+  <div class="flex flex-col items-start">
     <!--
       開いているときだけ板を出す。畳んだ状態ではボタンだけが残る。
 
@@ -41,12 +49,17 @@ const open = ref(false)
       ツールバーが広いと数十 px まで縮む。列の中に置くと、板がその幅へ押し
       込まれて 1 行に数文字ずつ折り返す。板の幅は板自身の中身で決める
 
-      上の余白は、隣のツールバー（ボタンより背が高い）の上端より上へ板を逃がすため
+      **位置の基準は下端の帯**（`AppShell` の `.shell-bottom`。この要素は基準を持たない）。
+      帯の上端は帯の中で一番背の高いもの、つまりツールバーの上端なので、板は常に
+      ツールバーより上に開く。ボタンを基準に固定の余白で逃がすと、ツールバーが
+      折り返して背が伸びたとき（UT-32）、板がツールバーのボタンを覆って押せなくなる
     -->
     <section
       v-if="open"
-      class="absolute bottom-full left-0 mb-24 flex w-max max-w-(--panel-width) flex-col gap-11 rounded-panel border border-line bg-surface px-12 py-10 text-caption text-ink-2 shadow-float"
+      ref="board"
+      class="legend-board absolute bottom-full left-0 mb-8 flex w-max flex-col gap-11 overflow-y-auto rounded-panel border border-line bg-surface px-12 py-10 text-caption text-ink-2 shadow-float"
       aria-label="凡例"
+      :style="{ maxHeight: boardMaxHeight }"
     >
       <div v-if="layers.length > 0" class="flex flex-col gap-3">
         <h2 class="text-overline text-ink-3 uppercase">層</h2>
@@ -105,6 +118,15 @@ const open = ref(false)
 </template>
 
 <style scoped>
+/*
+ * 板の幅の上限。**一覧のパネルと同じ幅と、下端の帯の幅の小さいほう**（UT-32）。
+ * 帯がパネルの幅より狭い（キャンバスが 300px を切る）と、板が帯を越えて右で切れる。
+ * 帯の幅は `100cqw` で取る（帯をコンテナにしてある）
+ */
+.legend-board {
+  max-width: min(var(--panel-width), 100cqw);
+}
+
 /*
  * 見本の線。**図（`GraphCanvas.vue`）と同じトークンを使う。**
  *

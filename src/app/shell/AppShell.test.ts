@@ -5,6 +5,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AppShell from './AppShell.vue'
+import { CANVAS_BOUNDS_ATTRIBUTE } from './fit-above'
 import { useViewState } from './view-state'
 
 /**
@@ -165,5 +166,14 @@ describe('下端の帯（UT-26）', () => {
     const wrapper = mount(AppShell, { slots: { toolbar: '<p>道具</p>' } })
 
     expect(wrapper.get('.shell-bottom').element.children).toHaveLength(3)
+  })
+})
+
+describe('キャンバスの領域の印（UT-32）', () => {
+  it('上へ開く板が探す名前で、キャンバスに印が付いている', () => {
+    // 名前を二重に書くと、片方だけ変えたときに板の高さの上限が黙って効かなくなる
+    const wrapper = mount(AppShell)
+
+    expect(wrapper.find(`main[${CANVAS_BOUNDS_ATTRIBUTE}]`).exists()).toBe(true)
   })
 })

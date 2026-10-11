@@ -21,10 +21,12 @@ const options: { value: Granularity; label: string }[] = [
 </script>
 
 <template>
+  <!-- 帯が狭いときは見出しを落とす（UT-32） -->
   <SegmentedToggle
     label="粒度"
     :options="options"
     :model-value="state.granularity"
+    compact-label
     @update:model-value="state.setGranularity"
   />
 </template>

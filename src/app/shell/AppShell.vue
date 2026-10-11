@@ -21,7 +21,15 @@
 import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue'
 
 import { defaultSizeObserverFactory, watchElementSize } from './canvas-size'
+import { CANVAS_BOUNDS_ATTRIBUTE } from './fit-above'
 import { useViewState } from './view-state'
+
+/**
+ * キャンバスの領域の印（UT-32）。上へ開く板が、ここまでに高さを収める。
+ * 名前は `fit-above.ts` の定数から取る（二重に書くと、片方だけ変えたときに
+ * 板の高さの上限が黙って効かなくなる）
+ */
+const canvasBounds = { [CANVAS_BOUNDS_ATTRIBUTE]: '' }
 
 /**
  * 画面全体に重なるものが出ているか（UT-13）。
@@ -84,6 +92,7 @@ onBeforeUnmount(() => stopWatching())
     <main
       ref="canvas"
       class="shell-canvas bg-ground"
+      v-bind="canvasBounds"
       :inert="sheetOpen || undefined"
       aria-label="ノードマップ"
     >
@@ -197,21 +206,35 @@ onBeforeUnmount(() => stopWatching())
  *
  * 両端の列を同じ幅（`1fr`）にすることで、ツールバーはキャンバスの中央に立つ。
  * 幅が足りなくなると、まず両端の列が縮み、最後にツールバー自身が縮む。
- * どの幅でも重ならない。
+ *
+ * **狭いときは、ツールバーの列も縮められる**（`minmax(0, max-content)` / UT-32）。
+ * 縮むとツールバーの中身が折り返す。縮められないと、キャンバスの幅を超えたぶんが
+ * 右へはみ出して切れる。その手前では、帯の幅で見出しを落とす（`@max-toolbar:`）ので、
+ * 帯をコンテナにしてある。
  *
  * **左の列は凡例のボタンの幅より縮めない**（`minmax(max-content, 1fr)`）。
  * 縮めると、ボタンが列からはみ出してツールバーに重なる（凡例の板は列から
  * 外して開くので、列の幅を決めるのはボタンだけ）。足りないぶんは右の釣り合いの
  * 列が先に譲り、ツールバーは中央から少し右へずれる。
+ *
+ * **キャンバスの幅が 228px 以上なら、窓の高さ 340px まで、重ならず切れない**
+ * （UT-32 / 一覧を開いた状態で窓 580px。実測）。ツールバーは中の部品（ボタンの並び、
+ * 倍率と 2 つのボタン）まで折り返し、伸びたぶん上に開く板はキャンバスの上端までに
+ * 収めて中でスクロールさせる（`fit-above.ts`）。
+ *
+ * それより狭いと、「表示」の板の中のボタン（123px より縮まない）が横に切れ、
+ * さらに狭いと折り返したツールバー自体がキャンバスの上へはみ出す。その幅では
+ * 一覧を畳む前提とし、手当てしない（利用者の判断。UT-32 の敵対的レビュー R3）。
  */
 .shell-bottom {
   right: var(--overlay-inset);
   bottom: var(--toolbar-inset);
   left: var(--overlay-inset);
   display: grid;
-  grid-template-columns: minmax(max-content, 1fr) max-content 1fr;
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, max-content) 1fr;
   align-items: end;
   gap: var(--overlay-inset);
+  container-type: inline-size;
 }
 
 .shell-legend {
