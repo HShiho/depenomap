@@ -45,7 +45,9 @@ function templateOf(source: string): string {
  * テンプレートに書かれたクラス名。
  *
  * 静的な `class="..."` と、`:class="..."` の中の文字列リテラルから取り、空白で
- * 切り出す。**形を正規表現 1 本で当てない** — 変種を前に付ける（`[&>svg]:size-[9px]`）、
+ * 切り出す。クラスを受け取る別名の属性（`active-class` などの `*-class`）も同じに扱う。
+ * `v-bind="{ class: ... }"` のオブジェクトで渡す形は拾わないので、規則で禁じる
+ * （`design/README.md`）。**形を正規表現 1 本で当てない** — 変種を前に付ける（`[&>svg]:size-[9px]`）、
  * 修飾子に書く（`bg-ground/[0.5]`）といった書き方ごとに抜け道ができる。クラス名を
  * 1 語ずつ取り出してから判定すれば、どこに書いても同じ規則で見られる。
  *
@@ -54,8 +56,10 @@ function templateOf(source: string): string {
  */
 function classNamesOf(template: string): string[] {
   const values: string[] = []
-  for (const match of template.matchAll(/(?<![\w:.-])class="([^"]*)"/g)) values.push(match[1]!)
-  for (const match of template.matchAll(/(?::|v-bind:)class="([^"]*)"/g)) {
+  for (const match of template.matchAll(/(?<![\w:.-])(?:[\w-]+-)?class="([^"]*)"/g)) {
+    values.push(match[1]!)
+  }
+  for (const match of template.matchAll(/(?::|v-bind:)(?:[\w-]+-)?class="([^"]*)"/g)) {
     for (const literal of match[1]!.matchAll(/'([^']*)'|`([^`]*)`/g)) {
       values.push(literal[1] ?? literal[2] ?? '')
     }
@@ -143,6 +147,15 @@ describe('任意値記法を持ち込まない（UT-23）', () => {
         "<p :class=\"[cyclic ? 'w-[9px] text-ink' : 'p-9', { selected }]\">{{ nodes[0] }}</p>",
       ),
     ).toEqual(['w-[9px]'])
+  })
+
+  it('クラスを受け取る別名の属性（*-class）も拾う', () => {
+    // `<router-link active-class>` のような、クラスを受ける prop
+    expect(
+      findArbitrary(
+        '<a active-class="bg-[#f00]" :exact-active-class="\'w-[9px]\'" data-class="x">',
+      ),
+    ).toEqual(['bg-[#f00]', 'w-[9px]'])
   })
 
   it('HTML コメントの中の例は拾わない', () => {
