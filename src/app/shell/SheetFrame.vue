@@ -37,7 +37,7 @@ onMounted(() => sheet.value?.focus())
 
 <template>
   <div
-    class="fixed inset-0 z-10 flex justify-center bg-ground/70 p-24 backdrop-blur-[2px]"
+    class="fixed inset-0 z-10 flex justify-center bg-ground/70 p-24 backdrop-blur-scrim"
     @click.self="emit('close')"
   >
     <section
