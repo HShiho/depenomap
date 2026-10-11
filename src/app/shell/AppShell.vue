@@ -84,6 +84,7 @@ onBeforeUnmount(() => stopWatching())
     <main
       ref="canvas"
       class="shell-canvas bg-ground"
+      data-canvas-bounds
       :inert="sheetOpen || undefined"
       aria-label="ノードマップ"
     >

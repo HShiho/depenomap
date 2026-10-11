@@ -21,6 +21,7 @@
  */
 import { computed, onBeforeUnmount, ref, useId, useTemplateRef, watch } from 'vue'
 
+import { useFitAbove } from '../shell/fit-above'
 import { useViewState } from '../shell/view-state'
 import CompositionRootToggle from './CompositionRootToggle.vue'
 import InterfaceFoldToggle from './InterfaceFoldToggle.vue'
@@ -29,6 +30,13 @@ import ViaReadingToggle from './ViaReadingToggle.vue'
 const state = useViewState()
 
 const open = ref(false)
+
+/**
+ * 板の高さの上限（UT-32）。ツールバーが折り返すと板は押し上げられ、窓が低いと
+ * 上が切れる。キャンバスの上端までに収め、収まらない分は板の中でスクロールする
+ */
+const panel = useTemplateRef<HTMLElement>('panel')
+const panelMaxHeight = useFitAbove(panel, () => open.value)
 const panelId = useId()
 const root = useTemplateRef<HTMLElement>('root')
 const button = useTemplateRef<HTMLButtonElement>('button')
@@ -137,10 +145,12 @@ onBeforeUnmount(unlisten)
     <div
       v-show="open"
       :id="panelId"
+      ref="panel"
       data-display-panel
       role="group"
       aria-label="表示"
-      class="display-panel absolute right-0 bottom-full mb-8 flex w-max flex-col divide-y divide-line-2 rounded-panel border border-line bg-surface px-11 py-3 shadow-float"
+      :style="{ maxHeight: panelMaxHeight }"
+      class="display-panel absolute right-0 bottom-full mb-8 flex w-max flex-col divide-y divide-line-2 overflow-y-auto rounded-panel border border-line bg-surface px-11 py-3 shadow-float"
     >
       <!--
         切り替えごとに区切る。効かない理由は各切り替えの真下に詰めて置くので、

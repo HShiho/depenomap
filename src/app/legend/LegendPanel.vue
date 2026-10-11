@@ -13,8 +13,9 @@
  * **良し悪しを書かない**（N-1）。ここに出るのは記号と意味の対応だけで、
  * 件数も評価も持たない。
  */
-import { computed, ref } from 'vue'
+import { computed, ref, useTemplateRef } from 'vue'
 
+import { useFitAbove } from '@/app/shell/fit-above'
 import type { ViaReading } from '@/app/shell/view-state'
 
 import { edgeLegendOf, type LegendLayer, NODE_LEGEND, STAT_LEGEND } from './legend-items'
@@ -29,6 +30,13 @@ const props = defineProps<{
 const edgeLegend = computed(() => edgeLegendOf(props.reading))
 
 const open = ref(false)
+
+/**
+ * 板の高さの上限（UT-32）。ツールバーが折り返すと板は押し上げられ、窓が低いと
+ * 上が切れる。キャンバスの上端までに収め、収まらない分は板の中でスクロールする
+ */
+const board = useTemplateRef<HTMLElement>('board')
+const boardMaxHeight = useFitAbove(board, () => open.value)
 </script>
 
 <template>
@@ -48,8 +56,10 @@ const open = ref(false)
     -->
     <section
       v-if="open"
-      class="legend-board absolute bottom-full left-0 mb-8 flex w-max flex-col gap-11 rounded-panel border border-line bg-surface px-12 py-10 text-caption text-ink-2 shadow-float"
+      ref="board"
+      class="legend-board absolute bottom-full left-0 mb-8 flex w-max flex-col gap-11 overflow-y-auto rounded-panel border border-line bg-surface px-12 py-10 text-caption text-ink-2 shadow-float"
       aria-label="凡例"
+      :style="{ maxHeight: boardMaxHeight }"
     >
       <div v-if="layers.length > 0" class="flex flex-col gap-3">
         <h2 class="text-overline text-ink-3 uppercase">層</h2>
