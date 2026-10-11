@@ -234,12 +234,17 @@ const removedNodeIds = computed<ReadonlySet<string>>(() => {
 /**
  * 隠して**実際に図から外した**合成ルートのノードの数（UT-31 の断りが使う）。
  * 数え方は畳みと同じ（絞り込みで元から描かれないものは数えない）。
+ *
+ * **畳み（UT-29）で先に外れたノードは数えない。** 線の本数も畳んだ端点を除いて
+ * 数えている。揃えないと、同じノードを両方の断りが数える。
  */
 const compositionRootHiddenCount = computed(() => {
   const kept = narrowed.value
   const hidden = compositionRootIds.value
+  const folded = foldedNodeIds.value
   return (state.viewModel?.nodes[state.granularity] ?? []).filter(
-    (node) => (kept === undefined || kept.has(node.id)) && hidden.has(node.id),
+    (node) =>
+      (kept === undefined || kept.has(node.id)) && hidden.has(node.id) && !folded.has(node.id),
   ).length
 })
 

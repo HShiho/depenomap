@@ -2581,3 +2581,33 @@ describe('合成ルートの層を隠す（UT-31 / ADR-006）', () => {
     expect(exposed(wrapper).viewport.x).not.toBeCloseTo(moved)
   })
 })
+
+describe('畳みと合成ルートの非表示が重なるとき（UT-31 / UT-29）', () => {
+  beforeEach(() => localStorage.clear())
+  afterEach(() => localStorage.clear())
+
+  it('畳んで外したノードを、隠した件数に重ねて数えない', async () => {
+    /*
+     * 線の本数は畳んだ端点を除いて数える。ノードも揃えないと、同じノードを
+     * 畳みの断りと非表示の断りの両方が数える。フィクスチャで interface を
+     * 持つ層（domain）を合成ルートに見立てる
+     */
+    const { state, wrapper } = setup({ granularity: 'method' })
+    state.viaReading = 'implementation'
+    state.setInterfacesFolded(true)
+    state.setCompositionRootLayer('domain')
+    state.setCompositionRootHidden(true)
+    await nextTick()
+
+    const canvas = wrapper.vm as unknown as {
+      foldedCount: number
+      compositionRootHiddenCount: number
+    }
+    const inDomain = viewModel.nodes.method.filter(
+      (node) => viewModel.layerOf(node.id).key === 'domain',
+    ).length
+
+    expect(canvas.foldedCount).toBeGreaterThan(0)
+    expect(canvas.compositionRootHiddenCount).toBe(inDomain - canvas.foldedCount)
+  })
+})
