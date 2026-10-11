@@ -93,7 +93,7 @@ const open = ref(false)
 
     <button
       type="button"
-      class="rounded-control border border-line bg-surface px-9 py-5 text-meta text-ink-2 shadow-float hover:text-ink"
+      class="rounded-control border border-line bg-surface px-9 py-5 text-meta whitespace-nowrap text-ink-2 shadow-float hover:text-ink"
       :aria-expanded="open"
       :aria-label="open ? '凡例を畳む' : '凡例を開く'"
       :title="open ? '凡例を畳む' : '凡例を開く'"
