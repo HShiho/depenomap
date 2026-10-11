@@ -37,12 +37,12 @@ onMounted(() => sheet.value?.focus())
 
 <template>
   <div
-    class="fixed inset-0 z-10 flex justify-center bg-ground/70 p-24 backdrop-blur-[2px]"
+    class="fixed inset-0 z-10 flex justify-center bg-ground/70 p-24 backdrop-blur-scrim"
     @click.self="emit('close')"
   >
     <section
       ref="sheet"
-      class="flex max-h-full w-full max-w-[900px] flex-col overflow-hidden rounded-panel border border-line bg-surface shadow-float focus:outline-none"
+      class="flex max-h-full w-full max-w-900 flex-col overflow-hidden rounded-panel border border-line bg-surface shadow-float focus:outline-none"
       tabindex="-1"
       role="dialog"
       aria-modal="true"

@@ -47,7 +47,7 @@ defineProps<{
 
 <template>
   <div
-    class="flex max-w-[var(--panel-width)] items-center gap-7 rounded-round border border-accent-line bg-accent-soft px-10 py-4 text-ink-2 shadow-float"
+    class="flex max-w-(--panel-width) items-center gap-7 rounded-round border border-accent-line bg-accent-soft px-10 py-4 text-ink-2 shadow-float"
   >
     <span class="flex min-w-0 flex-col gap-2">
       <span class="flex min-w-0 items-baseline gap-4 text-meta">

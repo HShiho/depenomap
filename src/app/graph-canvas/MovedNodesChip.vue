@@ -51,7 +51,7 @@ const rest = computed(() => Math.max(0, props.nodes.length - LIST_LIMIT))
 <template>
   <div
     v-if="nodes.length > 0"
-    class="flex max-w-[var(--panel-width)] flex-col gap-4 rounded-panel border border-line bg-surface px-10 py-6 text-ink-2 shadow-float"
+    class="flex max-w-(--panel-width) flex-col gap-4 rounded-panel border border-line bg-surface px-10 py-6 text-ink-2 shadow-float"
     tabindex="0"
     @mouseenter="open = true"
     @mouseleave="open = false"

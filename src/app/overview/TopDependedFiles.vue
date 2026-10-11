@@ -60,7 +60,7 @@ const max = computed(() => rows.value.reduce((top, row) => Math.max(top, row.fan
       <li v-for="row in rows" :key="row.node.id" class="flex items-center gap-9">
         <button
           type="button"
-          class="w-[180px] shrink-0 truncate rounded-item px-5 py-3 text-left font-mono text-meta text-ink hover:bg-surface-2"
+          class="w-180 shrink-0 truncate rounded-item px-5 py-3 text-left font-mono text-meta text-ink hover:bg-surface-2"
           :data-node-id="row.node.id"
           :title="row.node.path"
           @click="emit('move', row.node.id)"
@@ -80,7 +80,7 @@ const max = computed(() => rows.value.reduce((top, row) => Math.max(top, row.fan
           <i class="h-full" :style="{ flexGrow: max - row.fanIn }"></i>
         </span>
 
-        <span class="w-[32px] shrink-0 text-right font-mono text-caption text-ink-3 tabular-nums">
+        <span class="w-32 shrink-0 text-right font-mono text-caption text-ink-3 tabular-nums">
           {{ row.fanIn }}
         </span>
       </li>
