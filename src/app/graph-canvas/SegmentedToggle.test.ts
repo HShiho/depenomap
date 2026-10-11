@@ -73,3 +73,26 @@ describe('効かない理由の頭の印', () => {
     expect(note.get('[aria-hidden="true"]').text()).toBe('※')
   })
 })
+
+describe('狭いときに見出しを落とす（UT-32）', () => {
+  const labelOf = (wrapper: ReturnType<typeof mount>) =>
+    wrapper.get(`[id="${wrapper.get('[role="group"]').attributes('aria-labelledby')}"]`)
+
+  it('指定すると、帯が狭いときに見出しを画面から落とす。読み上げの名前は残す', () => {
+    // 見出しの要素は残し、群の名前（aria-labelledby）として読まれ続ける
+    const wrapper = mount(SegmentedToggle, {
+      props: { label: '粒度', options, modelValue: 'a', compactLabel: true },
+    })
+
+    expect(labelOf(wrapper).text()).toBe('粒度')
+    expect(labelOf(wrapper).classes()).toContain('@max-toolbar:sr-only')
+  })
+
+  it('指定しなければ、狭くても見出しを出す（「表示」の板の中など）', () => {
+    const wrapper = mount(SegmentedToggle, {
+      props: { label: '経由の行き先', options, modelValue: 'a' },
+    })
+
+    expect(labelOf(wrapper).classes()).not.toContain('@max-toolbar:sr-only')
+  })
+})

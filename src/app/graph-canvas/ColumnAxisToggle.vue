@@ -21,5 +21,6 @@ const options: { value: ColumnAxis; label: string }[] = [
 </script>
 
 <template>
-  <SegmentedToggle v-model="state.columnAxis" label="並べ方" :options="options" />
+  <!-- 帯が狭いときは見出しを落とす（UT-32） -->
+  <SegmentedToggle v-model="state.columnAxis" label="並べ方" :options="options" compact-label />
 </template>

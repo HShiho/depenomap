@@ -199,6 +199,11 @@ onBeforeUnmount(() => stopWatching())
  * 幅が足りなくなると、まず両端の列が縮み、最後にツールバー自身が縮む。
  * どの幅でも重ならない。
  *
+ * **狭いときは、ツールバーの列も縮められる**（`minmax(0, max-content)` / UT-32）。
+ * 縮むとツールバーの中身が折り返す。縮められないと、キャンバスの幅を超えたぶんが
+ * 右へはみ出して切れる。その手前では、帯の幅で見出しを落とす（`@max-toolbar:`）ので、
+ * 帯をコンテナにしてある。
+ *
  * **左の列は凡例のボタンの幅より縮めない**（`minmax(max-content, 1fr)`）。
  * 縮めると、ボタンが列からはみ出してツールバーに重なる（凡例の板は列から
  * 外して開くので、列の幅を決めるのはボタンだけ）。足りないぶんは右の釣り合いの
@@ -209,9 +214,10 @@ onBeforeUnmount(() => stopWatching())
   bottom: var(--toolbar-inset);
   left: var(--overlay-inset);
   display: grid;
-  grid-template-columns: minmax(max-content, 1fr) max-content 1fr;
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, max-content) 1fr;
   align-items: end;
   gap: var(--overlay-inset);
+  container-type: inline-size;
 }
 
 .shell-legend {
