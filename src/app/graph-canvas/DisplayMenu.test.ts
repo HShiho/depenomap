@@ -115,6 +115,41 @@ describe('表示メニュー（UT-31 / ツールバーの幅）', () => {
     expect(reachedBelow).toBe(true)
   })
 
+  it('焦点が外の要素へ移ったら閉じる（Tab で出たとき）', async () => {
+    /*
+     * 開いたまま残ると、捕捉段の Esc が生きたままになり、焦点が別の場所に
+     * あっても最初の Esc が絞り込みの解除に届かない
+     */
+    const { wrapper } = setup()
+    await trigger(wrapper).trigger('click')
+    const outside = document.createElement('button')
+    document.body.append(outside)
+
+    await trigger(wrapper).trigger('focusout', { relatedTarget: outside })
+
+    expect(panel(wrapper).isVisible()).toBe(false)
+    outside.remove()
+  })
+
+  it('焦点が板の中で動くあいだは閉じない', async () => {
+    const { wrapper } = setup()
+    await trigger(wrapper).trigger('click')
+    const inside = panel(wrapper).find('button').element
+
+    await trigger(wrapper).trigger('focusout', { relatedTarget: inside })
+
+    expect(panel(wrapper).isVisible()).toBe(true)
+  })
+
+  it('焦点の移り先が無いとき（窓を切り替えたなど）は閉じない', async () => {
+    const { wrapper } = setup()
+    await trigger(wrapper).trigger('click')
+
+    await trigger(wrapper).trigger('focusout', { relatedTarget: null })
+
+    expect(panel(wrapper).isVisible()).toBe(true)
+  })
+
   it('外側を押すと閉じる', async () => {
     const { wrapper } = setup()
     await trigger(wrapper).trigger('click')

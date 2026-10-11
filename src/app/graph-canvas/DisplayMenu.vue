@@ -14,7 +14,7 @@
  * 常に言う（ADR-006 決定 4）。
  *
  * 中の切り替えを押しても閉じない。続けて切り替えられるようにする。閉じる口は
- * 口の再押下・Esc・外側を押す、の 3 つ。
+ * 口の再押下・Esc・外側を押す・焦点が外へ出る、の 4 つ。
  *
  * パネルは `v-show` で出し入れする。中の切り替えは閉じていても器（UT-05）を
  * 読んだまま保たれ、開くたびに作り直さない。
@@ -68,6 +68,20 @@ function onPointerDownOutside(event: PointerEvent): void {
   close()
 }
 
+/**
+ * 焦点が板の外の要素へ移ったら閉じる（Tab で出たとき）。
+ *
+ * 開いたまま残ると、捕捉段の Esc が生きたままになり、焦点が別の場所にあっても
+ * 最初の Esc が下の絞り込みの解除に届かない。**移り先が無いとき**（窓を切り替えた、
+ * 焦点を受けない場所を押した）は閉じない。外側を押したときは押し下げで閉じている。
+ */
+function onFocusOut(event: FocusEvent): void {
+  const next = event.relatedTarget
+  if (!(next instanceof Node)) return
+  if (root.value?.contains(next)) return
+  close()
+}
+
 function listen(): void {
   window.addEventListener('keydown', onKeydown, true)
   window.addEventListener('pointerdown', onPointerDownOutside, true)
@@ -84,7 +98,7 @@ onBeforeUnmount(unlisten)
 </script>
 
 <template>
-  <div ref="root" class="relative flex shrink-0">
+  <div ref="root" class="relative flex shrink-0" @focusout="onFocusOut">
     <button
       ref="button"
       type="button"
