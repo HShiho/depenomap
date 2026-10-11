@@ -98,7 +98,13 @@ onBeforeUnmount(unlisten)
 </script>
 
 <template>
-  <div ref="root" class="relative flex shrink-0" @focusout="onFocusOut">
+  <!--
+    位置の基準。広いときは口そのもの、**帯が狭いとき（`@max-toolbar:`）は下端の帯**
+    （`AppShell` の `.shell-bottom`）にする（UT-32）。狭いとツールバーが折り返して口が
+    左寄りに来ることがあり、口の右端から左へ伸ばすと板がキャンバスの左端で切れる。
+    帯はキャンバスの中に収まっているので、その右端に揃えれば切れない
+  -->
+  <div ref="root" class="relative flex shrink-0 @max-toolbar:static" @focusout="onFocusOut">
     <button
       ref="button"
       type="button"
@@ -132,7 +138,7 @@ onBeforeUnmount(unlisten)
       data-display-panel
       role="group"
       aria-label="表示"
-      class="absolute right-0 bottom-full mb-8 flex w-max max-w-(--panel-width) flex-col divide-y divide-line-2 rounded-panel border border-line bg-surface px-11 py-3 shadow-float"
+      class="display-panel absolute right-0 bottom-full mb-8 flex w-max flex-col divide-y divide-line-2 rounded-panel border border-line bg-surface px-11 py-3 shadow-float"
     >
       <!--
         切り替えごとに区切る。効かない理由は各切り替えの真下に詰めて置くので、
@@ -148,3 +154,16 @@ onBeforeUnmount(unlisten)
     </div>
   </div>
 </template>
+
+<style scoped>
+/*
+ * 板の幅の上限。**一覧のパネルと同じ幅と、下端の帯の幅の小さいほう**（UT-32）。
+ *
+ * 帯がパネルの幅より狭い（キャンバスが 300px を切る）と、上限が一覧の幅のままでは
+ * 板が帯を越えて左で切れる。帯の幅は `100cqw` で取る（帯をコンテナにしてある）。
+ * `100%` だと、広いときの位置の基準（口そのもの）の幅になってしまう
+ */
+.display-panel {
+  max-width: min(var(--panel-width), 100cqw);
+}
+</style>
