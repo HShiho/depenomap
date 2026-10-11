@@ -21,7 +21,15 @@
 import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue'
 
 import { defaultSizeObserverFactory, watchElementSize } from './canvas-size'
+import { CANVAS_BOUNDS_ATTRIBUTE } from './fit-above'
 import { useViewState } from './view-state'
+
+/**
+ * キャンバスの領域の印（UT-32）。上へ開く板が、ここまでに高さを収める。
+ * 名前は `fit-above.ts` の定数から取る（二重に書くと、片方だけ変えたときに
+ * 板の高さの上限が黙って効かなくなる）
+ */
+const canvasBounds = { [CANVAS_BOUNDS_ATTRIBUTE]: '' }
 
 /**
  * 画面全体に重なるものが出ているか（UT-13）。
@@ -84,7 +92,7 @@ onBeforeUnmount(() => stopWatching())
     <main
       ref="canvas"
       class="shell-canvas bg-ground"
-      data-canvas-bounds
+      v-bind="canvasBounds"
       :inert="sheetOpen || undefined"
       aria-label="ノードマップ"
     >
