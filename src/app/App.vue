@@ -171,6 +171,20 @@ function closeMenu(): void {
   menu.value = undefined
 }
 
+/** メニューを出したノードを、手で動かしてあるか（UT-28 / M-10） */
+const menuNodeMoved = computed(() => {
+  const shown = menu.value
+  if (shown === undefined) return false
+  return (canvas.value?.movedNodes ?? []).some((node) => node.id === shown.node.id)
+})
+
+/** そのノードだけ位置を戻し、メニューを畳む（一括で戻す口はツールバー / UT-17） */
+function resetMenuNodePosition(): void {
+  const shown = menu.value
+  if (shown !== undefined) canvas.value?.resetPositions(shown.node.id)
+  closeMenu()
+}
+
 /*
  * 図が組み換わったら畳む（UT-18）。
  *
@@ -512,8 +526,10 @@ const showsOrderNote = computed(
         :title="menu.title"
         :subtitle="openTarget?.path"
         :action="openAction"
+        :can-reset-position="menuNodeMoved"
         @open="closeMenu()"
         @close="closeMenu()"
+        @reset-position="resetMenuNodePosition()"
       />
 
       <OverviewSheet v-if="sheets.shown.value === 'overview'" @close="sheets.close()" />

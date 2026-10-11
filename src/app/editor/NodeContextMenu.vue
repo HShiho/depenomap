@@ -2,9 +2,12 @@
 /**
  * ノードの右クリックメニュー（UT-18 / US-19）。
  *
- * 項目は「VSCode で開く」の 1 つだけ（UT-18 の決定）。**ブラウザの既定の
- * メニューを止める以上、代わりを必ず出す** — 止めたまま何も出さないと、
- * 右クリックが死んだようにしか見えない。
+ * 項目は「VSCode で開く」と、動かしたノードにだけ「このノードの位置を戻す」
+ * （UT-28 / M-10）。**ブラウザの既定のメニューを止める以上、代わりを必ず出す** —
+ * 止めたまま何も出さないと、右クリックが死んだようにしか見えない。
+ *
+ * **並びは固定**。「VSCode で開く」は常に 1 番目で、条件で出る項目はその下に足す。
+ * 条件で出る項目を上に置くと、同じ位置を押したつもりで別の操作になる。
  *
  * **開けないときも項目は出す。** 出さないと「この画面には開く機能が無い」と
  * 読めてしまう。押せない状態にして、何が足りないかをその場に書く（N-1。
@@ -27,9 +30,14 @@ const props = defineProps<{
   subtitle?: string
   /** 開けるか、開けないなら何が足りないか */
   action: OpenAction
+  /**
+   * このノードを手で動かしてあるか（UT-17）。動かしてあれば「位置を戻す」を出す。
+   * **動かしていなければ出さない** — 押せない項目を出すより、無いほうが短い（UT-28）
+   */
+  canResetPosition?: boolean
 }>()
 
-const emit = defineEmits<{ open: []; close: [] }>()
+const emit = defineEmits<{ open: []; close: []; resetPosition: [] }>()
 
 const menu = useTemplateRef<HTMLElement>('menu')
 
@@ -202,5 +210,19 @@ onBeforeUnmount(() => {
     >
       位置を確認中…
     </p>
+
+    <!--
+      このノードの位置を戻す（UT-28 / M-10）。一括で戻す口（ツールバー）は UT-17 が
+      持ち、ここはそのノードだけを戻す
+    -->
+    <button
+      v-if="canResetPosition === true"
+      type="button"
+      role="menuitem"
+      class="border-t border-line-2 px-11 py-7 text-left text-ui text-ink-2 hover:bg-surface-2 hover:text-ink"
+      @click="emit('resetPosition')"
+    >
+      このノードの位置を戻す
+    </button>
   </div>
 </template>

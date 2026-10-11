@@ -2112,3 +2112,85 @@ describe('合成ルートを隠したまま、該当の無い周りへ絞った�
     expect(overlay.find('button[aria-label="合成ルートを表示する"]').exists()).toBe(true)
   })
 })
+
+describe('右クリックからノードの位置を戻す（UT-28 / M-10）', () => {
+  /** 位置の問い合わせは開けない結果で返す（メニューの項目を見るだけなので） */
+  async function showApp() {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify(
+              url.startsWith(LOCATE_ENDPOINT) ? { resolved: false, reason: 'no-repo' } : result,
+            ),
+          ),
+        ),
+      ),
+    )
+    const state = useViewState()
+    const wrapper = mount(App, { attachTo: document.body })
+    await vi.waitUntil(() => state.status.kind === 'ready')
+    await wrapper.vm.$nextTick()
+    return wrapper
+  }
+
+  const transformOf = (wrapper: Awaited<ReturnType<typeof showApp>>, id: string) =>
+    wrapper.get(`svg g.node[data-node-id="${id}"]`).attributes('transform')
+
+  async function rightClick(wrapper: Awaited<ReturnType<typeof showApp>>, id: string) {
+    wrapper.get(`svg g.node[data-node-id="${id}"]`).element.dispatchEvent(
+      new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 120,
+        clientY: 80,
+      }),
+    )
+    await wrapper.vm.$nextTick()
+  }
+
+  const menuItems = (wrapper: Awaited<ReturnType<typeof showApp>>) =>
+    wrapper.findAll('[role="menu"] [role="menuitem"]')
+
+  it('動かしたノードを右クリックし、そのノードだけ元の位置へ戻せる', async () => {
+    const wrapper = await showApp()
+    const [first, second] = result.ok ? result.graph.nodes.filter((n) => n.kind === 'file') : []
+    const before = {
+      first: transformOf(wrapper, first!.id),
+      second: transformOf(wrapper, second!.id),
+    }
+
+    // 2 つとも動かす
+    for (const node of [first!, second!]) {
+      wrapper
+        .get(`svg g.node[data-node-id="${node.id}"]`)
+        .element.dispatchEvent(
+          new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }),
+        )
+      window.dispatchEvent(new MouseEvent('pointermove', { clientX: 260, clientY: 180 }))
+      window.dispatchEvent(new MouseEvent('pointerup', {}))
+      await wrapper.vm.$nextTick()
+    }
+    expect(transformOf(wrapper, first!.id)).not.toBe(before.first)
+
+    await rightClick(wrapper, first!.id)
+    const reset = menuItems(wrapper).find((item) => item.text() === 'このノードの位置を戻す')
+    expect(reset).toBeDefined()
+    await reset!.trigger('click')
+
+    // 戻したのはそのノードだけ。メニューは畳む
+    expect(transformOf(wrapper, first!.id)).toBe(before.first)
+    expect(transformOf(wrapper, second!.id)).not.toBe(before.second)
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false)
+  })
+
+  it('動かしていないノードには出さない', async () => {
+    const wrapper = await showApp()
+    const node = result.ok ? result.graph.nodes.find((n) => n.kind === 'file')! : undefined
+
+    await rightClick(wrapper, node!.id)
+
+    expect(menuItems(wrapper).map((item) => item.text())).not.toContain('このノードの位置を戻す')
+  })
+})
