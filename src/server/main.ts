@@ -23,6 +23,7 @@ import {
 
 const USAGE = [
   '使い方: node dist/server/main.js --graph <正本 JSON のパス> [--port <ポート>] [--repo <リポジトリ>]',
+  '                                  [--host <宛先>] [--composition-root <層 ID>]',
   '',
   `  --graph  正本 JSON のパス（環境変数 ${GRAPH_PATH_ENV} でも指定できる）`,
   `  --port   待ち受けポート（環境変数 ${PORT_ENV} でも指定できる）`,
