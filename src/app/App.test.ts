@@ -4,7 +4,7 @@ import { enableAutoUnmount, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { LOCATE_ENDPOINT } from '@/core/graph/api'
+import { CONFIG_ENDPOINT, LOCATE_ENDPOINT } from '@/core/graph/api'
 import { loadGraphFromValue } from '@/core/graph/loader'
 import App from './App.vue'
 import { CYCLE_LABEL } from './shell/cycle-mark'
@@ -1874,8 +1874,9 @@ describe('経由の行き先を選ぶ（UT-30 / UT-07 の見直し）', () => {
      */
     const { wrapper } = await setup()
 
+    // 切り替えの群（ラベルで名前を持つもの）を探す。表示メニューのパネルも群なので除く
     const group = wrapper
-      .findAll('[role="group"]')
+      .findAll('[role="group"][aria-labelledby]')
       .find((candidate) => candidate.text().includes('実装'))!
     for (const button of group.findAll('button')) {
       expect(button.attributes('disabled')).toBeDefined()
@@ -1990,5 +1991,124 @@ describe('インターフェースを畳む（UT-29 / UT-30 の後段）', () =>
     const drawn = wrapper.findAll('svg g.node').map((node) => node.attributes('data-node-id'))
     expect(drawn.some((id) => ids.includes(id!))).toBe(true)
     expect(wrapper.find('.shell-overlay').text()).not.toContain('畳んでいます')
+  })
+})
+
+describe('合成ルートの層を隠す（UT-31 / ADR-006）', () => {
+  beforeEach(() => localStorage.clear())
+  afterEach(() => localStorage.clear())
+
+  /** 設定の口だけ差し替える。グラフはこれまでどおり返す */
+  async function setupWithRoot(layer: string | null) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify(url === CONFIG_ENDPOINT ? { compositionRootLayer: layer } : result),
+          ),
+        ),
+      ),
+    )
+    const state = useViewState()
+    const wrapper = mount(App)
+    await vi.waitUntil(() => state.status.kind === 'ready')
+    await wrapper.vm.$nextTick()
+    return { state, wrapper }
+  }
+
+  const toggleOf = (wrapper: Awaited<ReturnType<typeof setupWithRoot>>['wrapper']) =>
+    wrapper.findAll('button').find((button) => button.text().includes('合成ルート'))
+
+  const diIds = (state: Awaited<ReturnType<typeof setupWithRoot>>['state']) =>
+    state
+      .viewModel!.nodes.file.filter((node) => state.viewModel!.layerOf(node.id).key === 'di')
+      .map((node) => node.id)
+
+  it('起動時に層が指定されていれば、ツールバーから隠せる', async () => {
+    const { state, wrapper } = await setupWithRoot('di')
+    const drawn = () => wrapper.findAll('svg g.node').map((node) => node.attributes('data-node-id'))
+    expect(drawn().some((id) => diIds(state).includes(id!))).toBe(true)
+
+    await toggleOf(wrapper)!.trigger('click')
+
+    expect(drawn().some((id) => diIds(state).includes(id!))).toBe(false)
+  })
+
+  it('隠していることと、戻す口を画面へ出す', async () => {
+    const { state, wrapper } = await setupWithRoot('di')
+    await toggleOf(wrapper)!.trigger('click')
+
+    const overlay = wrapper.find('.shell-overlay')
+    expect(overlay.text()).toContain('隠しています')
+
+    await overlay.get('button[aria-label="合成ルートを表示する"]').trigger('click')
+
+    expect(state.compositionRootHidden).toBe(false)
+    expect(wrapper.find('.shell-overlay').text()).not.toContain('隠しています')
+  })
+
+  it('覚えた好みで起動直後から隠れているときも、そのことを出す', async () => {
+    const first = await setupWithRoot('di')
+    first.state.setCompositionRootHidden(true)
+    first.wrapper.unmount()
+
+    setActivePinia(createPinia())
+    const { wrapper } = await setupWithRoot('di')
+
+    expect(wrapper.find('.shell-overlay').text()).toContain('隠しています')
+  })
+
+  it('層が指定されていなければ、操作を出さない', async () => {
+    const { wrapper } = await setupWithRoot(null)
+
+    expect(toggleOf(wrapper)).toBeUndefined()
+  })
+
+  it('指定された層が正本に無ければ、操作を出さず、そのことを断る', async () => {
+    const { wrapper } = await setupWithRoot('Di')
+
+    expect(toggleOf(wrapper)).toBeUndefined()
+    expect(wrapper.find('.shell-overlay').text()).toContain('「Di」')
+  })
+})
+
+describe('合成ルートを隠したまま、該当の無い周りへ絞ったとき（UT-31 / ADR-006 決定 4）', () => {
+  beforeEach(() => localStorage.clear())
+  afterEach(() => localStorage.clear())
+
+  it('隠していることと戻す口は、出し続ける', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify(url === CONFIG_ENDPOINT ? { compositionRootLayer: 'di' } : result),
+          ),
+        ),
+      ),
+    )
+    const state = useViewState()
+    const wrapper = mount(App)
+    await vi.waitUntil(() => state.status.kind === 'ready')
+    const viewModel = state.viewModel!
+    state.setCompositionRootHidden(true)
+
+    // 合成ルートの層に直接繋がらないファイルを選んで絞る
+    const isDi = (id: string) => viewModel.layerOf(id).key === 'di'
+    const lonely = viewModel.nodes.file.find(
+      (node) =>
+        !isDi(node.id) &&
+        !viewModel.edges.file.some(
+          (edge) =>
+            (edge.from === node.id && isDi(edge.to)) || (edge.to === node.id && isDi(edge.from)),
+        ),
+    )!
+    state.moveTo(lonely.id)
+    await wrapper.vm.$nextTick()
+
+    const overlay = wrapper.find('.shell-overlay')
+    expect(overlay.text()).toContain('隠しています')
+    expect(overlay.find('button[aria-label="合成ルートを表示する"]').exists()).toBe(true)
   })
 })

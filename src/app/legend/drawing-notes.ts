@@ -17,6 +17,7 @@
 
 import type { Granularity } from '@/core/ir/view-model'
 
+import type { CompositionRoot } from '@/app/graph-canvas/composition-root'
 import type { ViaReading } from '@/app/graph-canvas/via-reading'
 
 /**
@@ -100,4 +101,53 @@ export function emptyNoteOf(input: {
   return input.inGranularity === 0
     ? 'この粒度のノードが、正本 JSON にありません'
     : '表示できるノードがありません'
+}
+
+/**
+ * 合成ルートの層を隠していることの断り（UT-31 / ADR-006 決定 4）。隠していなければ
+ * `undefined`。
+ *
+ * **いまの図に該当が無くても、隠していれば言う。** 絞り込みの周りに合成ルートの
+ * ノードが無いときも、隠す設定は効いている。黙ると、断りに添えた戻す口も消え、
+ * 「表示」の口の印だけが残る。
+ *
+ * 0 件のときは**外した件数の事実だけ**を言う。「図に該当が無い」とは言わない —
+ * 選択中のノードは隠さずに図に残し、畳み（UT-29）で先に外れたノードは数えない
+ * ので、0 件でも図に合成ルートのノードが在ることがある。
+ *
+ * **隠していることは、常に画面から読めるようにする。** 読めなければ、図は
+ * 「その依存が無い」と嘘をつく（N-1）。合成ルートに出入りする線はすべて消える
+ * ので、その本数も添える（ファイル粒度では、経由していた `import` も入る）。
+ *
+ * 件数は事実として言うが、「重い」「多い」とは言わない。
+ */
+export function compositionRootNoteOf(input: {
+  /** 隠す設定が効いているか（層が指定され、グラフに在り、好みが立っている） */
+  hiding: boolean
+  /** 層の名前（正本 JSON の `layers[].name`） */
+  layerName: string
+  /** 実際に図から外したノードの数 */
+  hiddenCount: number
+  /** そのために描かなくなった線の本数 */
+  hiddenEdgeCount: number
+}): string | undefined {
+  if (!input.hiding) return undefined
+  if (input.hiddenCount === 0) {
+    return `合成ルート（${input.layerName}）を隠しています（いま図から外しているノードはありません）`
+  }
+
+  return `合成ルート（${input.layerName}）の ${input.hiddenCount} 件を隠しています（出入りする ${input.hiddenEdgeCount} 本の線も出ません）`
+}
+
+/**
+ * 起動時に指定された合成ルートの層が、正本 JSON に無いことの断り（UT-31）。
+ *
+ * 照らし合わせは画面が行う（正本は要求のたびに読み直すため）。無ければ隠す
+ * 操作を出さず、そのことを言う。**指定された ID をそのまま出す** — 打ち間違いを
+ * 起動コマンドと見比べられるように。名前の近い層を推測して勧めない（ADR-002）。
+ */
+export function compositionRootMissingNoteOf(root: CompositionRoot): string | undefined {
+  if (root.kind !== 'missing') return undefined
+
+  return `合成ルートに指定された層「${root.layerId}」は正本 JSON の layers に無いため、隠す操作は出していません`
 }

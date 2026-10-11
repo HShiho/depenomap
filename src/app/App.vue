@@ -13,10 +13,17 @@ import NodeContextMenu from './editor/NodeContextMenu.vue'
 import { openActionOf } from './editor/open-action'
 import { openTargetOf } from './editor/open-target'
 import DrawingNoteChip from './legend/DrawingNoteChip.vue'
-import { emptyNoteOf, foldNoteOf, readingNoteOf, viaNoteOf } from './legend/drawing-notes'
+import {
+  compositionRootMissingNoteOf,
+  compositionRootNoteOf,
+  emptyNoteOf,
+  foldNoteOf,
+  readingNoteOf,
+  viaNoteOf,
+} from './legend/drawing-notes'
 import LegendPanel from './legend/LegendPanel.vue'
-import InterfaceFoldToggle from './graph-canvas/InterfaceFoldToggle.vue'
-import ViaReadingToggle from './graph-canvas/ViaReadingToggle.vue'
+import CompositionRootChip from './graph-canvas/CompositionRootChip.vue'
+import DisplayMenu from './graph-canvas/DisplayMenu.vue'
 import { callOrder } from './graph-canvas/call-order'
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
 import NarrowingChip from './graph-canvas/NarrowingChip.vue'
@@ -251,6 +258,23 @@ const viaNote = computed(() => {
 /** インターフェースを畳んでいることの断り（UT-29） */
 const foldNote = computed(() => foldNoteOf({ foldedCount: canvas.value?.foldedCount ?? 0 }))
 
+/** 合成ルートの層を隠していることの断り（UT-31）。戻す口と一緒に出す */
+const compositionRootNote = computed(() => {
+  const root = state.compositionRoot
+  if (root.kind !== 'present') return undefined
+  return compositionRootNoteOf({
+    hiding: state.compositionRootHidden,
+    layerName: root.name,
+    hiddenCount: canvas.value?.compositionRootHiddenCount ?? 0,
+    hiddenEdgeCount: canvas.value?.compositionRootHiddenEdgeCount ?? 0,
+  })
+})
+
+/** 指定された合成ルートの層が正本 JSON に無いことの断り（UT-31） */
+const compositionRootMissingNote = computed(() =>
+  compositionRootMissingNoteOf(state.compositionRoot),
+)
+
 /** 実装宛に読み替えて描いていることの断り（UT-30） */
 const readingNote = computed(() =>
   readingNoteOf({ retargeted: canvas.value?.retargetedCount ?? 0 }),
@@ -338,6 +362,13 @@ const showsOrderNote = computed(
       <DrawingNoteChip v-if="viaNote !== undefined" :note="viaNote" />
       <DrawingNoteChip v-if="readingNote !== undefined" :note="readingNote" />
       <DrawingNoteChip v-if="foldNote !== undefined" :note="foldNote" />
+      <DrawingNoteChip
+        v-if="compositionRootMissingNote !== undefined"
+        :note="compositionRootMissingNote"
+      />
+
+      <!-- 合成ルートを隠していること（UT-31）。操作の状態なので戻す口を持つ -->
+      <CompositionRootChip v-if="compositionRootNote !== undefined" :note="compositionRootNote" />
     </template>
 
     <!-- 図の読み方（UT-26）。下端の左。既定は畳んだ状態 -->
@@ -361,11 +392,12 @@ const showsOrderNote = computed(
         <GranularityToggle />
         <ColumnAxisToggle />
 
-        <!-- 経由の呼び出しをどちらの行き先で読むか（UT-30） -->
-        <ViaReadingToggle />
-
-        <!-- interface のノードを畳む（UT-29。実装宛で読んでいるときだけ効く） -->
-        <InterfaceFoldToggle />
+        <!--
+          図の一部の描き方を変える切り替え（経由の行き先 / UT-30、interface を畳む /
+          UT-29、合成ルートを隠す / UT-31）。並べるとツールバーが画面を超えるので、
+          メニューにまとめる
+        -->
+        <DisplayMenu />
 
         <span class="h-17 w-px shrink-0 bg-line"></span>
 

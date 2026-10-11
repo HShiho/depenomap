@@ -6,7 +6,7 @@
  * 判定も変換もしない。画面側は状態を読むだけになる。
  */
 
-import { fetchGraph } from '@/core/graph/api'
+import { fetchConfig, fetchGraph, type FetchConfigOutcome } from '@/core/graph/api'
 import { buildViewModel } from '@/core/ir/view-model'
 import type { useViewState } from './view-state'
 
@@ -45,7 +45,13 @@ async function load(state: ViewState, fetchImpl?: typeof fetch): Promise<void> {
    */
   state.applyLoadOutcome({ kind: 'loading' })
 
-  const outcome = await fetchGraph(fetchImpl)
+  // 設定（UT-31）はグラフと並べて取りに行く。どちらかを待ってから始める理由は無い
+  const [configOutcome, outcome] = await Promise.all([
+    fetchConfig(fetchImpl),
+    fetchGraph(fetchImpl),
+  ])
+  state.setCompositionRootLayer(compositionRootLayerFrom(configOutcome))
+
   if (!outcome.reached) {
     state.applyLoadOutcome({ kind: 'unreachable', message: outcome.message })
     return
@@ -63,4 +69,20 @@ async function load(state: ViewState, fetchImpl?: typeof fetch): Promise<void> {
     viewModel: buildViewModel(result.graph),
     warnings: result.warnings,
   })
+}
+
+/**
+ * 設定から合成ルートの層 ID を取り出す（UT-31）。
+ *
+ * **届かなくても、形が違っても、図は読める。** 設定は図を読むのに必須ではない
+ * ので、取れなければ「指定されていない」として扱い、グラフの読み込みを止めない。
+ * 文字列でない値を層 ID として扱うと、照らし合わせが「グラフに無い」と誤って断る。
+ */
+function compositionRootLayerFrom(outcome: FetchConfigOutcome): string | undefined {
+  if (!outcome.reached) return undefined
+  const config: unknown = outcome.config
+  if (typeof config !== 'object' || config === null) return undefined
+  // 本文の形は取得の口が検査しない（グラフと同じ）。ここで型を信じない
+  const layer: unknown = (config as { compositionRootLayer?: unknown }).compositionRootLayer
+  return typeof layer === 'string' && layer !== '' ? layer : undefined
 }

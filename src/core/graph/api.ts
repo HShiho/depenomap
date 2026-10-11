@@ -131,3 +131,52 @@ export async function fetchLocate(
     return { reached: false, message: `応答を JSON として読めない: ${(cause as Error).message}` }
   }
 }
+
+/**
+ * 画面向けの設定を取りに来る場所（UT-31 / ADR-006）。
+ *
+ * 起動パラメータのうち、**画面の振る舞いを変えるもの**だけを渡す。画面は
+ * 起動コマンドを見られないので、サーバーが受け取ったものを中継する。
+ *
+ * この口には認証が無い。パスやリポジトリの在り処など、画面の判断に要らない
+ * ものは載せない。
+ */
+export const CONFIG_ENDPOINT = '/api/config'
+
+/**
+ * 画面向けの設定。
+ *
+ * 値が無いことは `null` で表す（JSON は `undefined` を運べず、キーごと落ちると
+ * 「渡されていない」と「口が古い」の区別がつかない）。
+ */
+export interface ViewerConfig {
+  /**
+   * 合成ルートとして扱う層の ID（`--composition-root`）。渡されなければ `null`。
+   * **正本 JSON に在るとは限らない** — 照らし合わせは画面が行う
+   */
+  compositionRootLayer: string | null
+}
+
+/** 設定を取りに行った結果。届いたかどうかはグラフの取得と同じ分け方をする */
+export type FetchConfigOutcome =
+  { reached: true; config: ViewerConfig } | { reached: false; message: string }
+
+/** 画面向けの設定を取りに行く */
+export async function fetchConfig(fetchImpl: typeof fetch = fetch): Promise<FetchConfigOutcome> {
+  let response: Response
+  try {
+    response = await fetchImpl(CONFIG_ENDPOINT)
+  } catch (cause) {
+    return { reached: false, message: (cause as Error).message }
+  }
+
+  if (!response.ok) {
+    return { reached: false, message: `${CONFIG_ENDPOINT} が ${response.status} を返した` }
+  }
+
+  try {
+    return { reached: true, config: (await response.json()) as ViewerConfig }
+  } catch (cause) {
+    return { reached: false, message: `応答を JSON として読めない: ${(cause as Error).message}` }
+  }
+}

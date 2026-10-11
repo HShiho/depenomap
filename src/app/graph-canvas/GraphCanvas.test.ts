@@ -3,7 +3,7 @@
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FileNode } from '@/core/graph/schema'
 import { loadGraphFromValue } from '@/core/graph/loader'
@@ -2445,5 +2445,169 @@ describe('掴んだまま破棄されたとき（UT-25 / UT-17）', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('合成ルートの層を隠す（UT-31 / ADR-006）', () => {
+  // 隠す好みは解析対象ごとに覚える（localStorage）。前の検査の好みを持ち込まない
+  beforeEach(() => localStorage.clear())
+  afterEach(() => localStorage.clear())
+
+  const DI = 'di'
+  const diName = result.graph.layers.find((layer) => layer.id === DI)!.name
+  const inDi = (granularity: Granularity) =>
+    viewModel.nodes[granularity]
+      .filter((node) => viewModel.layerOf(node.id).key === DI)
+      .map((node) => node.id)
+
+  type Wrapper = ReturnType<typeof setup>['wrapper']
+  const drawn = (wrapper: Wrapper) =>
+    wrapper.findAll('svg g.node').map((node) => node.attributes('data-node-id')!)
+  const exposed = (wrapper: Wrapper) =>
+    wrapper.vm as unknown as {
+      compositionRootHiddenCount: number
+      compositionRootHiddenEdgeCount: number
+      viewport: { x: number }
+      focusNode: (id: string) => void
+    }
+
+  async function hiding(options: { granularity?: Granularity; layer?: string } = {}) {
+    const ctx = setup({ granularity: options.granularity })
+    ctx.state.setCompositionRootLayer(options.layer ?? DI)
+    ctx.state.setCompositionRootHidden(true)
+    await nextTick()
+    return ctx
+  }
+
+  it('隠すと、その層のノードが図から消える（ファイル粒度・メソッド粒度）', async () => {
+    for (const granularity of ['file', 'method'] as const) {
+      setActivePinia(createPinia())
+      const { wrapper } = await hiding({ granularity })
+
+      const ids = drawn(wrapper)
+      expect(inDi(granularity).length, granularity).toBeGreaterThan(0)
+      for (const id of inDi(granularity)) expect(ids, granularity).not.toContain(id)
+      expect(ids.length, granularity).toBe(
+        viewModel.nodes[granularity].length - inDi(granularity).length,
+      )
+    }
+  })
+
+  it('消えたノードに繋がる線も描かない', async () => {
+    const { wrapper } = await hiding()
+    const hidden = new Set(inDi('file'))
+
+    for (const path of wrapper.findAll('path[data-edge-id]')) {
+      const edge = viewModel.edgeById.get(path.attributes('data-edge-id')!)!
+      expect(hidden.has(edge.from) || hidden.has(edge.to), edge.id).toBe(false)
+    }
+  })
+
+  it('層の列ごと消える', async () => {
+    const { wrapper } = await hiding()
+
+    expect(wrapper.findAll('text.head').map((head) => head.text())).not.toContain(diName)
+  })
+
+  it('隠しても、ノードに出す数は正本のまま', async () => {
+    // 被依存数・依存数は正本の集計（絞り込み・畳みと同じ扱い）
+    const dependent = viewModel.edges.file.find((edge) => inDi('file').includes(edge.to))!.from
+    const before = setup().wrapper.find(`[data-node-id="${dependent}"] text.stat`).text()
+
+    setActivePinia(createPinia())
+    const { wrapper } = await hiding()
+
+    expect(wrapper.find(`[data-node-id="${dependent}"] text.stat`).text()).toBe(before)
+  })
+
+  it('隠した件数と、そのぶん描かなくなった線の本数を返す', async () => {
+    const { wrapper } = await hiding()
+    const hidden = new Set(inDi('file'))
+    const touching = viewModel.edges.file.filter(
+      (edge) => hidden.has(edge.from) || hidden.has(edge.to),
+    ).length
+
+    expect(exposed(wrapper).compositionRootHiddenCount).toBe(hidden.size)
+    expect(exposed(wrapper).compositionRootHiddenEdgeCount).toBe(touching)
+    expect(touching).toBeGreaterThan(0)
+  })
+
+  it('隠していなければ、件数は 0', async () => {
+    const { state, wrapper } = setup()
+    state.setCompositionRootLayer(DI)
+    await nextTick()
+
+    expect(drawn(wrapper)).toHaveLength(viewModel.nodes.file.length)
+    expect(exposed(wrapper).compositionRootHiddenCount).toBe(0)
+    expect(exposed(wrapper).compositionRootHiddenEdgeCount).toBe(0)
+  })
+
+  it('層が指定されていなければ、好みが立っていても隠さない', async () => {
+    const { state, wrapper } = setup()
+    state.setCompositionRootHidden(true)
+    await nextTick()
+
+    expect(drawn(wrapper)).toHaveLength(viewModel.nodes.file.length)
+  })
+
+  it('指定された層がグラフに無ければ、隠さない', async () => {
+    const { wrapper } = await hiding({ layer: 'nowhere' })
+
+    expect(drawn(wrapper)).toHaveLength(viewModel.nodes.file.length)
+    expect(exposed(wrapper).compositionRootHiddenCount).toBe(0)
+  })
+
+  it('選択中のノードは隠さない', async () => {
+    // 一覧や検索からは隠した層のノードも選べる。選んだものが図にいないと読めない（UT-29 と同じ）
+    const { state, wrapper } = await hiding()
+    const target = inDi('file')[0]!
+
+    state.moveTo(target)
+    await nextTick()
+
+    expect(drawn(wrapper)).toContain(target)
+  })
+
+  it('隠す／戻すで、全体表示に合わせ直す', async () => {
+    const { state, wrapper } = setup()
+    state.setCompositionRootLayer(DI)
+    await nextTick()
+    exposed(wrapper).focusNode(viewModel.nodes.file[10]!.id)
+    const moved = exposed(wrapper).viewport.x
+
+    state.setCompositionRootHidden(true)
+    await nextTick()
+
+    expect(exposed(wrapper).viewport.x).not.toBeCloseTo(moved)
+  })
+})
+
+describe('畳みと合成ルートの非表示が重なるとき（UT-31 / UT-29）', () => {
+  beforeEach(() => localStorage.clear())
+  afterEach(() => localStorage.clear())
+
+  it('畳んで外したノードを、隠した件数に重ねて数えない', async () => {
+    /*
+     * 線の本数は畳んだ端点を除いて数える。ノードも揃えないと、同じノードを
+     * 畳みの断りと非表示の断りの両方が数える。フィクスチャで interface を
+     * 持つ層（domain）を合成ルートに見立てる
+     */
+    const { state, wrapper } = setup({ granularity: 'method' })
+    state.viaReading = 'implementation'
+    state.setInterfacesFolded(true)
+    state.setCompositionRootLayer('domain')
+    state.setCompositionRootHidden(true)
+    await nextTick()
+
+    const canvas = wrapper.vm as unknown as {
+      foldedCount: number
+      compositionRootHiddenCount: number
+    }
+    const inDomain = viewModel.nodes.method.filter(
+      (node) => viewModel.layerOf(node.id).key === 'domain',
+    ).length
+
+    expect(canvas.foldedCount).toBeGreaterThan(0)
+    expect(canvas.compositionRootHiddenCount).toBe(inDomain - canvas.foldedCount)
   })
 })

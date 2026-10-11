@@ -33,6 +33,9 @@ export const REPO_ENV = 'DEPENOMAP_REPO'
 /** 待ち受ける宛先を渡す環境変数（UT-20） */
 export const HOST_ENV = 'DEPENOMAP_HOST'
 
+/** 合成ルートの層 ID を渡す環境変数（UT-31 / ADR-006） */
+export const COMPOSITION_ROOT_ENV = 'DEPENOMAP_COMPOSITION_ROOT'
+
 /**
  * 待ち受ける宛先の既定値。**ループバックだけ**。
  *
@@ -81,6 +84,18 @@ export interface ServerConfig {
    * エディタで開く（UT-18）ときにだけ効く
    */
   repo?: RepoMount
+  /**
+   * 合成ルートとして扱う層の ID（UT-31 / ADR-006）。渡されなければ `undefined`。
+   *
+   * **ビューアは層 ID を決め打ちしない**（ADR-002）。どの層が合成ルートかは
+   * リポジトリごとの名前づけで、起動するときに教えてもらう。渡されなければ、
+   * 隠す操作そのものを出さない。
+   *
+   * **正本 JSON に在るかはここで確かめない。** 正本は要求のたびに読み直す
+   * （UT-03）ので、起動時に照らし合わせても差し替えれば意味を失う。照らし
+   * 合わせは、読み込んだグラフを持つ画面が行う
+   */
+  compositionRootLayer?: string
 }
 
 /**
@@ -90,7 +105,7 @@ export interface ServerConfig {
 export type ConfigResult = { ok: true; config: ServerConfig } | { ok: false; messages: string[] }
 
 /** 解釈できる起動オプション。ここに無いものを受け取ったら黙って捨てずに失敗させる */
-const KNOWN_OPTIONS = ['--graph', '--port', '--repo', '--host'] as const
+const KNOWN_OPTIONS = ['--graph', '--port', '--repo', '--host', '--composition-root'] as const
 type KnownOption = (typeof KNOWN_OPTIONS)[number]
 
 function isKnownOption(value: string): value is KnownOption {
@@ -243,6 +258,10 @@ export function resolveConfig(
     else errors.push(parsed.message)
   }
 
+  const rawCompositionRoot = values['--composition-root'] ?? env[COMPOSITION_ROOT_ENV]
+  const compositionRootLayer =
+    rawCompositionRoot === undefined || rawCompositionRoot === '' ? undefined : rawCompositionRoot
+
   if (errors.length > 0 || rawGraph === undefined || rawGraph === '') {
     return { ok: false, messages: errors }
   }
@@ -254,6 +273,7 @@ export function resolveConfig(
       port,
       host,
       repo,
+      compositionRootLayer,
     },
   }
 }

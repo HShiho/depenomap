@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { fetchGraph, fetchLocate, GRAPH_ENDPOINT, LOCATE_ENDPOINT } from './api'
+import {
+  CONFIG_ENDPOINT,
+  fetchConfig,
+  fetchGraph,
+  fetchLocate,
+  GRAPH_ENDPOINT,
+  LOCATE_ENDPOINT,
+} from './api'
 import type { LoadResult } from './loader'
 
 const loaded: LoadResult = {
@@ -107,5 +114,38 @@ describe('fetchLocate', () => {
     const fetchImpl = vi.fn(async () => new Response('<html>')) as unknown as typeof fetch
 
     expect((await fetchLocate('src/a.ts', fetchImpl)).reached).toBe(false)
+  })
+})
+
+describe('fetchConfig（UT-31）', () => {
+  it('口に届けば、設定をそのまま渡す', async () => {
+    const outcome = await fetchConfig(respondWith({ compositionRootLayer: 'di' }))
+
+    expect(outcome).toEqual({ reached: true, config: { compositionRootLayer: 'di' } })
+  })
+
+  it('設定の口を叩く', async () => {
+    const fetchImpl = respondWith({ compositionRootLayer: null })
+    await fetchConfig(fetchImpl)
+
+    expect(fetchImpl).toHaveBeenCalledWith(CONFIG_ENDPOINT)
+  })
+
+  it('投げたら、届いていないものとして扱う', async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new Error('ECONNREFUSED')
+    }) as unknown as typeof fetch
+
+    expect(await fetchConfig(fetchImpl)).toEqual({ reached: false, message: 'ECONNREFUSED' })
+  })
+
+  it('非 200 は口に届いていないものとして扱う', async () => {
+    expect((await fetchConfig(respondWith({}, { status: 404 }))).reached).toBe(false)
+  })
+
+  it('JSON として読めない応答も、届いていないものとして扱う', async () => {
+    const fetchImpl = vi.fn(async () => new Response('<html>')) as unknown as typeof fetch
+
+    expect((await fetchConfig(fetchImpl)).reached).toBe(false)
   })
 })

@@ -198,13 +198,18 @@ onBeforeUnmount(() => stopWatching())
  * 両端の列を同じ幅（`1fr`）にすることで、ツールバーはキャンバスの中央に立つ。
  * 幅が足りなくなると、まず両端の列が縮み、最後にツールバー自身が縮む。
  * どの幅でも重ならない。
+ *
+ * **左の列は凡例のボタンの幅より縮めない**（`minmax(max-content, 1fr)`）。
+ * 縮めると、ボタンが列からはみ出してツールバーに重なる（凡例の板は列から
+ * 外して開くので、列の幅を決めるのはボタンだけ）。足りないぶんは右の釣り合いの
+ * 列が先に譲り、ツールバーは中央から少し右へずれる。
  */
 .shell-bottom {
   right: var(--overlay-inset);
   bottom: var(--toolbar-inset);
   left: var(--overlay-inset);
   display: grid;
-  grid-template-columns: 1fr max-content 1fr;
+  grid-template-columns: minmax(max-content, 1fr) max-content 1fr;
   align-items: end;
   gap: var(--overlay-inset);
 }

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { emptyNoteOf, foldNoteOf, readingNoteOf, viaNoteOf } from './drawing-notes'
+import {
+  compositionRootMissingNoteOf,
+  compositionRootNoteOf,
+  emptyNoteOf,
+  foldNoteOf,
+  readingNoteOf,
+  viaNoteOf,
+} from './drawing-notes'
 
 describe('インターフェース経由の断り（UT-26 / UT-07）', () => {
   it('メソッド粒度では、描いている本数を言う', () => {
@@ -148,5 +155,71 @@ describe('インターフェースを畳んでいることの断り（UT-29）',
     for (const word of ['違反', 'エラー', '警告', '問題', '多い', '不要']) {
       expect(note).not.toContain(word)
     }
+  })
+})
+
+describe('合成ルートを隠していることの断り（UT-31 / ADR-006 決定 4）', () => {
+  const input = { hiding: true, layerName: 'DI', hiddenCount: 5, hiddenEdgeCount: 23 }
+
+  it('どの層を、何件隠しているかを言う', () => {
+    const note = compositionRootNoteOf(input)
+
+    expect(note).toContain('DI')
+    expect(note).toContain('5')
+  })
+
+  it('出入りする線も出ないことを、本数とともに添える', () => {
+    // 隠していることが読めなければ、図は「その依存が無い」と嘘をつく（N-1）
+    expect(compositionRootNoteOf(input)).toContain('23')
+  })
+
+  it('隠していなければ、何も言わない', () => {
+    expect(
+      compositionRootNoteOf({ ...input, hiding: false, hiddenCount: 0, hiddenEdgeCount: 0 }),
+    ).toBeUndefined()
+  })
+
+  it('隠していれば、いまの図に該当が無くても言う', () => {
+    /*
+     * 絞り込みの周りに合成ルートのノードが無い、その粒度に 0 件、のときも
+     * 隠す設定は効いている。黙ると、戻す口も一緒に消える（ADR-006 決定 4）
+     */
+    const note = compositionRootNoteOf({ ...input, hiddenCount: 0, hiddenEdgeCount: 0 })
+
+    expect(note).toContain('DI')
+    expect(note).toContain('外しているノードはありません')
+  })
+
+  it('0 件のとき、図に合成ルートのノードが無いとまでは言わない', () => {
+    /*
+     * 0 件になるのは図に無いときだけではない。選択中のノードは隠さないので
+     * 図に残り、畳み（UT-29）で先に外れたノードも数えない。言えるのは
+     * 「いま外しているものが無い」ことだけ
+     */
+    const note = compositionRootNoteOf({ ...input, hiddenCount: 0, hiddenEdgeCount: 0 })
+
+    expect(note).not.toContain('該当')
+  })
+
+  it('欠陥として扱わない（N-1）', () => {
+    const note = compositionRootNoteOf(input)
+
+    for (const word of ['違反', 'エラー', '警告', '問題', '多い', '重い', '不要']) {
+      expect(note).not.toContain(word)
+    }
+  })
+})
+
+describe('指定された合成ルートの層がグラフに無いことの断り（UT-31）', () => {
+  it('指定された層 ID をそのまま言う', () => {
+    // 打ち間違いを起動コマンドと見比べられるように
+    expect(compositionRootMissingNoteOf({ kind: 'missing', layerId: 'Di' })).toContain('Di')
+  })
+
+  it('在るとき、指定が無いときは何も言わない', () => {
+    expect(
+      compositionRootMissingNoteOf({ kind: 'present', layerId: 'di', name: 'DI' }),
+    ).toBeUndefined()
+    expect(compositionRootMissingNoteOf({ kind: 'unset' })).toBeUndefined()
   })
 })

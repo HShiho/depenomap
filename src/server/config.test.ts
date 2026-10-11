@@ -270,3 +270,70 @@ describe('待ち受ける宛先（UT-20）', () => {
     expect(result.ok && result.config.host).toBe('::')
   })
 })
+
+describe('合成ルートの層（UT-31 / ADR-006）', () => {
+  it('層 ID を受ける', () => {
+    const result = resolveConfig(['--graph', '/g.json', '--composition-root', 'di'], {}, '/w')
+
+    expect(result.ok && result.config.compositionRootLayer).toBe('di')
+  })
+
+  it('環境変数でも渡せる', () => {
+    // dev は Vite に argv を取られる
+    const result = resolveConfig(
+      [],
+      { DEPENOMAP_GRAPH: '/g.json', DEPENOMAP_COMPOSITION_ROOT: 'wiring' },
+      '/w',
+    )
+
+    expect(result.ok && result.config.compositionRootLayer).toBe('wiring')
+  })
+
+  it('コマンドラインが環境変数より優先される', () => {
+    const result = resolveConfig(
+      ['--graph', '/g.json', '--composition-root', 'from-argv'],
+      { DEPENOMAP_COMPOSITION_ROOT: 'from-env' },
+      '/w',
+    )
+
+    expect(result.ok && result.config.compositionRootLayer).toBe('from-argv')
+  })
+
+  it('渡さなくても起動できる。ビューアは層 ID を決め打ちしない', () => {
+    // 指定が無ければ、隠す操作そのものを出さない（ADR-006 決定 2）
+    const result = resolveConfig(['--graph', '/g.json'], {}, '/w')
+
+    expect(result.ok).toBe(true)
+    expect(result.ok && result.config.compositionRootLayer).toBeUndefined()
+  })
+
+  it('空文字は未指定として扱う', () => {
+    const result = resolveConfig(
+      [],
+      { DEPENOMAP_GRAPH: '/g.json', DEPENOMAP_COMPOSITION_ROOT: '' },
+      '/w',
+    )
+
+    expect(result.ok && result.config.compositionRootLayer).toBeUndefined()
+  })
+
+  it('正本 JSON に在るかどうかはここで確かめない', () => {
+    /*
+     * 正本 JSON は要求のたびに読み直す（UT-03）。起動時に照らし合わせても、
+     * 差し替えれば意味を失う。照らし合わせは読み込んだグラフを持つ画面が行う
+     */
+    const result = resolveConfig(['--graph', '/g.json', '--composition-root', 'nowhere'], {}, '/w')
+
+    expect(result.ok).toBe(true)
+  })
+
+  it('複数回渡されたら失敗する', () => {
+    const result = resolveConfig(
+      ['--graph', '/g.json', '--composition-root', 'a', '--composition-root', 'b'],
+      {},
+      '/w',
+    )
+
+    expect(result.ok).toBe(false)
+  })
+})

@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CONFIG_ENDPOINT } from '@/core/graph/api'
 import type { LoadResult } from '@/core/graph/loader'
 import { loadGraphInto } from './graph-source'
 import { useViewState } from './view-state'
@@ -139,5 +140,84 @@ describe('想定していない失敗', () => {
 
     expect(state.status.kind).toBe('broken')
     expect(state.warnings).toEqual([])
+  })
+})
+
+describe('画面向けの設定（UT-31）', () => {
+  /** 設定の口とグラフの口で応答を分ける */
+  function routes(config: () => Promise<Response>): typeof fetch {
+    return vi.fn((url: string) =>
+      url === CONFIG_ENDPOINT
+        ? config()
+        : Promise.resolve(new Response(JSON.stringify({ ok: true, graph: fixture, warnings: [] }))),
+    ) as unknown as typeof fetch
+  }
+
+  it('合成ルートの層を受け取り、グラフと照らし合わせる', async () => {
+    const state = useViewState()
+    await loadGraphInto(
+      state,
+      routes(async () => new Response(JSON.stringify({ compositionRootLayer: 'di' }))),
+    )
+
+    expect(state.compositionRoot.kind).toBe('present')
+  })
+
+  it('設定の口に届かなくても、グラフは読み込む', async () => {
+    // 設定は図を読むのに必須ではない
+    const state = useViewState()
+    await loadGraphInto(
+      state,
+      routes(async () => {
+        throw new Error('Failed to fetch')
+      }),
+    )
+
+    expect(state.status.kind).toBe('ready')
+    expect(state.compositionRoot).toEqual({ kind: 'unset' })
+  })
+
+  it('設定の形が違っても、層を指定されたものとして扱わない', async () => {
+    const state = useViewState()
+    await loadGraphInto(
+      state,
+      routes(async () => new Response(JSON.stringify({ compositionRootLayer: 42 }))),
+    )
+
+    expect(state.compositionRoot).toEqual({ kind: 'unset' })
+  })
+
+  it('読み直したときに指定が無くなっていれば、前の指定を残さない', async () => {
+    const state = useViewState()
+    await loadGraphInto(
+      state,
+      routes(async () => new Response(JSON.stringify({ compositionRootLayer: 'di' }))),
+    )
+    await loadGraphInto(
+      state,
+      routes(async () => new Response(JSON.stringify({ compositionRootLayer: null }))),
+    )
+
+    expect(state.compositionRoot).toEqual({ kind: 'unset' })
+  })
+})
+
+describe('画面向けの設定の本文が壊れているとき（UT-31）', () => {
+  it('本文が null でも、グラフは読み込む', async () => {
+    const state = useViewState()
+    const fetchImpl = vi.fn((url: string) =>
+      Promise.resolve(
+        new Response(
+          url === CONFIG_ENDPOINT
+            ? 'null'
+            : JSON.stringify({ ok: true, graph: fixture, warnings: [] }),
+        ),
+      ),
+    ) as unknown as typeof fetch
+
+    await loadGraphInto(state, fetchImpl)
+
+    expect(state.status.kind).toBe('ready')
+    expect(state.compositionRoot).toEqual({ kind: 'unset' })
   })
 })

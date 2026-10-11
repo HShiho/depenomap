@@ -6,7 +6,12 @@ import { fileURLToPath, URL } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 
 import type { LoadResult } from '../core/graph/loader'
-import { GRAPH_ENDPOINT, LOCATE_ENDPOINT } from '../core/graph/api'
+import {
+  CONFIG_ENDPOINT,
+  GRAPH_ENDPOINT,
+  LOCATE_ENDPOINT,
+  type ViewerConfig,
+} from '../core/graph/api'
 import { createApp } from './app'
 import { DEFAULT_HOST, DEFAULT_PORT } from './config'
 
@@ -354,5 +359,43 @@ describe(`GET ${LOCATE_ENDPOINT}`, () => {
     const response = await app.request(`${LOCATE_ENDPOINT}?path=src/a.ts`)
 
     expect(response.headers.get('Cache-Control')).toBe('no-store')
+  })
+})
+
+describe(`GET ${CONFIG_ENDPOINT}`, () => {
+  it('合成ルートの層 ID を返す（UT-31）', async () => {
+    const app = createApp({
+      graphPath: fixturePath,
+      port: DEFAULT_PORT,
+      host: DEFAULT_HOST,
+      compositionRootLayer: 'di',
+    })
+
+    const response = await app.request(CONFIG_ENDPOINT)
+
+    expect(response.status).toBe(200)
+    expect((await response.json()) as ViewerConfig).toEqual({ compositionRootLayer: 'di' })
+  })
+
+  it('渡されていなければ null を返す。無いことを失敗として扱わない', async () => {
+    const response = await appFor(fixturePath).request(CONFIG_ENDPOINT)
+
+    expect(response.status).toBe(200)
+    expect((await response.json()) as ViewerConfig).toEqual({ compositionRootLayer: null })
+  })
+
+  it('画面に要らないものは返さない', async () => {
+    // この口には認証が無い。パスやリポジトリの在り処は画面の判断に要らない
+    const app = createApp({
+      graphPath: fixturePath,
+      port: DEFAULT_PORT,
+      host: DEFAULT_HOST,
+      repo: { hostPath: '/Users/me/app', mountPath: '/repo' },
+    })
+
+    const body = JSON.stringify(await (await app.request(CONFIG_ENDPOINT)).json())
+
+    expect(body).not.toContain('/Users/me/app')
+    expect(body).not.toContain(fixturePath)
   })
 })

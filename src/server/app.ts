@@ -12,7 +12,12 @@ import { relative } from 'node:path'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono, type Context } from 'hono'
 
-import { GRAPH_ENDPOINT, LOCATE_ENDPOINT } from '../core/graph/api'
+import {
+  CONFIG_ENDPOINT,
+  GRAPH_ENDPOINT,
+  LOCATE_ENDPOINT,
+  type ViewerConfig,
+} from '../core/graph/api'
 import { loadGraphFromFile } from '../core/graph/loader.node'
 import { locate } from './locate'
 import type { ServerConfig } from './config'
@@ -78,6 +83,16 @@ export function createApp(config: ServerConfig, options: AppOptions = {}): Hono 
     const path = c.req.query('path') ?? ''
     c.header('Cache-Control', 'no-store')
     return c.json(locate(config.repo, path, existsSync))
+  })
+
+  /*
+   * 画面向けの設定（UT-31）。起動パラメータのうち、画面の振る舞いを変える
+   * ものだけを中継する。無いことは `null` で返し、失敗にしない（N-1）
+   */
+  app.get(CONFIG_ENDPOINT, (c) => {
+    const body: ViewerConfig = { compositionRootLayer: config.compositionRootLayer ?? null }
+    c.header('Cache-Control', 'no-store')
+    return c.json(body)
   })
 
   /*
