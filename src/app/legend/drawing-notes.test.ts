@@ -187,7 +187,18 @@ describe('合成ルートを隠していることの断り（UT-31 / ADR-006 決
     const note = compositionRootNoteOf({ ...input, hiddenCount: 0, hiddenEdgeCount: 0 })
 
     expect(note).toContain('DI')
-    expect(note).toContain('該当')
+    expect(note).toContain('外しているノードはありません')
+  })
+
+  it('0 件のとき、図に合成ルートのノードが無いとまでは言わない', () => {
+    /*
+     * 0 件になるのは図に無いときだけではない。選択中のノードは隠さないので
+     * 図に残り、畳み（UT-29）で先に外れたノードも数えない。言えるのは
+     * 「いま外しているものが無い」ことだけ
+     */
+    const note = compositionRootNoteOf({ ...input, hiddenCount: 0, hiddenEdgeCount: 0 })
+
+    expect(note).not.toContain('該当')
   })
 
   it('欠陥として扱わない（N-1）', () => {

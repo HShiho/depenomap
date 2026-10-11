@@ -111,6 +111,10 @@ export function emptyNoteOf(input: {
  * ノードが無いときも、隠す設定は効いている。黙ると、断りに添えた戻す口も消え、
  * 「表示」の口の印だけが残る。
  *
+ * 0 件のときは**外した件数の事実だけ**を言う。「図に該当が無い」とは言わない —
+ * 選択中のノードは隠さずに図に残し、畳み（UT-29）で先に外れたノードは数えない
+ * ので、0 件でも図に合成ルートのノードが在ることがある。
+ *
  * **隠していることは、常に画面から読めるようにする。** 読めなければ、図は
  * 「その依存が無い」と嘘をつく（N-1）。合成ルートに出入りする線はすべて消える
  * ので、その本数も添える（ファイル粒度では、経由していた `import` も入る）。
@@ -129,7 +133,7 @@ export function compositionRootNoteOf(input: {
 }): string | undefined {
   if (!input.hiding) return undefined
   if (input.hiddenCount === 0) {
-    return `合成ルート（${input.layerName}）を隠しています（いまの図に該当するノードはありません）`
+    return `合成ルート（${input.layerName}）を隠しています（いま図から外しているノードはありません）`
   }
 
   return `合成ルート（${input.layerName}）の ${input.hiddenCount} 件を隠しています（出入りする ${input.hiddenEdgeCount} 本の線も出ません）`
