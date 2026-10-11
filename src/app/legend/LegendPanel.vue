@@ -32,11 +32,20 @@ const open = ref(false)
 </script>
 
 <template>
-  <div class="flex flex-col items-start gap-6">
-    <!-- 開いているときだけ板を出す。畳んだ状態ではボタンだけが残る -->
+  <div class="relative flex flex-col items-start">
+    <!--
+      開いているときだけ板を出す。畳んだ状態ではボタンだけが残る。
+
+      **板は下端の帯の列から外し、ボタンの上へ重ねて開く。** 凡例の列は
+      ツールバーの左右の余りを等分した幅（`AppShell` の `1fr`）しか無く、
+      ツールバーが広いと数十 px まで縮む。列の中に置くと、板がその幅へ押し
+      込まれて 1 行に数文字ずつ折り返す。板の幅は板自身の中身で決める
+
+      上の余白は、隣のツールバー（ボタンより背が高い）の上端より上へ板を逃がすため
+    -->
     <section
       v-if="open"
-      class="flex max-w-[var(--panel-width)] flex-col gap-11 rounded-panel border border-line bg-surface px-12 py-10 text-caption text-ink-2 shadow-float"
+      class="absolute bottom-full left-0 mb-24 flex w-max max-w-[var(--panel-width)] flex-col gap-11 rounded-panel border border-line bg-surface px-12 py-10 text-caption text-ink-2 shadow-float"
       aria-label="凡例"
     >
       <div v-if="layers.length > 0" class="flex flex-col gap-3">
