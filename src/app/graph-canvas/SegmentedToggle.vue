@@ -48,7 +48,10 @@ const noteId = useId()
     <!--
       ホバーの反応は**押せるボタンにだけ**付ける（`enabled:`）。押せないときに
       ホバーで背景を透明にする指定を全ボタンへ付けると、選択中の項目まで背景が
-      抜け、いまどちらが効いているのかが一瞬読めなくなる
+      抜け、いまどちらが効いているのかが一瞬読めなくなる。
+
+      押せない色（線と同じ淡さ）も**選ばれていない項目にだけ**当てる。選択中に
+      当てると背景に溶け、どちらが効いているのかが読めない
     -->
     <!--
       選択中は `aria-pressed` で示す。見た目だけで表すと、読み上げでどちらが
@@ -68,11 +71,11 @@ const noteId = useId()
         v-for="option in options"
         :key="option.value"
         type="button"
-        class="rounded-inner px-9 py-4 text-ui disabled:cursor-default disabled:text-line"
+        class="rounded-inner px-9 py-4 text-ui disabled:cursor-default"
         :class="
           modelValue === option.value
-            ? 'bg-accent-soft font-semibold text-ink'
-            : 'text-ink-2 enabled:hover:bg-surface-2'
+            ? 'bg-accent-soft font-semibold text-ink disabled:text-ink-3'
+            : 'text-ink-2 enabled:hover:bg-surface-2 disabled:text-line'
         "
         :disabled="disabled"
         :aria-pressed="modelValue === option.value"

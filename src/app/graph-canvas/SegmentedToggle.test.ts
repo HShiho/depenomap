@@ -41,3 +41,22 @@ describe('押せないときの見た目（UT-30 / UT-31）', () => {
     expect(hoverClasses(unselected.classes()).length).toBeGreaterThan(0)
   })
 })
+
+describe('押せないときの選択中の項目（UT-30）', () => {
+  it('押せないときも、選択中の項目は読める色で出す', () => {
+    // 押せない色（線と同じ淡さ）を選択中にも当てると、背景に溶けてどちらが効いているか読めない
+    const selected = mountToggle(true)
+      .findAll('button')
+      .find((button) => button.attributes('aria-pressed') === 'true')!
+
+    expect(selected.classes()).not.toContain('disabled:text-line')
+  })
+
+  it('選ばれていない項目は、押せないことが色で分かる', () => {
+    const unselected = mountToggle(true)
+      .findAll('button')
+      .find((button) => button.attributes('aria-pressed') === 'false')!
+
+    expect(unselected.classes()).toContain('disabled:text-line')
+  })
+})
