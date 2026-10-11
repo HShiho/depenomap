@@ -389,7 +389,7 @@ const showsOrderNote = computed(
       -->
       <div
         v-if="state.status.kind === 'ready'"
-        class="flex flex-wrap items-center gap-9 rounded-panel border border-line bg-surface px-11 py-7 shadow-float"
+        class="relative flex flex-wrap items-center gap-9 rounded-panel border border-line bg-surface px-11 py-7 shadow-float"
       >
         <HistoryNav />
 

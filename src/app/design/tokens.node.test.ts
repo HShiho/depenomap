@@ -115,3 +115,24 @@ describe('SVG のジオメトリに控えを置いている値', () => {
     expect(Number(attribute)).toBe(Number(token))
   })
 })
+
+describe('コンテナクエリの境目に控えを置いている値（UT-32）', () => {
+  /**
+   * 「表示」の板の幅は、帯が狭いときだけ別の上限に切り替える。scoped CSS の
+   * コンテナクエリには変数を書けないので、境目を数値で控えている。出所が 2 つ
+   * あるので、ずれていないことをここで見る。
+   */
+  it('「表示」の板が切り替わる境目が、--container-toolbar と一致する', () => {
+    const menu = readFileSync(
+      fileURLToPath(new URL('../graph-canvas/DisplayMenu.vue', import.meta.url)),
+      'utf8',
+    )
+
+    const token = /--container-toolbar:\s*([\d.]+)px/.exec(tokensCss)?.[1]
+    const query = /@container \(width < ([\d.]+)px\)/.exec(menu)?.[1]
+
+    expect(token).toBeDefined()
+    expect(query).toBeDefined()
+    expect(Number(query)).toBe(Number(token))
+  })
+})
