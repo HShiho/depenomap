@@ -12,8 +12,8 @@ import { describe, expect, it } from 'vitest'
  * ツールでは止まらず、「レビューで見る」としていたあいだに UT ごとに少しずつ
  * 増えた。ここで機械的に止める。
  *
- * トークンの参照は `(--token)` 記法で書く（`max-w-(--panel-width)`）。変数しか
- * 書けない記法なので、直値が入り込めない。
+ * トークンの参照は `(--token)` 記法で書く（`max-w-(--panel-width)`）。変数を書く
+ * ための記法だが、フォールバック（`(--x,900px)`）を付けると直値が入るので、それも拾う。
  *
  * 見るのは `.vue` の `<template>` だけ。クラスを書いているのはそこだけで、
  * スクリプトの `nodes[0]` のような添字を誤って拾わない。HTML コメントも除く
@@ -60,14 +60,17 @@ function classNamesOf(template: string): string[] {
 }
 
 /**
- * 任意値記法のクラス名か。**`[` を含めば任意値記法**とみなす。
+ * 任意値記法のクラス名か。**`[` を含むか、`(--token)` にフォールバックを書いたもの**。
  *
  * 値（`w-[180px]`）、修飾子（`/[0.5]`）、プロパティ（`[color:#f00]`）、変種
  * （`[&>svg]:`、`[@media(...)]:`）のどれも `[` を通る。名前で呼べるクラスは `[` を
  * 持たないので、誤って拾うものが無い。
+ *
+ * `(--token)` 記法は var() の第 2 引数をそのまま通す。`max-w-(--x,900px)` は
+ * `max-width: var(--x,900px)` になり、直値が入る。括弧の中にカンマがあれば拾う。
  */
 function isArbitrary(name: string): boolean {
-  return name.includes('[')
+  return name.includes('[') || /\(--[^)]*,/.test(name)
 }
 
 function findArbitrary(template: string): string[] {
@@ -104,6 +107,16 @@ describe('任意値記法を持ち込まない（UT-23）', () => {
         '<div class="[&>svg]:size-9 hover:[&>svg]:size-[9px] [@media(min-width:900px)]:flex">',
       ),
     ).toEqual(['[&>svg]:size-9', 'hover:[&>svg]:size-[9px]', '[@media(min-width:900px)]:flex'])
+  })
+
+  it('(--token) 記法にフォールバックの直値を書いたものも拾う', () => {
+    /*
+     * `(--token)` は var() の第 2 引数をそのまま通すので、`max-w-(--x,900px)` は
+     * `max-width: var(--x,900px)` になる。規則が勧める書き方そのものを抜け道にしない
+     */
+    expect(
+      findArbitrary('<div class="max-w-(--x,900px) bg-(--nope,#ff0000) max-w-(--panel-width)">'),
+    ).toEqual(['max-w-(--x,900px)', 'bg-(--nope,#ff0000)'])
   })
 
   it('プロパティ名の大文字小文字を問わず拾う', () => {
