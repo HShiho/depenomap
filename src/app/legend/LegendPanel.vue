@@ -45,7 +45,7 @@ const open = ref(false)
     -->
     <section
       v-if="open"
-      class="absolute bottom-full left-0 mb-24 flex w-max max-w-(--panel-width) flex-col gap-11 rounded-panel border border-line bg-surface px-12 py-10 text-caption text-ink-2 shadow-float"
+      class="legend-board absolute bottom-full left-0 mb-24 flex w-max flex-col gap-11 rounded-panel border border-line bg-surface px-12 py-10 text-caption text-ink-2 shadow-float"
       aria-label="凡例"
     >
       <div v-if="layers.length > 0" class="flex flex-col gap-3">
@@ -105,6 +105,15 @@ const open = ref(false)
 </template>
 
 <style scoped>
+/*
+ * 板の幅の上限。**一覧のパネルと同じ幅と、下端の帯の幅の小さいほう**（UT-32）。
+ * 帯がパネルの幅より狭い（キャンバスが 300px を切る）と、板が帯を越えて右で切れる。
+ * 帯の幅は `100cqw` で取る（帯をコンテナにしてある）
+ */
+.legend-board {
+  max-width: min(var(--panel-width), 100cqw);
+}
+
 /*
  * 見本の線。**図（`GraphCanvas.vue`）と同じトークンを使う。**
  *
