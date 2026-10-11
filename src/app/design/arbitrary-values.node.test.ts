@@ -151,11 +151,9 @@ describe('任意値記法を持ち込まない（UT-23）', () => {
 
   it('クラスを受け取る別名の属性（*-class）も拾う', () => {
     // `<router-link active-class>` のような、クラスを受ける prop
-    expect(
-      findArbitrary(
-        '<a active-class="bg-[#f00]" :exact-active-class="\'w-[9px]\'" data-class="x">',
-      ),
-    ).toEqual(['bg-[#f00]', 'w-[9px]'])
+    expect(findArbitrary('<a active-class="bg-[#f00]" :exact-active-class="\'w-[9px]\'">')).toEqual(
+      ['bg-[#f00]', 'w-[9px]'],
+    )
   })
 
   it('HTML コメントの中の例は拾わない', () => {
