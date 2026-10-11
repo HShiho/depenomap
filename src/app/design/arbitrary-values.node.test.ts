@@ -15,9 +15,13 @@ import { describe, expect, it } from 'vitest'
  * トークンの参照は `(--token)` 記法で書く（`max-w-(--panel-width)`）。変数を書く
  * ための記法だが、フォールバック（`(--x,900px)`）を付けると直値が入るので、それも拾う。
  *
- * 見るのは `.vue` の `<template>` だけ。クラスを書いているのはそこだけで、
- * スクリプトの `nodes[0]` のような添字を誤って拾わない。HTML コメントも除く
- * （規則の説明に例として書いた `bg-[#fff]` を拾わない）。
+ * 見るのは `.vue` の `<template>` だけ（静的な `class` と `:class` の文字列）。HTML
+ * コメントは除く（規則の説明に例として書いた `bg-[#fff]` を拾わない）。
+ *
+ * **`<script>` や `.ts` で組み立てたクラス文字列は見ない。** Tailwind はそちらも
+ * 走査して CSS を作るので、そこに書いた任意値記法は効くのに、この検査は通る。
+ * クラスはテンプレートに書く、を規則にする（`design/README.md`）。いまの `src/app`
+ * にスクリプト側で組み立てたクラスは無い。
  */
 
 const appDir = fileURLToPath(new URL('..', import.meta.url))
