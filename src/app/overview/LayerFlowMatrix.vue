@@ -89,7 +89,7 @@ function tintOf(count: number): string {
               v-for="layer in matrix.layers"
               :key="String(layer.key)"
               scope="col"
-              class="min-w-[84px] px-4 py-4 font-semibold"
+              class="min-w-84 px-4 py-4 font-semibold"
               :style="{ color: layer.colour }"
             >
               {{ layer.name }}

@@ -42,7 +42,7 @@ onMounted(() => sheet.value?.focus())
   >
     <section
       ref="sheet"
-      class="flex max-h-full w-full max-w-[900px] flex-col overflow-hidden rounded-panel border border-line bg-surface shadow-float focus:outline-none"
+      class="flex max-h-full w-full max-w-900 flex-col overflow-hidden rounded-panel border border-line bg-surface shadow-float focus:outline-none"
       tabindex="-1"
       role="dialog"
       aria-modal="true"

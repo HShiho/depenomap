@@ -27,7 +27,7 @@ const rows = [
   <table class="w-full border-collapse text-meta">
     <tbody>
       <tr v-for="row in rows" :key="row.label" class="border-b border-line-2 last:border-b-0">
-        <th scope="row" class="w-[140px] py-6 pr-10 text-left font-normal text-ink-3">
+        <th scope="row" class="w-140 py-6 pr-10 text-left font-normal text-ink-3">
           {{ row.label }}
         </th>
         <td class="min-w-0 py-6 font-mono break-all text-ink-2">{{ row.value() }}</td>
