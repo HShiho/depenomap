@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { enableAutoUnmount, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -2192,5 +2192,43 @@ describe('右クリックからノードの位置を戻す（UT-28 / M-10）', (
     await rightClick(wrapper, node!.id)
 
     expect(menuItems(wrapper).map((item) => item.text())).not.toContain('このノードの位置を戻す')
+  })
+})
+
+describe('検索へ入る口（UT-28 / M-12）', () => {
+  const searchInput = () => document.querySelector<HTMLInputElement>('aside input[type="search"]')
+  const searchButton = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+    wrapper.get('nav button[aria-label="検索"]')
+
+  it('一覧を畳んでいても、レールから検索欄へ入れる', async () => {
+    const { state, wrapper } = await setup({ attach: true })
+    state.sidebarOpen = false
+    await wrapper.vm.$nextTick()
+
+    await searchButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(state.sidebarOpen).toBe(true)
+    expect(document.activeElement).toBe(searchInput())
+  })
+
+  it('一覧を開いていても、検索欄へ焦点を移す', async () => {
+    const { state, wrapper } = await setup({ attach: true })
+    expect(state.sidebarOpen).toBe(true)
+
+    await searchButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(document.activeElement).toBe(searchInput())
+  })
+
+  it('入れた検索語は消さない（検索の挙動は UT-11 のまま）', async () => {
+    const { state, wrapper } = await setup({ attach: true })
+    state.query = 'Todo'
+
+    await searchButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(state.query).toBe('Todo')
   })
 })

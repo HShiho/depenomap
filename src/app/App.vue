@@ -5,7 +5,7 @@
  * 各領域の中身は UT-06 以降が差し込む。いまレールと通知に入っているのは、
  * 器が動いていることを目で確かめるための**暫定表示**である。
  */
-import { computed, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
 
 import { fetchLocate, type FetchLocateOutcome } from '@/core/graph/api'
 import type { GraphNode } from '@/core/graph/schema'
@@ -53,6 +53,17 @@ const state = useViewState()
  * 見ている位置は、図が組み換わるたびに図の側の都合で書き換わる。
  */
 const canvas = useTemplateRef<InstanceType<typeof GraphCanvas>>('canvas')
+const sidebarPanel = useTemplateRef<InstanceType<typeof SidebarPanel>>('sidebarPanel')
+
+/**
+ * 検索へ入る（UT-28 / M-12）。一覧を開き、**描き直してから**検索欄へ焦点を入れる。
+ * 畳んでいるあいだの一覧は `inert` で、開いた直後はまだ焦点を受け付けない
+ */
+async function openSearch(): Promise<void> {
+  state.sidebarOpen = true
+  await nextTick()
+  sidebarPanel.value?.focusSearch()
+}
 
 /**
  * 画面全体に重なるもの（UT-13 の概要、UT-19 の追跡できなかった依存）。
@@ -448,6 +459,32 @@ const showsOrderNote = computed(
           ☰
         </button>
 
+        <!--
+          検索へ入る口（UT-28 / M-12）。検索欄は一覧の中にあり、一覧を畳むと
+          入る口ごと消える。押すと一覧を開いて検索欄へ焦点を入れる（参照仕様）。
+          一覧が開いていても、検索欄へ飛べる
+        -->
+        <button
+          type="button"
+          class="rounded-control px-6 py-4 text-ink-2 hover:bg-surface-2 hover:text-ink"
+          aria-label="検索"
+          title="検索"
+          @click="openSearch()"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            aria-hidden="true"
+          >
+            <circle cx="7" cy="7" r="4.2" />
+            <path d="M10.2 10.2 14 14" />
+          </svg>
+        </button>
+
         <div class="grow"></div>
 
         <!--
@@ -504,7 +541,7 @@ const showsOrderNote = computed(
         一覧の行に出す印は外から渡す（UT-12 が空けた差し込み口）。循環は
         ファイルにもメソッドにもあるので、両方へ同じものを入れる（UT-10）
       -->
-      <SidebarPanel>
+      <SidebarPanel ref="sidebarPanel">
         <template #file-badges="{ node }">
           <CycleBadge :node="node" />
         </template>

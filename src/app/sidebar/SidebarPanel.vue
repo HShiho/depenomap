@@ -18,7 +18,7 @@
  * 触る**ので、どちらから閉じても同じ。閉じると面ごと見えなくなるため、開き直す
  * 口は面の外＝レールに要る。
  */
-import { computed, ref, useId } from 'vue'
+import { computed, ref, useId, useTemplateRef } from 'vue'
 
 import { isActiveQuery } from '@/core/ir/search'
 import { useViewState } from '../shell/view-state'
@@ -37,6 +37,19 @@ const options: { value: SidebarSort; label: string }[] = [
 ]
 
 const searchId = useId()
+const search = useTemplateRef<HTMLInputElement>('search')
+
+/**
+ * 検索欄へ焦点を入れる（UT-28 / M-12）。レールの検索の口が使う。
+ *
+ * 一覧を畳んでいると面は `inert` で焦点を受け付けないので、**開いて描き直した
+ * あとに**呼ぶこと。検索語はそのまま残す（検索の挙動は UT-11 のまま）
+ */
+function focusSearch(): void {
+  search.value?.focus()
+}
+
+defineExpose({ focusSearch })
 
 const fileCount = computed(() => state.viewModel?.nodes.file.length ?? 0)
 
@@ -82,6 +95,7 @@ const countLabel = computed(() =>
       <label class="sr-only" :for="searchId">検索</label>
       <input
         :id="searchId"
+        ref="search"
         v-model="state.query"
         type="search"
         class="w-full rounded-control border border-line bg-surface-2 px-9 py-6 text-ui text-ink placeholder:text-ink-3"
