@@ -3,6 +3,10 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 
+import { createPinia, setActivePinia } from 'pinia'
+
+import ColumnAxisToggle from './ColumnAxisToggle.vue'
+import GranularityToggle from './GranularityToggle.vue'
 import SegmentedToggle from './SegmentedToggle.vue'
 
 const options = [
@@ -94,5 +98,25 @@ describe('狭いときに見出しを落とす（UT-32）', () => {
     })
 
     expect(labelOf(wrapper).classes()).not.toContain('@max-toolbar:sr-only')
+  })
+})
+
+describe('ツールバーの切り替えは、狭いときに見出しを落とす（UT-32）', () => {
+  /*
+   * 指定を外しても、SegmentedToggle 単体の検査は通る。ツールバーに置く 2 つに
+   * 指定が付いていることをここで見る。配置そのものは jsdom では測れない
+   */
+  it.each([
+    ['粒度', GranularityToggle],
+    ['並べ方', ColumnAxisToggle],
+  ])('%s', (label, component) => {
+    setActivePinia(createPinia())
+    const wrapper = mount(component)
+    const name = wrapper.get(
+      `[id="${wrapper.get('[role="group"]').attributes('aria-labelledby')}"]`,
+    )
+
+    expect(name.text()).toBe(label)
+    expect(name.classes()).toContain('@max-toolbar:sr-only')
   })
 })
