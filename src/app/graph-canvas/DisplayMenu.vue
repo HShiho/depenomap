@@ -89,7 +89,6 @@ onBeforeUnmount(unlisten)
       ref="button"
       type="button"
       class="flex items-center gap-5 rounded-control px-8 py-5 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink"
-      aria-haspopup="true"
       :aria-expanded="open"
       :aria-controls="panelId"
       :aria-label="changed ? '表示（既定から変更あり）' : undefined"

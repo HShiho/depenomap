@@ -31,10 +31,21 @@ function setup() {
 }
 
 const trigger = (wrapper: ReturnType<typeof setup>['wrapper']) =>
-  wrapper.get('button[aria-haspopup]')
+  wrapper.get('button[aria-controls]')
 const panel = (wrapper: ReturnType<typeof setup>['wrapper']) => wrapper.get('[data-display-panel]')
 
 describe('表示メニュー（UT-31 / ツールバーの幅）', () => {
+  it('開閉する領域として宣言する（メニューとは名乗らない）', () => {
+    /*
+     * `aria-haspopup="true"` は menu と同じ意味で、読み上げはメニューとして案内する。
+     * 中身はメニュー項目ではなく、矢印キーでも動けない。宣言と実体をずらさない
+     */
+    const { wrapper } = setup()
+
+    expect(trigger(wrapper).attributes('aria-haspopup')).toBeUndefined()
+    expect(trigger(wrapper).attributes('aria-controls')).toBe(panel(wrapper).attributes('id'))
+  })
+
   it('既定は閉じている', () => {
     const { wrapper } = setup()
 
