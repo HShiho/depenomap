@@ -1874,8 +1874,9 @@ describe('経由の行き先を選ぶ（UT-30 / UT-07 の見直し）', () => {
      */
     const { wrapper } = await setup()
 
+    // 切り替えの群（ラベルで名前を持つもの）を探す。表示メニューのパネルも群なので除く
     const group = wrapper
-      .findAll('[role="group"]')
+      .findAll('[role="group"][aria-labelledby]')
       .find((candidate) => candidate.text().includes('実装'))!
     for (const button of group.findAll('button')) {
       expect(button.attributes('disabled')).toBeDefined()

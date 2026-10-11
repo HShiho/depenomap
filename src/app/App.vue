@@ -22,10 +22,8 @@ import {
   viaNoteOf,
 } from './legend/drawing-notes'
 import LegendPanel from './legend/LegendPanel.vue'
-import InterfaceFoldToggle from './graph-canvas/InterfaceFoldToggle.vue'
 import CompositionRootChip from './graph-canvas/CompositionRootChip.vue'
-import CompositionRootToggle from './graph-canvas/CompositionRootToggle.vue'
-import ViaReadingToggle from './graph-canvas/ViaReadingToggle.vue'
+import DisplayMenu from './graph-canvas/DisplayMenu.vue'
 import { callOrder } from './graph-canvas/call-order'
 import ColumnAxisToggle from './graph-canvas/ColumnAxisToggle.vue'
 import NarrowingChip from './graph-canvas/NarrowingChip.vue'
@@ -393,14 +391,12 @@ const showsOrderNote = computed(
         <GranularityToggle />
         <ColumnAxisToggle />
 
-        <!-- 経由の呼び出しをどちらの行き先で読むか（UT-30） -->
-        <ViaReadingToggle />
-
-        <!-- interface のノードを畳む（UT-29。実装宛で読んでいるときだけ効く） -->
-        <InterfaceFoldToggle />
-
-        <!-- 合成ルートの層を隠す（UT-31。起動時に層が指定され、グラフに在るときだけ出る） -->
-        <CompositionRootToggle />
+        <!--
+          図の一部の描き方を変える切り替え（経由の行き先 / UT-30、interface を畳む /
+          UT-29、合成ルートを隠す / UT-31）。並べるとツールバーが画面を超えるので、
+          メニューにまとめる
+        -->
+        <DisplayMenu />
 
         <span class="h-17 w-px shrink-0 bg-line"></span>
 
