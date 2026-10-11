@@ -107,6 +107,10 @@ export function emptyNoteOf(input: {
  * 合成ルートの層を隠していることの断り（UT-31 / ADR-006 決定 4）。隠していなければ
  * `undefined`。
  *
+ * **いまの図に該当が無くても、隠していれば言う。** 絞り込みの周りに合成ルートの
+ * ノードが無いときも、隠す設定は効いている。黙ると、断りに添えた戻す口も消え、
+ * 「表示」の口の印だけが残る。
+ *
  * **隠していることは、常に画面から読めるようにする。** 読めなければ、図は
  * 「その依存が無い」と嘘をつく（N-1）。合成ルートに出入りする線はすべて消える
  * ので、その本数も添える（ファイル粒度では、経由していた `import` も入る）。
@@ -114,6 +118,8 @@ export function emptyNoteOf(input: {
  * 件数は事実として言うが、「重い」「多い」とは言わない。
  */
 export function compositionRootNoteOf(input: {
+  /** 隠す設定が効いているか（層が指定され、グラフに在り、好みが立っている） */
+  hiding: boolean
   /** 層の名前（正本 JSON の `layers[].name`） */
   layerName: string
   /** 実際に図から外したノードの数 */
@@ -121,7 +127,10 @@ export function compositionRootNoteOf(input: {
   /** そのために描かなくなった線の本数 */
   hiddenEdgeCount: number
 }): string | undefined {
-  if (input.hiddenCount === 0) return undefined
+  if (!input.hiding) return undefined
+  if (input.hiddenCount === 0) {
+    return `合成ルート（${input.layerName}）を隠しています（いまの図に該当するノードはありません）`
+  }
 
   return `合成ルート（${input.layerName}）の ${input.hiddenCount} 件を隠しています（出入りする ${input.hiddenEdgeCount} 本の線も出ません）`
 }

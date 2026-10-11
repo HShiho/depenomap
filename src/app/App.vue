@@ -263,6 +263,7 @@ const compositionRootNote = computed(() => {
   const root = state.compositionRoot
   if (root.kind !== 'present') return undefined
   return compositionRootNoteOf({
+    hiding: state.compositionRootHidden,
     layerName: root.name,
     hiddenCount: canvas.value?.compositionRootHiddenCount ?? 0,
     hiddenEdgeCount: canvas.value?.compositionRootHiddenEdgeCount ?? 0,

@@ -2072,3 +2072,43 @@ describe('合成ルートの層を隠す（UT-31 / ADR-006）', () => {
     expect(wrapper.find('.shell-overlay').text()).toContain('「Di」')
   })
 })
+
+describe('合成ルートを隠したまま、該当の無い周りへ絞ったとき（UT-31 / ADR-006 決定 4）', () => {
+  beforeEach(() => localStorage.clear())
+  afterEach(() => localStorage.clear())
+
+  it('隠していることと戻す口は、出し続ける', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify(url === CONFIG_ENDPOINT ? { compositionRootLayer: 'di' } : result),
+          ),
+        ),
+      ),
+    )
+    const state = useViewState()
+    const wrapper = mount(App)
+    await vi.waitUntil(() => state.status.kind === 'ready')
+    const viewModel = state.viewModel!
+    state.setCompositionRootHidden(true)
+
+    // 合成ルートの層に直接繋がらないファイルを選んで絞る
+    const isDi = (id: string) => viewModel.layerOf(id).key === 'di'
+    const lonely = viewModel.nodes.file.find(
+      (node) =>
+        !isDi(node.id) &&
+        !viewModel.edges.file.some(
+          (edge) =>
+            (edge.from === node.id && isDi(edge.to)) || (edge.to === node.id && isDi(edge.from)),
+        ),
+    )!
+    state.moveTo(lonely.id)
+    await wrapper.vm.$nextTick()
+
+    const overlay = wrapper.find('.shell-overlay')
+    expect(overlay.text()).toContain('隠しています')
+    expect(overlay.find('button[aria-label="合成ルートを表示する"]').exists()).toBe(true)
+  })
+})

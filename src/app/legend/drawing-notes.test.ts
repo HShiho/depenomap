@@ -159,7 +159,7 @@ describe('インターフェースを畳んでいることの断り（UT-29）',
 })
 
 describe('合成ルートを隠していることの断り（UT-31 / ADR-006 決定 4）', () => {
-  const input = { layerName: 'DI', hiddenCount: 5, hiddenEdgeCount: 23 }
+  const input = { hiding: true, layerName: 'DI', hiddenCount: 5, hiddenEdgeCount: 23 }
 
   it('どの層を、何件隠しているかを言う', () => {
     const note = compositionRootNoteOf(input)
@@ -174,7 +174,20 @@ describe('合成ルートを隠していることの断り（UT-31 / ADR-006 決
   })
 
   it('隠していなければ、何も言わない', () => {
-    expect(compositionRootNoteOf({ ...input, hiddenCount: 0, hiddenEdgeCount: 0 })).toBeUndefined()
+    expect(
+      compositionRootNoteOf({ ...input, hiding: false, hiddenCount: 0, hiddenEdgeCount: 0 }),
+    ).toBeUndefined()
+  })
+
+  it('隠していれば、いまの図に該当が無くても言う', () => {
+    /*
+     * 絞り込みの周りに合成ルートのノードが無い、その粒度に 0 件、のときも
+     * 隠す設定は効いている。黙ると、戻す口も一緒に消える（ADR-006 決定 4）
+     */
+    const note = compositionRootNoteOf({ ...input, hiddenCount: 0, hiddenEdgeCount: 0 })
+
+    expect(note).toContain('DI')
+    expect(note).toContain('該当')
   })
 
   it('欠陥として扱わない（N-1）', () => {
