@@ -71,10 +71,11 @@ function classNamesOf(template: string): string[] {
  * 持たないので、誤って拾うものが無い。
  *
  * `(--token)` 記法は var() の第 2 引数をそのまま通す。`max-w-(--x,900px)` は
- * `max-width: var(--x,900px)` になり、直値が入る。括弧の中にカンマがあれば拾う。
+ * `max-width: var(--x,900px)` になり、直値が入る。型ヒントを付けた形
+ * （`text-(length:--x,13px)`）も同じなので、**括弧の中にカンマがあれば**拾う。
  */
 function isArbitrary(name: string): boolean {
-  return name.includes('[') || /\(--[^)]*,/.test(name)
+  return name.includes('[') || /\([^)]*,/.test(name)
 }
 
 function findArbitrary(template: string): string[] {
@@ -121,6 +122,15 @@ describe('任意値記法を持ち込まない（UT-23）', () => {
     expect(
       findArbitrary('<div class="max-w-(--x,900px) bg-(--nope,#ff0000) max-w-(--panel-width)">'),
     ).toEqual(['max-w-(--x,900px)', 'bg-(--nope,#ff0000)'])
+  })
+
+  it('型ヒントを付けたフォールバックも拾う', () => {
+    // `text-(length:--x,13px)` は `font-size: var(--x,13px)` になる
+    expect(
+      findArbitrary(
+        '<div class="text-(length:--x,13px) bg-(color:--nope,#f00) text-(length:--x)">',
+      ),
+    ).toEqual(['text-(length:--x,13px)', 'bg-(color:--nope,#f00)'])
   })
 
   it('プロパティ名の大文字小文字を問わず拾う', () => {
