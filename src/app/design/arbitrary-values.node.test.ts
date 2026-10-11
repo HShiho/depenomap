@@ -38,17 +38,40 @@ function templateOf(source: string): string {
 }
 
 /**
- * 任意値記法の形。
+ * テンプレートに書かれたクラス名。
  *
- *   - 値: `w-[180px]` / `bg-[#fff]` / `max-w-[var(--x)]`（ユーティリティ名の直後の `-[`）
- *   - プロパティ: `[mask-type:luminance]`（`[` で始まり `プロパティ:` が続く）
+ * 静的な `class="..."` と、`:class="..."` の中の文字列リテラルから取り、空白で
+ * 切り出す。**形を正規表現 1 本で当てない** — 変種を前に付ける（`[&>svg]:size-[9px]`）、
+ * 修飾子に書く（`bg-ground/[0.5]`）といった書き方ごとに抜け道ができる。クラス名を
+ * 1 語ずつ取り出してから判定すれば、どこに書いても同じ規則で見られる。
  *
- * クラス名の区切り（空白・引用符）から拾い、報告にクラス名全体（変種込み）を出す。
+ * `:class` の式そのもの（配列の `[`、`nodes[0]` のような添字）は、文字列リテラルの
+ * 外にあるので拾わない。
  */
-const ARBITRARY = /(?<=^|[\s"'`])(?:[\w:!./()-]*?-\[[^\]\s]*\]|\[[a-z-]+:[^\]\s]*\])/g
+function classNamesOf(template: string): string[] {
+  const values: string[] = []
+  for (const match of template.matchAll(/(?<![\w:.-])class="([^"]*)"/g)) values.push(match[1]!)
+  for (const match of template.matchAll(/(?::|v-bind:)class="([^"]*)"/g)) {
+    for (const literal of match[1]!.matchAll(/'([^']*)'|`([^`]*)`/g)) {
+      values.push(literal[1] ?? literal[2] ?? '')
+    }
+  }
+  return values.flatMap((value) => value.split(/\s+/)).filter((name) => name !== '')
+}
+
+/**
+ * 任意値記法のクラス名か。**`[` を含めば任意値記法**とみなす。
+ *
+ * 値（`w-[180px]`）、修飾子（`/[0.5]`）、プロパティ（`[color:#f00]`）、変種
+ * （`[&>svg]:`、`[@media(...)]:`）のどれも `[` を通る。名前で呼べるクラスは `[` を
+ * 持たないので、誤って拾うものが無い。
+ */
+function isArbitrary(name: string): boolean {
+  return name.includes('[')
+}
 
 function findArbitrary(template: string): string[] {
-  return [...template.matchAll(ARBITRARY)].map((match) => match[0])
+  return classNamesOf(template).filter(isArbitrary)
 }
 
 describe('任意値記法を持ち込まない（UT-23）', () => {
@@ -64,6 +87,35 @@ describe('任意値記法を持ち込まない（UT-23）', () => {
     expect(findArbitrary('<div class="[mask-type:luminance]">')).toEqual(['[mask-type:luminance]'])
     expect(findArbitrary('<div class="max-w-(--panel-width) hover:bg-surface-2">')).toEqual([])
     expect(findArbitrary('<p :class="[edge.variant, { cyclic }]">{{ nodes[0] }}</p>')).toEqual([])
+  })
+
+  it('修飾子に書いた任意値も拾う', () => {
+    // `/70` は不透明度の段階だが、`/[0.5]` や `/[20px]` は直値の CSS になる
+    expect(findArbitrary('<div class="bg-ground/[0.5] text-meta/[20px] bg-ground/70">')).toEqual([
+      'bg-ground/[0.5]',
+      'text-meta/[20px]',
+    ])
+  })
+
+  it('任意の変種を前に付けても拾う', () => {
+    // 変種を 1 つ付けるだけで素通りできる形にしない。変種自体が直値を持つ形も拾う
+    expect(
+      findArbitrary(
+        '<div class="[&>svg]:size-9 hover:[&>svg]:size-[9px] [@media(min-width:900px)]:flex">',
+      ),
+    ).toEqual(['[&>svg]:size-9', 'hover:[&>svg]:size-[9px]', '[@media(min-width:900px)]:flex'])
+  })
+
+  it('プロパティ名の大文字小文字を問わず拾う', () => {
+    expect(findArbitrary('<div class="[Color:#f00]">')).toEqual(['[Color:#f00]'])
+  })
+
+  it(':class に書いた文字列の中も拾う。式の添字や配列は拾わない', () => {
+    expect(
+      findArbitrary(
+        "<p :class=\"[cyclic ? 'w-[9px] text-ink' : 'p-9', { selected }]\">{{ nodes[0] }}</p>",
+      ),
+    ).toEqual(['w-[9px]'])
   })
 
   it('HTML コメントの中の例は拾わない', () => {
