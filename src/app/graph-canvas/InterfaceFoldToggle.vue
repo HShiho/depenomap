@@ -73,6 +73,8 @@ const describedId = useId()
       :id="describedId"
       class="basis-full px-8 text-caption text-ink-3"
     >
+      <!-- 注記の印。読み上げでは「米」と読まれるので外す -->
+      <span aria-hidden="true">※</span>
       {{ blocked }}
     </span>
   </div>

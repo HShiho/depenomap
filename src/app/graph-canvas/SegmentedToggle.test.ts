@@ -60,3 +60,16 @@ describe('押せないときの選択中の項目（UT-30）', () => {
     expect(unselected.classes()).toContain('disabled:text-line')
   })
 })
+
+describe('効かない理由の頭の印', () => {
+  it('理由の頭に「※」を付ける。読み上げには含めない', () => {
+    // 注記であることを見た目で示す。読み上げでは「米」と読まれるので外す
+    const wrapper = mountToggle(true)
+    const note = wrapper.get(
+      `[id="${wrapper.get('[role="group"]').attributes('aria-describedby')}"]`,
+    )
+
+    expect(note.text().startsWith('※')).toBe(true)
+    expect(note.get('[aria-hidden="true"]').text()).toBe('※')
+  })
+})

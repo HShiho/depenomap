@@ -93,6 +93,8 @@ const noteId = useId()
       :id="noteId"
       class="basis-full text-caption text-ink-3"
     >
+      <!-- 注記の印。読み上げでは「米」と読まれるので外す -->
+      <span aria-hidden="true">※</span>
       {{ note }}
     </span>
   </div>

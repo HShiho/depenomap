@@ -82,6 +82,14 @@ describe('インターフェースを畳む切り替え（UT-29 / UT-30 の後�
     expect(wrapper.get(`[id="${describedBy}"]`).text()).toContain(expected)
   })
 
+  it('理由の頭に「※」を付ける。読み上げには含めない', () => {
+    const { wrapper } = setup({ granularity: 'file' })
+    const note = wrapper.get(`[id="${wrapper.get('button').attributes('aria-describedby')}"]`)
+
+    expect(note.text().startsWith('※')).toBe(true)
+    expect(note.get('[aria-hidden="true"]').text()).toBe('※')
+  })
+
   it('効くときは、余計な断りを付けない', () => {
     const { wrapper } = setup()
 
