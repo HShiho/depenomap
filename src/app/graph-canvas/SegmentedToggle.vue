@@ -39,10 +39,12 @@ const noteId = useId()
 
 <template>
   <!--
-    幅が足りなければ、効かない理由を次の行へ折り返す（「表示」メニューの中で
-    見切れないように / UT-31）。ツールバーに置く粒度・並べ方は理由を持たない
+    効かない理由は**切り替えの真下に、詰めて置く**（「表示」メニューの中 / UT-31）。
+    横に並べると幅の狭い画面で見切れ、幅任せに折り返すと、次の切り替えとの
+    間隔と区別がつかず、どちらに掛かる理由なのか読めない。ツールバーに置く
+    粒度・並べ方は理由を持たない
   -->
-  <div class="flex flex-wrap items-center gap-9">
+  <div class="flex flex-wrap items-center gap-x-9 gap-y-3">
     <span :id="labelId" class="text-label text-ink-3 uppercase">{{ label }}</span>
 
     <!--
@@ -89,7 +91,7 @@ const noteId = useId()
     <span
       v-if="disabled === true && note !== undefined"
       :id="noteId"
-      class="text-caption text-ink-3"
+      class="basis-full text-caption text-ink-3"
     >
       {{ note }}
     </span>

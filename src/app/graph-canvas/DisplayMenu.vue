@@ -118,11 +118,19 @@ onBeforeUnmount(unlisten)
       data-display-panel
       role="group"
       aria-label="表示"
-      class="absolute right-0 bottom-full mb-8 flex w-max max-w-[var(--panel-width)] flex-col items-start gap-8 rounded-panel border border-line bg-surface px-11 py-9 shadow-float"
+      class="absolute right-0 bottom-full mb-8 flex w-max max-w-[var(--panel-width)] flex-col divide-y divide-line-2 rounded-panel border border-line bg-surface px-11 py-3 shadow-float"
     >
-      <ViaReadingToggle />
-      <InterfaceFoldToggle />
-      <CompositionRootToggle />
+      <!--
+        切り替えごとに区切る。効かない理由は各切り替えの真下に詰めて置くので、
+        切り替え同士の間はそれより広く取り、線で分ける（どの理由がどの切り替えに
+        掛かるのかを、間隔の差で読めるようにする）
+      -->
+      <div class="py-8"><ViaReadingToggle /></div>
+      <div class="py-8"><InterfaceFoldToggle /></div>
+      <!-- 層が指定されていなければ口そのものが無い。空の区切りを残さない -->
+      <div v-if="state.compositionRoot.kind === 'present'" class="py-8">
+        <CompositionRootToggle />
+      </div>
     </div>
   </div>
 </template>

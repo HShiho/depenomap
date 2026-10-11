@@ -43,8 +43,11 @@ const describedId = useId()
 </script>
 
 <template>
-  <!-- 幅が足りなければ、効かない理由を次の行へ折り返す（「表示」メニューの中で見切れないように） -->
-  <div class="flex flex-wrap items-center gap-6">
+  <!--
+    効かない理由は**口の真下に、詰めて置く**（「表示」メニューの中 / UT-31）。
+    幅任せに折り返すと、次の切り替えとの間隔と区別がつかない
+  -->
+  <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
     <button
       type="button"
       class="flex shrink-0 items-center gap-6 rounded-control px-8 py-5 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink disabled:cursor-default disabled:text-line disabled:hover:bg-transparent"
@@ -64,7 +67,12 @@ const describedId = useId()
     </button>
 
     <!-- 効かない理由。見えるところに出し、口と結び付ける -->
-    <span v-if="blocked !== undefined" :id="describedId" class="text-caption text-ink-3">
+    <!-- 口の文字の頭（チェック欄の左端）に揃える -->
+    <span
+      v-if="blocked !== undefined"
+      :id="describedId"
+      class="basis-full px-8 text-caption text-ink-3"
+    >
       {{ blocked }}
     </span>
   </div>
