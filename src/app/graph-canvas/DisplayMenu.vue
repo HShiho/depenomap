@@ -105,14 +105,20 @@ onBeforeUnmount(unlisten)
       <span class="text-caption text-ink-3" aria-hidden="true">▾</span>
     </button>
 
-    <!-- ツールバーは下端にあるので、上へ開く -->
+    <!--
+      ツールバーは下端にあるので、上へ開く。
+
+      **口の右端に揃えて左へ伸ばす。** 口はツールバーの右寄りにあり、左端から
+      右へ伸ばすと、幅の狭い画面でキャンバスの右端を越えて切れる。幅は一覧の
+      パネルと同じ上限に抑え、効かない理由は折り返す
+    -->
     <div
       v-show="open"
       :id="panelId"
       data-display-panel
       role="group"
       aria-label="表示"
-      class="absolute bottom-full left-0 mb-8 flex w-max flex-col items-start gap-8 rounded-panel border border-line bg-surface px-11 py-9 shadow-float"
+      class="absolute right-0 bottom-full mb-8 flex w-max max-w-[var(--panel-width)] flex-col items-start gap-8 rounded-panel border border-line bg-surface px-11 py-9 shadow-float"
     >
       <ViaReadingToggle />
       <InterfaceFoldToggle />

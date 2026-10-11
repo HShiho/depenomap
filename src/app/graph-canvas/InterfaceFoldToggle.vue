@@ -43,7 +43,8 @@ const describedId = useId()
 </script>
 
 <template>
-  <div class="flex shrink-0 items-center gap-6">
+  <!-- 幅が足りなければ、効かない理由を次の行へ折り返す（「表示」メニューの中で見切れないように） -->
+  <div class="flex flex-wrap items-center gap-6">
     <button
       type="button"
       class="flex shrink-0 items-center gap-6 rounded-control px-8 py-5 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink disabled:cursor-default disabled:text-line disabled:hover:bg-transparent"
