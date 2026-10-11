@@ -132,7 +132,7 @@ onBeforeUnmount(unlisten)
       data-display-panel
       role="group"
       aria-label="表示"
-      class="absolute right-0 bottom-full mb-8 flex w-max max-w-[var(--panel-width)] flex-col divide-y divide-line-2 rounded-panel border border-line bg-surface px-11 py-3 shadow-float"
+      class="absolute right-0 bottom-full mb-8 flex w-max max-w-(--panel-width) flex-col divide-y divide-line-2 rounded-panel border border-line bg-surface px-11 py-3 shadow-float"
     >
       <!--
         切り替えごとに区切る。効かない理由は各切り替えの真下に詰めて置くので、

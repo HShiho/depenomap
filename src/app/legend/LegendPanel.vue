@@ -45,7 +45,7 @@ const open = ref(false)
     -->
     <section
       v-if="open"
-      class="absolute bottom-full left-0 mb-24 flex w-max max-w-[var(--panel-width)] flex-col gap-11 rounded-panel border border-line bg-surface px-12 py-10 text-caption text-ink-2 shadow-float"
+      class="absolute bottom-full left-0 mb-24 flex w-max max-w-(--panel-width) flex-col gap-11 rounded-panel border border-line bg-surface px-12 py-10 text-caption text-ink-2 shadow-float"
       aria-label="凡例"
     >
       <div v-if="layers.length > 0" class="flex flex-col gap-3">

@@ -21,7 +21,7 @@ defineProps<{ note: string }>()
 
 <template>
   <div
-    class="flex max-w-[var(--panel-width)] items-center gap-7 rounded-round border border-line bg-surface px-10 py-4 text-caption text-ink-3 shadow-float"
+    class="flex max-w-(--panel-width) items-center gap-7 rounded-round border border-line bg-surface px-10 py-4 text-caption text-ink-3 shadow-float"
   >
     <span class="min-w-0">{{ note }}</span>
 
