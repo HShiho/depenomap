@@ -32,7 +32,7 @@ const open = ref(false)
 </script>
 
 <template>
-  <div class="relative flex flex-col items-start">
+  <div class="flex flex-col items-start">
     <!--
       開いているときだけ板を出す。畳んだ状態ではボタンだけが残る。
 
@@ -41,11 +41,14 @@ const open = ref(false)
       ツールバーが広いと数十 px まで縮む。列の中に置くと、板がその幅へ押し
       込まれて 1 行に数文字ずつ折り返す。板の幅は板自身の中身で決める
 
-      上の余白は、隣のツールバー（ボタンより背が高い）の上端より上へ板を逃がすため
+      **位置の基準は下端の帯**（`AppShell` の `.shell-bottom`。この要素は基準を持たない）。
+      帯の上端は帯の中で一番背の高いもの、つまりツールバーの上端なので、板は常に
+      ツールバーより上に開く。ボタンを基準に固定の余白で逃がすと、ツールバーが
+      折り返して背が伸びたとき（UT-32）、板がツールバーのボタンを覆って押せなくなる
     -->
     <section
       v-if="open"
-      class="legend-board absolute bottom-full left-0 mb-24 flex w-max flex-col gap-11 rounded-panel border border-line bg-surface px-12 py-10 text-caption text-ink-2 shadow-float"
+      class="legend-board absolute bottom-full left-0 mb-8 flex w-max flex-col gap-11 rounded-panel border border-line bg-surface px-12 py-10 text-caption text-ink-2 shadow-float"
       aria-label="凡例"
     >
       <div v-if="layers.length > 0" class="flex flex-col gap-3">
