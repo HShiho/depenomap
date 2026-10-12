@@ -37,6 +37,7 @@ import GranularityToggle from './graph-canvas/GranularityToggle.vue'
 import GraphCanvas from './graph-canvas/GraphCanvas.vue'
 import MovedNodesChip from './graph-canvas/MovedNodesChip.vue'
 import ViewportControls from './graph-canvas/ViewportControls.vue'
+import { ZOOM_IN_STEP, ZOOM_OUT_STEP } from './graph-canvas/viewport'
 import AppShell from './shell/AppShell.vue'
 import HistoryNav from './shell/HistoryNav.vue'
 import { loadGraphInto } from './shell/graph-source'
@@ -436,6 +437,8 @@ const showsOrderNote = computed(
           :scale="canvas?.viewport.scale ?? 1"
           :moved-count="canvas?.movedNodes.length ?? 0"
           @fit="canvas?.fitToContent()"
+          @zoom-in="canvas?.zoomBy(ZOOM_IN_STEP)"
+          @zoom-out="canvas?.zoomBy(ZOOM_OUT_STEP)"
           @reset-positions="canvas?.resetPositions()"
         />
       </div>

@@ -14,6 +14,9 @@ import {
   toWorld,
   transformOf,
   zoomAround,
+  zoomAnchorOf,
+  ZOOM_IN_STEP,
+  ZOOM_OUT_STEP,
 } from './viewport'
 
 const view = { width: 1000, height: 800 }
@@ -151,5 +154,25 @@ describe('外接矩形に合わせる（UT-17）', () => {
     expect(topLeft.y).toBeGreaterThanOrEqual(0)
     expect(bottomRight.x).toBeLessThanOrEqual(view.width)
     expect(bottomRight.y).toBeLessThanOrEqual(view.height)
+  })
+})
+
+describe('ボタンでの拡大縮小（UT-28 / M-11）', () => {
+  const view = { width: 800, height: 600 }
+  const start = { x: 40, y: -20, scale: 1 }
+
+  it('刻みは参照仕様どおり 1.25 倍と 0.8 倍', () => {
+    expect(ZOOM_IN_STEP).toBe(1.25)
+    expect(ZOOM_OUT_STEP).toBe(0.8)
+  })
+
+  it('画面の中心を軸にし、中心にあったものは動かない', () => {
+    const anchor = zoomAnchorOf(view)
+    const before = toWorld(start, anchor)
+    const after = zoomAround(start, anchor, start.scale * ZOOM_IN_STEP)
+
+    expect(anchor).toEqual({ x: 400, y: 300 })
+    expect(toScreen(after, before).x).toBeCloseTo(400)
+    expect(toScreen(after, before).y).toBeCloseTo(300)
   })
 })

@@ -28,7 +28,14 @@ import { edgeMidpoint, edgePath } from './edge-path'
 import { EMPHASIS_LEAVE_GRACE_MS, emphasisOf, type EmphasisTarget } from './emphasis'
 import { nameLimitFor, subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
-import { centreOn, fitBounds, transformOf, type Viewport } from './viewport'
+import {
+  centreOn,
+  fitBounds,
+  transformOf,
+  zoomAnchorOf,
+  zoomAround,
+  type Viewport,
+} from './viewport'
 import { draggedTo, isDrag, type DragStart, type NodePositions } from './node-drag'
 import { applyWheel } from './wheel-gesture'
 
@@ -907,10 +914,23 @@ function focusNode(nodeId: string): void {
   if (placed) viewport.value = centreOn(viewport.value, placed, view.value)
 }
 
+/**
+ * ボタンで拡大縮小する（UT-28 / M-11）。画面の中心を軸にする。倍率の上下限は
+ * UT-16 のまま
+ */
+function zoomBy(factor: number): void {
+  viewport.value = zoomAround(
+    viewport.value,
+    zoomAnchorOf(view.value),
+    viewport.value.scale * factor,
+  )
+}
+
 defineExpose({
   viewport,
   fitToContent,
   focusNode,
+  zoomBy,
   movedNodes,
   movedOutOfView,
   resetPositions,
