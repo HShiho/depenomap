@@ -20,13 +20,30 @@ describe('ズームのボタン（UT-28 / M-11）', () => {
     expect(wrapper.emitted('zoomOut')).toHaveLength(1)
   })
 
-  it('上限では拡大を、下限では縮小を押せない（限界なのか効かないのかを区別できる）', () => {
+  it('上限では拡大を、下限では縮小を押せない（限界なのか効かないのかを区別できる）', async () => {
     const atMax = mount(ViewportControls, { props: { scale: MAX_SCALE, movedCount: 0 } })
     const atMin = mount(ViewportControls, { props: { scale: MIN_SCALE, movedCount: 0 } })
 
-    expect(button(atMax, '拡大').attributes('disabled')).toBeDefined()
-    expect(button(atMax, '縮小').attributes('disabled')).toBeUndefined()
-    expect(button(atMin, '縮小').attributes('disabled')).toBeDefined()
-    expect(button(atMin, '拡大').attributes('disabled')).toBeUndefined()
+    expect(button(atMax, '拡大').attributes('aria-disabled')).toBe('true')
+    expect(button(atMax, '縮小').attributes('aria-disabled')).toBe('false')
+    expect(button(atMin, '縮小').attributes('aria-disabled')).toBe('true')
+    expect(button(atMin, '拡大').attributes('aria-disabled')).toBe('false')
+
+    // 押しても伝えない
+    await button(atMax, '拡大').trigger('click')
+    await button(atMin, '縮小').trigger('click')
+    expect(atMax.emitted('zoomIn')).toBeUndefined()
+    expect(atMin.emitted('zoomOut')).toBeUndefined()
+  })
+
+  it('限界に達しても焦点を持ったまま（disabled にすると焦点が文書の先頭へ落ちる）', () => {
+    /*
+     * キーボードで押し続けて限界に達したとき、押していたボタンが disabled になると
+     * 焦点は body へ落ち、ツールバーでの位置を失う。このボタンはポインタ以外でも
+     * 使えるように置いたものなので、焦点を奪わない
+     */
+    const atMax = mount(ViewportControls, { props: { scale: MAX_SCALE, movedCount: 0 } })
+
+    expect(button(atMax, '拡大').attributes('disabled')).toBeUndefined()
   })
 })

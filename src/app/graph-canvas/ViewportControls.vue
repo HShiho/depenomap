@@ -31,15 +31,19 @@ defineEmits<{ fit: []; resetPositions: []; zoomIn: []; zoomOut: [] }>()
     <!--
       拡大縮小のボタン（UT-28 / M-11）。トラックパッドが無いとき（ポインタ以外）でも
       拡大縮小できるようにする。上下限に当たっていれば押せない（倍率の表示と同じく、
-      効かないのか限界なのかを区別できるように）
+      効かないのか限界なのかを区別できるように）。
+
+      **`disabled` にはしない。** キーボードで押し続けて限界に達したとき、押していた
+      ボタンが `disabled` になると焦点が文書の先頭へ落ち、ツールバーでの位置を失う。
+      `aria-disabled` で押せないことを伝え、押しても何もしない
     -->
     <button
       type="button"
-      class="rounded-control px-6 py-4 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink disabled:cursor-default disabled:text-line disabled:hover:bg-transparent"
-      :disabled="scale <= MIN_SCALE"
+      class="rounded-control px-6 py-4 text-ui text-ink-2 not-aria-disabled:hover:bg-surface-2 not-aria-disabled:hover:text-ink aria-disabled:cursor-default aria-disabled:text-line"
+      :aria-disabled="scale <= MIN_SCALE"
       aria-label="縮小"
       title="縮小"
-      @click="$emit('zoomOut')"
+      @click="scale > MIN_SCALE && $emit('zoomOut')"
     >
       −
     </button>
@@ -50,11 +54,11 @@ defineEmits<{ fit: []; resetPositions: []; zoomIn: []; zoomOut: [] }>()
 
     <button
       type="button"
-      class="rounded-control px-6 py-4 text-ui text-ink-2 hover:bg-surface-2 hover:text-ink disabled:cursor-default disabled:text-line disabled:hover:bg-transparent"
-      :disabled="scale >= MAX_SCALE"
+      class="rounded-control px-6 py-4 text-ui text-ink-2 not-aria-disabled:hover:bg-surface-2 not-aria-disabled:hover:text-ink aria-disabled:cursor-default aria-disabled:text-line"
+      :aria-disabled="scale >= MAX_SCALE"
       aria-label="拡大"
       title="拡大"
-      @click="$emit('zoomIn')"
+      @click="scale < MAX_SCALE && $emit('zoomIn')"
     >
       ＋
     </button>
