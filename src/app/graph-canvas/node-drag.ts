@@ -40,9 +40,12 @@ export interface DragStart {
   origin: Point
 }
 
-/** 押しただけか、動かしたか。しきい値を超えたら動かしたと見なす */
-export function isDrag(from: Point, to: Point): boolean {
-  return Math.hypot(to.x - from.x, to.y - from.y) >= DRAG_THRESHOLD
+/**
+ * 押しただけか、動かしたか。しきい値を超えたら動かしたと見なす。
+ * しきい値は入力の種類で変わる（指は大きい / UT-22 の `dragThresholdFor`）
+ */
+export function isDrag(from: Point, to: Point, threshold: number = DRAG_THRESHOLD): boolean {
+  return Math.hypot(to.x - from.x, to.y - from.y) >= threshold
 }
 
 /**

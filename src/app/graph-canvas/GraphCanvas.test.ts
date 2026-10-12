@@ -15,6 +15,7 @@ import * as layoutModule from './layout'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import { EMPHASIS_LEAVE_GRACE_MS } from './emphasis'
 import { LABEL_GEOMETRY, NAME_LIMIT } from './node-label'
+import { LONG_PRESS_MS } from './touch-gesture'
 import { MAX_SCALE, MIN_SCALE, toWorld } from './viewport'
 import GraphCanvas from './GraphCanvas.vue'
 
@@ -3007,5 +3008,211 @@ describe('移動の索引（UT-21 / R1-05）', () => {
       wrapper.unmount()
       document.body.innerHTML = ''
     }
+  })
+})
+
+describe('指での操作（UT-22）', () => {
+  function attached() {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    state.setCanvasSize(CANVAS.width, CANVAS.height)
+    return { state, wrapper: mount(GraphCanvas, { attachTo: document.body }) }
+  }
+  type Wrapper = ReturnType<typeof attached>['wrapper']
+  const canvasOf = (wrapper: Wrapper) =>
+    wrapper.vm as unknown as { viewport: { x: number; y: number; scale: number } }
+  const nodeEl = (wrapper: Wrapper, id: string) => wrapper.get(`g.node[data-node-id="${id}"]`)
+  const positionOf = (wrapper: Wrapper, id: string) => {
+    const found = /translate\(([\d.-]+),([\d.-]+)\)/.exec(
+      nodeEl(wrapper, id).attributes('transform') ?? '',
+    )
+    return { x: Number(found?.[1]), y: Number(found?.[2]) }
+  }
+  const pointer = (
+    target: EventTarget,
+    type: string,
+    init: { id: number; x: number; y: number; pointerType?: string },
+  ) =>
+    target.dispatchEvent(
+      new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        pointerId: init.id,
+        pointerType: init.pointerType ?? 'touch',
+        clientX: init.x,
+        clientY: init.y,
+      }),
+    )
+  const first = viewModel.nodes.file[2]!.id
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+    vi.useRealTimers()
+  })
+
+  it('背景を 1 本指で動かすと、図が同じだけ動く', async () => {
+    const { wrapper } = attached()
+    const svg = wrapper.get('svg').element
+    const before = { ...canvasOf(wrapper).viewport }
+
+    pointer(svg, 'pointerdown', { id: 1, x: 300, y: 300 })
+    pointer(window, 'pointermove', { id: 1, x: 340, y: 270 })
+    pointer(window, 'pointerup', { id: 1, x: 340, y: 270 })
+    await nextTick()
+
+    expect(canvasOf(wrapper).viewport.x).toBeCloseTo(before.x + 40)
+    expect(canvasOf(wrapper).viewport.y).toBeCloseTo(before.y - 30)
+    expect(canvasOf(wrapper).viewport.scale).toBe(before.scale)
+  })
+
+  it('マウスで背景を動かしても、図は動かない（マウスの操作は変えない）', async () => {
+    const { wrapper } = attached()
+    const svg = wrapper.get('svg').element
+    const before = { ...canvasOf(wrapper).viewport }
+
+    pointer(svg, 'pointerdown', { id: 1, x: 300, y: 300, pointerType: 'mouse' })
+    pointer(window, 'pointermove', { id: 1, x: 340, y: 270, pointerType: 'mouse' })
+    pointer(window, 'pointerup', { id: 1, x: 340, y: 270, pointerType: 'mouse' })
+    await nextTick()
+
+    expect(canvasOf(wrapper).viewport).toEqual(before)
+  })
+
+  it('2 本指を広げると拡大する', async () => {
+    const { wrapper } = attached()
+    const svg = wrapper.get('svg').element
+    const before = canvasOf(wrapper).viewport.scale
+
+    pointer(svg, 'pointerdown', { id: 1, x: 300, y: 300 })
+    pointer(svg, 'pointerdown', { id: 2, x: 400, y: 300 })
+    pointer(window, 'pointermove', { id: 2, x: 500, y: 300 })
+    await nextTick()
+
+    expect(canvasOf(wrapper).viewport.scale).toBeCloseTo(before * 2)
+    pointer(window, 'pointerup', { id: 1, x: 300, y: 300 })
+    pointer(window, 'pointerup', { id: 2, x: 500, y: 300 })
+  })
+
+  it('ピンチを終えて 1 本指が残っても、その指で図が跳ねない', async () => {
+    const { wrapper } = attached()
+    const svg = wrapper.get('svg').element
+    pointer(svg, 'pointerdown', { id: 1, x: 300, y: 300 })
+    pointer(svg, 'pointerdown', { id: 2, x: 400, y: 300 })
+    pointer(window, 'pointerup', { id: 2, x: 400, y: 300 })
+    const after = { ...canvasOf(wrapper).viewport }
+
+    pointer(window, 'pointermove', { id: 1, x: 380, y: 300 })
+    await nextTick()
+
+    expect(canvasOf(wrapper).viewport).toEqual(after)
+    pointer(window, 'pointerup', { id: 1, x: 380, y: 300 })
+  })
+
+  it('指でノードを掴んで動かせる。指は 8px までのぶれでは動かさない', async () => {
+    const { wrapper } = attached()
+    const node = nodeEl(wrapper, first).element
+    const before = positionOf(wrapper, first)
+
+    pointer(node, 'pointerdown', { id: 1, x: 100, y: 100 })
+    pointer(window, 'pointermove', { id: 1, x: 106, y: 100 })
+    await nextTick()
+    expect(positionOf(wrapper, first)).toEqual(before)
+
+    pointer(window, 'pointermove', { id: 1, x: 160, y: 140 })
+    pointer(window, 'pointerup', { id: 1, x: 160, y: 140 })
+    await nextTick()
+    expect(positionOf(wrapper, first)).not.toEqual(before)
+  })
+
+  it('ノードを掴んでいるあいだ、図はパンしない', async () => {
+    const { wrapper } = attached()
+    const before = { ...canvasOf(wrapper).viewport }
+
+    pointer(nodeEl(wrapper, first).element, 'pointerdown', { id: 1, x: 100, y: 100 })
+    pointer(window, 'pointermove', { id: 1, x: 160, y: 140 })
+    pointer(window, 'pointerup', { id: 1, x: 160, y: 140 })
+    await nextTick()
+
+    expect(canvasOf(wrapper).viewport).toEqual(before)
+  })
+
+  it('ノードを掴んでいるときに 2 本目の指が来たら、掴むのをやめてピンチにする', async () => {
+    const { wrapper } = attached()
+    const svg = wrapper.get('svg').element
+    const scale = canvasOf(wrapper).viewport.scale
+
+    pointer(nodeEl(wrapper, first).element, 'pointerdown', { id: 1, x: 300, y: 300 })
+    pointer(svg, 'pointerdown', { id: 2, x: 400, y: 300 })
+    const placed = positionOf(wrapper, first)
+    pointer(window, 'pointermove', { id: 1, x: 250, y: 300 })
+    await nextTick()
+
+    expect(positionOf(wrapper, first)).toEqual(placed)
+    expect(canvasOf(wrapper).viewport.scale).not.toBe(scale)
+    pointer(window, 'pointerup', { id: 1, x: 250, y: 300 })
+    pointer(window, 'pointerup', { id: 2, x: 400, y: 300 })
+  })
+
+  it('ノードを動かさずに長押しすると、その指の位置にメニューを開く', async () => {
+    vi.useFakeTimers()
+    const { state, wrapper } = attached()
+    const node = nodeEl(wrapper, first).element
+
+    pointer(node, 'pointerdown', { id: 1, x: 120, y: 90 })
+    vi.advanceTimersByTime(LONG_PRESS_MS)
+
+    const emitted = wrapper.emitted('nodeContextMenu')!
+    expect(emitted).toHaveLength(1)
+    const [opened, at] = emitted[0] as [{ id: string }, MouseEvent]
+    expect(opened.id).toBe(first)
+    expect([at.clientX, at.clientY]).toEqual([120, 90])
+
+    // 離したあとの click で選ばない（長押しはメニューを開く操作だった）
+    pointer(window, 'pointerup', { id: 1, x: 120, y: 90 })
+    node.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(state.selectedNodeId).toBeUndefined()
+  })
+
+  it('動かしたら長押しにならない', async () => {
+    vi.useFakeTimers()
+    const { wrapper } = attached()
+
+    pointer(nodeEl(wrapper, first).element, 'pointerdown', { id: 1, x: 120, y: 90 })
+    pointer(window, 'pointermove', { id: 1, x: 140, y: 90 })
+    vi.advanceTimersByTime(LONG_PRESS_MS)
+
+    expect(wrapper.emitted('nodeContextMenu')).toBeUndefined()
+    pointer(window, 'pointerup', { id: 1, x: 140, y: 90 })
+  })
+
+  it('指からの右クリックの合図（Android の長押し）では開かない（二重に開かない）', () => {
+    const { wrapper } = attached()
+    const event = new PointerEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      pointerType: 'touch',
+    })
+
+    nodeEl(wrapper, first).element.dispatchEvent(event)
+
+    expect(wrapper.emitted('nodeContextMenu')).toBeUndefined()
+    // ブラウザ既定のメニューも出さない
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('指を取り消されたら、掴む・パン・長押しのどれも残さない', async () => {
+    vi.useFakeTimers()
+    const { wrapper } = attached()
+    const before = positionOf(wrapper, first)
+
+    pointer(nodeEl(wrapper, first).element, 'pointerdown', { id: 1, x: 100, y: 100 })
+    pointer(window, 'pointercancel', { id: 1, x: 100, y: 100 })
+    vi.advanceTimersByTime(LONG_PRESS_MS)
+    pointer(window, 'pointermove', { id: 1, x: 200, y: 200 })
+    await nextTick()
+
+    expect(wrapper.emitted('nodeContextMenu')).toBeUndefined()
+    expect(positionOf(wrapper, first)).toEqual(before)
   })
 })
