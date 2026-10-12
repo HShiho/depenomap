@@ -2949,3 +2949,33 @@ describe('組み換えと焦点の持ち主（UT-21 / R1-01・R1-02）', () => {
     expect(focused).toBe(state.selectedNodeId)
   })
 })
+
+describe('キーボードでの操作とみなすキー（UT-21 / R1-03）', () => {
+  it('ポインタで押したあと、修飾キーや Esc を押しただけでは関係を浮かべない', async () => {
+    /*
+     * Shift + ホイールの横移動、⌘ + ホイールの拡大縮小は、押したノードに焦点が
+     * 残ったまま使う。修飾キーで強調が出ると、図を動かすだけで退いて見える
+     */
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    state.setCanvasSize(CANVAS.width, CANVAS.height)
+    const wrapper = mount(GraphCanvas, { attachTo: document.body })
+    const node = wrapper.get('svg g.node[tabindex="0"]').element as HTMLElement
+    window.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+    node.focus()
+
+    for (const key of ['Shift', 'Control', 'Meta', 'Alt', 'Escape']) {
+      node.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+    }
+    await flushPromises()
+    expect(wrapper.findAll('g.node.dimmed')).toHaveLength(0)
+
+    // 焦点を動かすキーなら、キーボードでの操作として浮かべる
+    node.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    await flushPromises()
+    expect(wrapper.findAll('g.node.dimmed').length).toBeGreaterThan(0)
+
+    wrapper.unmount()
+    document.body.innerHTML = ''
+  })
+})

@@ -502,8 +502,13 @@ const keyboardFocusTarget = computed<EmphasisTarget | undefined>(() =>
     : undefined,
 )
 
-function onAnyKeydown(): void {
-  keyboardModality.value = true
+/**
+ * **焦点を動かすキー（Tab・矢印・Home・End）だけ**をキーボードでの操作とみなす。
+ * 修飾キーだけ（Shift + ホイールの横移動、⌘ + ホイールの拡大縮小）や Esc で
+ * 数えると、押したノードに焦点が残ったまま図を動かしただけで関係が浮かぶ
+ */
+function onAnyKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Tab' || isNavKey(event.key)) keyboardModality.value = true
 }
 
 function onAnyPointerdown(): void {
