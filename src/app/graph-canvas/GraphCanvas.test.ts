@@ -2871,3 +2871,81 @@ describe('図からメニューを開く・焦点で関係を示す（UT-21）',
     expect(wrapper.findAll('g.node.dimmed')).toHaveLength(0)
   })
 })
+
+describe('組み換えと焦点の持ち主（UT-21 / R1-01・R1-02）', () => {
+  function attached() {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    state.setCanvasSize(CANVAS.width, CANVAS.height)
+    return { state, wrapper: mount(GraphCanvas, { attachTo: document.body }) }
+  }
+  type Wrapper = ReturnType<typeof attached>['wrapper']
+  const roving = (wrapper: Wrapper) => wrapper.get('svg g.node[tabindex="0"]')
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it('組み換えで焦点のノードから焦点が落ちても（ノードは図に残る）、そのノードへ戻す', async () => {
+    /*
+     * Chrome は、焦点を持つ要素を DOM の中で動かすと焦点を外し、移り先の無い
+     * focusout を出す。ノードは図に残るので、基点は変わらない。jsdom は外さない
+     * ので、blur() で同じ状態を作る
+     */
+    const { state, wrapper } = attached()
+    const node = roving(wrapper).element as HTMLElement
+    node.focus()
+    node.blur()
+    expect(document.activeElement).toBe(document.body)
+
+    state.columnAxis = 'depth'
+    await flushPromises()
+
+    expect(document.activeElement).toBe(
+      wrapper.get(`g.node[data-node-id="${node.getAttribute('data-node-id')}"]`).element,
+    )
+  })
+
+  it('図の外の焦点の取れない場所を押したあとは、組み換えで焦点を奪わない', async () => {
+    const { state, wrapper } = attached()
+    const node = roving(wrapper).element as HTMLElement
+    node.focus()
+    const outside = document.createElement('div')
+    document.body.append(outside)
+
+    // 焦点を受け取らない場所を押す。焦点は body に落ちる
+    outside.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+    node.blur()
+    state.setGranularity('method')
+    await flushPromises()
+
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  it('図の外の要素に焦点があるときは、組み換えで焦点を奪わない', async () => {
+    const { state, wrapper } = attached()
+    ;(roving(wrapper).element as HTMLElement).focus()
+    const outside = document.createElement('button')
+    document.body.append(outside)
+    outside.focus()
+
+    state.setGranularity('method')
+    await flushPromises()
+
+    expect(document.activeElement).toBe(outside)
+  })
+
+  it('粒度を変えて焦点のノードが消えたら、選択中のノード、それも無ければ先頭へ', async () => {
+    const { state, wrapper } = attached()
+    ;(roving(wrapper).element as HTMLElement).focus()
+    const method = viewModel.nodes.method[3]!
+    state.select(method.id)
+
+    state.setGranularity('method')
+    await flushPromises()
+
+    // 選択はメソッド粒度へ読み替わる。図にいれば、そこへ焦点が行く
+    const focused = (document.activeElement as Element).getAttribute('data-node-id')
+    expect(focused).toBe(state.selectedNodeId)
+  })
+})

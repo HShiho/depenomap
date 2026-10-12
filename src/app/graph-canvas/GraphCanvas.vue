@@ -753,8 +753,38 @@ const rovingId = computed(() =>
 const svg = useTemplateRef<SVGSVGElement>('svg')
 const descriptionId = useId()
 
-/** 図の中に焦点があるか。組み換えで焦点のノードが消えたとき、行き先へ移すために見る */
-let focusInside = false
+/**
+ * 焦点の持ち主が図か。組み換えで焦点が宙に浮いたとき、図へ戻すかを決める。
+ *
+ * **ノードの focusout では決めない。** 焦点を持つノードが DOM の中で動くと
+ * （組み換えで並びが変わる）、Chrome は焦点を外し、移り先の無い focusout を出す。
+ * ノードが消えたときも、焦点を受け取らない場所を押したときも、同じ形で来るので
+ * 見分けられない。そこで、**文書のどこに焦点が入ったか**と、**図の外で押したか**
+ * で決める
+ */
+let graphOwnsFocus = false
+
+/** 文書のどこかに焦点が入った。図の中なら持ち主は図、外なら外 */
+function onDocumentFocusIn(event: FocusEvent): void {
+  const target = event.target
+  graphOwnsFocus = target instanceof Node && svg.value?.contains(target) === true
+}
+
+/**
+ * 図の外で押した。焦点を受け取らない場所（余白など）を押すと focusin が来ない
+ * ので、ここで持ち主を外す。Safari はボタンを押しても焦点を移さない
+ */
+function onDocumentPointerDown(event: PointerEvent): void {
+  const target = event.target
+  if (!(target instanceof Node && svg.value?.contains(target) === true)) graphOwnsFocus = false
+}
+
+document.addEventListener('focusin', onDocumentFocusIn, true)
+document.addEventListener('pointerdown', onDocumentPointerDown, true)
+onUnmounted(() => {
+  document.removeEventListener('focusin', onDocumentFocusIn, true)
+  document.removeEventListener('pointerdown', onDocumentPointerDown, true)
+})
 
 function nodeElementOf(id: string): SVGGElement | undefined {
   for (const element of svg.value?.querySelectorAll<SVGGElement>('g.node') ?? []) {
@@ -823,33 +853,22 @@ function onNodeBlur(node: GraphNode): void {
   if (domFocusedNodeId.value === node.id) domFocusedNodeId.value = undefined
 }
 
-function onFocusIn(): void {
-  focusInside = true
-}
-
-/**
- * 図の外の要素へ焦点が移ったら、図の中には焦点が無い。移り先が無いとき
- * （焦点のノードが図から消えた、窓を切り替えた）は、中にあったものとして扱う
- */
-function onFocusOut(event: FocusEvent): void {
-  const next = event.relatedTarget
-  if (next instanceof Node && svg.value?.contains(next)) return
-  if (next !== null) focusInside = false
-}
-
 /*
- * 図が組み換わり、焦点を当てていたノードが消えたら、行き先のノードへ焦点を移す。
- * 焦点が図の外にあるときは何もしない（他の場所の操作から焦点を奪わない）
+ * 図が組み換わったら（基点が変わらなくても）、焦点が宙に浮いていて持ち主が図なら、
+ * 基点のノードへ戻す。
+ *
+ *   - 焦点のノードが消えた → 行き先（選択中 / 先頭）へ
+ *   - 焦点のノードが残ったが、並び替えで焦点が外れた（Chrome） → 同じノードへ
+ *
+ * 焦点が図の外にある（持ち主が外 / 何かの要素に焦点がある）ときは何もしない。
+ * 他の場所の操作から焦点を奪わない
  */
 watch(
-  rovingId,
-  (id) => {
-    if (id === undefined || !focusInside) return
+  [rovingId, navNodes],
+  ([id]) => {
+    if (id === undefined || !graphOwnsFocus) return
     const active = document.activeElement
-    // 焦点を持つノードがまだ図にあれば、触らない（いま矢印で移している途中も含む）
-    if (active instanceof Element && active.getAttribute('data-node-id') !== null) {
-      if (svg.value?.contains(active)) return
-    }
+    if (active !== null && active !== document.body) return
     nodeElementOf(id)?.focus()
   },
   { flush: 'post' },
@@ -1291,8 +1310,6 @@ watch(
     :aria-describedby="descriptionId"
     @click="onBackgroundClick"
     @wheel="onWheel"
-    @focusin="onFocusIn"
-    @focusout="onFocusOut"
   >
     <!-- 操作の案内。読み上げで図に入ったときに添える -->
     <desc :id="descriptionId">
