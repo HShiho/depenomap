@@ -1027,6 +1027,20 @@ describe('図の見ている位置の口（US-16 / UT-16）', () => {
     expect(zoomLabel(wrapper).text()).not.toBe(before)
   })
 
+  it('ツールバーの ＋ / − で、1.25 倍 / 0.8 倍に拡大縮小する（UT-28 / M-11）', async () => {
+    // 部品ごとの検査では、App での配線（どちらの刻みをどちらへ渡すか）を見られない
+    const { wrapper } = await sized()
+    const controls = wrapper.findComponent(ViewportControls)
+    const start = viewportOf(wrapper).scale
+
+    await controls.get('button[aria-label="拡大"]').trigger('click')
+    expect(viewportOf(wrapper).scale).toBeCloseTo(start * 1.25)
+
+    await controls.get('button[aria-label="縮小"]').trigger('click')
+    await controls.get('button[aria-label="縮小"]').trigger('click')
+    expect(viewportOf(wrapper).scale).toBeCloseTo(start * 1.25 * 0.8 * 0.8)
+  })
+
   it('全体表示で、動かしたぶんが戻る', async () => {
     // 手で動かして迷子になったときに戻れる口
     const { wrapper } = await sized()
