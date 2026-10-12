@@ -479,11 +479,44 @@ const hovered = ref<EmphasisTarget | undefined>()
  * 絞った結果である。前者は外せば必ず戻る。
  */
 const emphasis = computed(() =>
-  emphasisOf(hovered.value, {
+  emphasisOf(hovered.value ?? keyboardFocusTarget.value, {
     nodeIds: new Set(positions.value.keys()),
     edges: edges.value,
   }),
 )
+
+/**
+ * キーボードで焦点を当てているノード（UT-21 / UT-25 からの申し送り）。
+ * ホバーと同じく関係を浮かび上がらせる。**カーソルを合わせているあいだはそちらを
+ * 優先する**（いま触っているものを出す）。
+ *
+ * **ポインタで押して焦点が入っただけなら浮かべない。** ノードは押すと焦点を受け取る
+ * ので、そのまま浮かべるとカーソルを外しても強調が残り、外せば戻るホバーの見え方が
+ * 崩れる。最後の入力がキーボードのときだけ数える
+ */
+const keyboardModality = ref(false)
+const domFocusedNodeId = ref<string | undefined>()
+const keyboardFocusTarget = computed<EmphasisTarget | undefined>(() =>
+  keyboardModality.value && domFocusedNodeId.value !== undefined
+    ? { kind: 'node', id: domFocusedNodeId.value }
+    : undefined,
+)
+
+function onAnyKeydown(): void {
+  keyboardModality.value = true
+}
+
+function onAnyPointerdown(): void {
+  keyboardModality.value = false
+}
+
+// 捕捉段で受ける。ノードの側が先に止めても、入力の種類は覚える
+window.addEventListener('keydown', onAnyKeydown, true)
+window.addEventListener('pointerdown', onAnyPointerdown, true)
+onUnmounted(() => {
+  window.removeEventListener('keydown', onAnyKeydown, true)
+  window.removeEventListener('pointerdown', onAnyPointerdown, true)
+})
 
 /*
  * 合わせたまま図が組み替わり、合わせた先が消えたら、合わせていたことも忘れる。
@@ -751,8 +784,21 @@ function isNavKey(key: string): key is NavKey {
  *
  *   - 矢印・Home・End: 焦点を動かす。ページのスクロールは止める
  *   - Enter・Space: 選ぶ。クリックと同じ移動の経路（UT-14）を通す
+ *   - Shift+F10・メニューキー: そのノードの右クリックメニュー（UT-18）を開く。
+ *     位置はノードの左下（ノード自身をメニューで隠さない）。ブラウザ既定の
+ *     メニューは止める
  */
 function onNodeKeydown(node: GraphNode, event: KeyboardEvent): void {
+  if ((event.key === 'F10' && event.shiftKey) || event.key === 'ContextMenu') {
+    event.preventDefault()
+    const box = (event.currentTarget as Element).getBoundingClientRect()
+    emit(
+      'nodeContextMenu',
+      node,
+      new MouseEvent('contextmenu', { clientX: box.left, clientY: box.bottom, cancelable: true }),
+    )
+    return
+  }
   if (isNavKey(event.key)) {
     event.preventDefault()
     const next = nextFocus(navNodes.value, node.id, event.key)
@@ -767,6 +813,14 @@ function onNodeKeydown(node: GraphNode, event: KeyboardEvent): void {
 
 function onNodeFocus(node: GraphNode): void {
   focusedNodeId.value = node.id
+  domFocusedNodeId.value = node.id
+}
+
+/** 焦点の枠とノードの縁の間（図の座標の px）。選択の枠と重ならないように離す */
+const FOCUS_RING_GAP = 4
+
+function onNodeBlur(node: GraphNode): void {
+  if (domFocusedNodeId.value === node.id) domFocusedNodeId.value = undefined
 }
 
 function onFocusIn(): void {
@@ -1344,6 +1398,7 @@ watch(
         @click.stop="onNodeClick(placed.node)"
         @keydown="onNodeKeydown(placed.node, $event)"
         @focus="onNodeFocus(placed.node)"
+        @blur="onNodeBlur(placed.node)"
         @pointerdown="onNodePointerDown(placed.node, $event)"
         @contextmenu="emit('nodeContextMenu', placed.node, $event)"
         @pointerenter="onHoverEnter({ kind: 'node', id: placed.node.id })"
@@ -1358,6 +1413,18 @@ watch(
           （素のツールチップは遅延して出るうえ抑止できない）。
         -->
         <title>{{ nodeVisuals.get(placed.node.id)?.tooltip }}</title>
+        <!--
+          キーボードの焦点の枠（UT-21）。ノードの外側に離して描き、選択の枠（ノードの
+          縁そのもの）とは別に読めるようにする。キーボードで当てたときだけ見える
+        -->
+        <rect
+          class="focus-ring"
+          :x="-FOCUS_RING_GAP"
+          :y="-FOCUS_RING_GAP"
+          :width="NODE_WIDTH + FOCUS_RING_GAP * 2"
+          :height="NODE_HEIGHT + FOCUS_RING_GAP * 2"
+          rx="12"
+        />
         <rect class="box" :width="NODE_WIDTH" :height="NODE_HEIGHT" rx="9" />
         <!-- 層の色帯。上下に余白を残した短い帯（参照仕様） -->
         <rect class="bar" x="1" y="9" width="3.5" :height="NODE_HEIGHT - 18" rx="2" />
@@ -1505,6 +1572,25 @@ watch(
 }
 
 /* ノード。塗りは層の色を混ぜ、状態は枠線だけで表す（参照仕様） */
+/*
+ * キーボードの焦点（UT-21）。ブラウザ既定の輪郭は SVG の図形に合わないので消し、
+ * ノードの外側に離した枠で示す。**キーボードで当てたときだけ**（`:focus-visible`）。
+ * 押して焦点が入っただけで枠が出ると、選択の枠と二重に見える
+ */
+.node:focus {
+  outline: none;
+}
+
+.node .focus-ring {
+  fill: none;
+  stroke: transparent;
+  stroke-width: var(--node-stroke-focus);
+}
+
+.node:focus-visible .focus-ring {
+  stroke: var(--color-accent);
+}
+
 .node {
   cursor: pointer;
   /*

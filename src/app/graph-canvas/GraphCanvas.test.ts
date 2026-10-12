@@ -2780,3 +2780,94 @@ describe('図のキーボード操作（UT-21 / QR-2）', () => {
     expect(canvas.viewport.x).toBeLessThan(5000)
   })
 })
+
+describe('図からメニューを開く・焦点で関係を示す（UT-21）', () => {
+  function attached() {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    state.setCanvasSize(CANVAS.width, CANVAS.height)
+    return { state, wrapper: mount(GraphCanvas, { attachTo: document.body }) }
+  }
+  type Wrapper = ReturnType<typeof attached>['wrapper']
+  const roving = (wrapper: Wrapper) => wrapper.get('svg g.node[tabindex="0"]')
+  const keydown = (key: string, init: KeyboardEventInit = {}) => {
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init })
+    ;(document.activeElement ?? document.body).dispatchEvent(event)
+    return event
+  }
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it.each([
+    ['Shift+F10', { key: 'F10', shiftKey: true }],
+    ['メニューキー', { key: 'ContextMenu' }],
+  ])(
+    '%s で、そのノードの右クリックメニューを開く。位置はノードの矩形から決める',
+    async (_label, init) => {
+      const { wrapper } = attached()
+      const node = roving(wrapper)
+      ;(node.element as HTMLElement).focus()
+      node.element.getBoundingClientRect = () =>
+        ({ left: 100, top: 150, right: 280, bottom: 200, width: 180, height: 50 }) as DOMRect
+
+      const event = keydown(init.key, init)
+
+      expect(event.defaultPrevented).toBe(true)
+      const emitted = wrapper.emitted('nodeContextMenu')!
+      expect(emitted).toHaveLength(1)
+      const [opened, at] = emitted[0] as [{ id: string }, MouseEvent]
+      expect(opened.id).toBe(node.attributes('data-node-id'))
+      // ノードの左下に出す（ノード自身をメニューで隠さない）
+      expect(at.clientX).toBe(100)
+      expect(at.clientY).toBe(200)
+    },
+  )
+
+  it('焦点の枠を持つ（選択の枠とは別に読める）', () => {
+    const { wrapper } = attached()
+
+    expect(roving(wrapper).find('rect.focus-ring').exists()).toBe(true)
+  })
+
+  it('キーボードで焦点を当てたノードも、関係を浮かび上がらせる', async () => {
+    const { wrapper } = attached()
+    ;(roving(wrapper).element as HTMLElement).focus()
+    keydown('ArrowDown')
+    await flushPromises()
+
+    expect(wrapper.findAll('g.node.dimmed').length).toBeGreaterThan(0)
+    const focused = (document.activeElement as Element).getAttribute('data-node-id')!
+    expect(wrapper.get(`g.node[data-node-id="${focused}"]`).classes()).not.toContain('dimmed')
+  })
+
+  it('カーソルを合わせているあいだは、そちらを優先する', async () => {
+    const { wrapper } = attached()
+    ;(roving(wrapper).element as HTMLElement).focus()
+    keydown('ArrowDown')
+    await flushPromises()
+    const focused = (document.activeElement as Element).getAttribute('data-node-id')!
+    const neighbours = new Set(
+      viewModel.edges.file
+        .filter((edge) => edge.from === focused || edge.to === focused)
+        .flatMap((edge) => [edge.from, edge.to]),
+    )
+    const other = viewModel.nodes.file.find((node) => !neighbours.has(node.id))!
+
+    await wrapper.get(`g.node[data-node-id="${other.id}"]`).trigger('pointerenter')
+
+    expect(wrapper.get(`g.node[data-node-id="${other.id}"]`).classes()).not.toContain('dimmed')
+    expect(wrapper.get(`g.node[data-node-id="${focused}"]`).classes()).toContain('dimmed')
+  })
+
+  it('ポインタで押して焦点が入っただけなら、関係は浮かべない（外せば戻るホバーの見え方のまま）', async () => {
+    const { wrapper } = attached()
+    const node = roving(wrapper)
+    window.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+    ;(node.element as HTMLElement).focus()
+    await flushPromises()
+
+    expect(wrapper.findAll('g.node.dimmed')).toHaveLength(0)
+  })
+})
