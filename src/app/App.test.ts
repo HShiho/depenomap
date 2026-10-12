@@ -2226,6 +2226,31 @@ describe('検索へ入る口（UT-28 / M-12）', () => {
     expect(document.activeElement).toBe(searchInput())
   })
 
+  it('一覧が inert でなくなってから焦点を入れる', async () => {
+    /*
+     * 畳んでいるあいだの一覧は inert で、ブラウザは焦点を受け付けない。jsdom は
+     * inert を実装していないので、焦点が入ったかどうかでは順序を確かめられない。
+     * 焦点を入れた瞬間に、一覧から inert が外れていたかを記録して見る
+     */
+    const { state, wrapper } = await setup({ attach: true })
+    state.sidebarOpen = false
+    await wrapper.vm.$nextTick()
+    const input = searchInput()!
+    const aside = document.querySelector('aside')!
+    expect(aside.hasAttribute('inert')).toBe(true)
+    let inertWhenFocused: boolean | undefined
+    const focus = input.focus.bind(input)
+    input.focus = (options?: FocusOptions) => {
+      inertWhenFocused = aside.hasAttribute('inert')
+      focus(options)
+    }
+
+    await searchButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(inertWhenFocused).toBe(false)
+  })
+
   it('一覧を開いていても、検索欄へ焦点を移す', async () => {
     const { state, wrapper } = await setup({ attach: true })
     expect(state.sidebarOpen).toBe(true)
