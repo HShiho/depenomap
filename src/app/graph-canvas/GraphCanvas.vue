@@ -9,7 +9,7 @@
  * それぞれ純粋関数に出してある。ここが持つのは、状態の器（UT-05）から
  * 読んだ値をそれらへ渡し、SVG を組み立てて、操作を器へ返すところだけ。
  */
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, useId, useTemplateRef, watch } from 'vue'
 
 import type { GraphEdge, GraphNode } from '@/core/graph/schema'
 import type { Granularity, ViewModel } from '@/core/ir/view-model'
@@ -26,11 +26,20 @@ import { narrowedNodeIds } from './narrowing'
 import { readEdges } from './via-reading'
 import { edgeMidpoint, edgePath } from './edge-path'
 import { EMPHASIS_LEAVE_GRACE_MS, emphasisOf, type EmphasisTarget } from './emphasis'
+import {
+  buildNavIndex,
+  focusAfterRebuild,
+  gridPositionOf,
+  NAV_KEYS,
+  nextFocus,
+  type NavKey,
+} from './keyboard-nav'
 import { nameLimitFor, subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import {
   centreOn,
   fitBounds,
+  reveal,
   transformOf,
   zoomAnchorOf,
   zoomAround,
@@ -477,11 +486,49 @@ const hovered = ref<EmphasisTarget | undefined>()
  * 絞った結果である。前者は外せば必ず戻る。
  */
 const emphasis = computed(() =>
-  emphasisOf(hovered.value, {
+  emphasisOf(hovered.value ?? keyboardFocusTarget.value, {
     nodeIds: new Set(positions.value.keys()),
     edges: edges.value,
   }),
 )
+
+/**
+ * キーボードで焦点を当てているノード（UT-21 / UT-25 からの申し送り）。
+ * ホバーと同じく関係を浮かび上がらせる。**カーソルを合わせているあいだはそちらを
+ * 優先する**（いま触っているものを出す）。
+ *
+ * **ポインタで押して焦点が入っただけなら浮かべない。** ノードは押すと焦点を受け取る
+ * ので、そのまま浮かべるとカーソルを外しても強調が残り、外せば戻るホバーの見え方が
+ * 崩れる。最後の入力がキーボードのときだけ数える
+ */
+const keyboardModality = ref(false)
+const domFocusedNodeId = ref<string | undefined>()
+const keyboardFocusTarget = computed<EmphasisTarget | undefined>(() =>
+  keyboardModality.value && domFocusedNodeId.value !== undefined
+    ? { kind: 'node', id: domFocusedNodeId.value }
+    : undefined,
+)
+
+/**
+ * **焦点を動かすキー（Tab・矢印・Home・End）だけ**をキーボードでの操作とみなす。
+ * 修飾キーだけ（Shift + ホイールの横移動、⌘ + ホイールの拡大縮小）や Esc で
+ * 数えると、押したノードに焦点が残ったまま図を動かしただけで関係が浮かぶ
+ */
+function onAnyKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Tab' || isNavKey(event.key)) keyboardModality.value = true
+}
+
+function onAnyPointerdown(): void {
+  keyboardModality.value = false
+}
+
+// 捕捉段で受ける。ノードの側が先に止めても、入力の種類は覚える
+window.addEventListener('keydown', onAnyKeydown, true)
+window.addEventListener('pointerdown', onAnyPointerdown, true)
+onUnmounted(() => {
+  window.removeEventListener('keydown', onAnyKeydown, true)
+  window.removeEventListener('pointerdown', onAnyPointerdown, true)
+})
 
 /*
  * 合わせたまま図が組み替わり、合わせた先が消えたら、合わせていたことも忘れる。
@@ -620,20 +667,20 @@ const columnHeads = computed(() => {
  * 「使われている数」と「使っている数」で単位が違い、同じ図の中で数が噛み合わない。
  * 型の import と値の import が別エッジになる抽出結果では実際に起きる。
  */
-function statsOf(node: GraphNode): string {
+function countsOf(node: GraphNode): { fanIn: number; fanOut: number } {
   const viewModel = state.viewModel
-  if (!viewModel) return ''
+  if (!viewModel) return { fanIn: 0, fanOut: 0 }
   const fanIn = viewModel.fanInOf(node.id, state.granularity)
   const fanOut = new Set(
     viewModel.dependenciesOf(node.id, state.granularity).map((dependency) => dependency.node.id),
   ).size
-  return `${FAN_IN_MARK}${fanIn} ${FAN_OUT_MARK}${fanOut}`
+  return { fanIn, fanOut }
 }
 
 /**
  * ノード 1 つぶんの表示物。**配置が変わったときだけ作り直す**。
  *
- * テンプレートから `statsOf` を直接呼ぶと、選択が変わるだけの再描画でも
+ * テンプレートから `countsOf` を直接呼ぶと、選択が変わるだけの再描画でも
  * 全ノードぶんの数え直し（依存のたどりと並べ替え）が走る。規模が大きい正本
  * JSON では、クリックのたびにその計算を払うことになる。
  */
@@ -650,27 +697,207 @@ const nodeVisuals = computed(() => {
       flag: string | undefined
       /** 循環に含まれるか。枠の描き分けに使う（印の文言とは別） */
       inCycle: boolean
+      /**
+       * 読み上げる名前（UT-21）。名前・パス・層・数・印・図の上の位置。
+       * 見出しは切り詰めてあるので、全文（ツールチップと同じ）を読む
+       */
+      label: string
     }
   >()
   const viewModel = state.viewModel
   if (!viewModel) return visuals
 
+  const labelOf = layerLabels(viewModel)
   for (const placed of placedNodes.value) {
     const node = placed.node
     // 印は見出しと同じ行の右端に出る。見出しの上限はその幅ぶん狭くなる
     const flag = nodeFlagOf(viewModel, node.id)
+    const tooltip = tooltipOf(node, (id) => viewModel.fileOfMethod(id)?.path)
+    const { fanIn, fanOut } = countsOf(node)
+    const at = gridPositionOf(navIndex.value, node.id)
     visuals.set(node.id, {
       name: titleOf(node, nameLimitFor(flag)),
       path: subtitleOf(node, (id) => viewModel.fileOfMethod(id)?.path),
-      tooltip: tooltipOf(node, (id) => viewModel.fileOfMethod(id)?.path),
-      stat: statsOf(node),
+      tooltip,
+      stat: `${FAN_IN_MARK}${fanIn} ${FAN_OUT_MARK}${fanOut}`,
       colour: layerColour.value(viewModel.layerOf(node.id).key),
       flag,
       inCycle: cycleMarkOf(viewModel, node.id) !== undefined,
+      label: [
+        tooltip.replace(/\n/g, '、'),
+        `層 ${labelOf(viewModel.layerOf(node.id).key)}`,
+        `被依存 ${fanIn}・依存 ${fanOut}`,
+        ...(flag === undefined ? [] : [flag]),
+        ...(at === undefined ? [] : [`${at.column} 列目の ${at.row} 番目（${at.rows} 件中）`]),
+      ].join('、'),
     })
   }
   return visuals
 })
+
+/* --- キーボードの焦点（UT-21 / QR-2） ------------------------------------ */
+
+/**
+ * 移動の計算に渡す、配置済みのノード。縦の位置は手で動かしたあと（見えている
+ * 並びと、矢印で動く順を揃える）
+ */
+const navNodes = computed(() =>
+  placedNodes.value.map((placed) => ({
+    id: placed.node.id,
+    column: placed.column,
+    y: placed.y,
+  })),
+)
+
+/**
+ * 移動の索引。**図が組み換わったときに 1 回だけ作る**（R1-05）。キーを押すたびに
+ * 全ノードを並べ直さない
+ */
+const navIndex = computed(() => buildNavIndex(navNodes.value))
+
+/**
+ * 焦点の基点（ローヴィング tabindex）。図の中の tab 停止はこのノード 1 つだけで、
+ * 矢印キーで基点を移す。ノードを全部停止にすると、Tab がノード数ぶん止まる。
+ *
+ * 覚えているのは最後に焦点を当てたノード。図が組み換わってそれが消えたときは、
+ * 選択中のノード、それも無ければ先頭を基点にする（UT-21 の決定）
+ */
+const focusedNodeId = ref<string | undefined>()
+const rovingId = computed(() =>
+  focusAfterRebuild(navIndex.value, focusedNodeId.value, state.selectedNodeId),
+)
+
+const svg = useTemplateRef<SVGSVGElement>('svg')
+const descriptionId = useId()
+
+/**
+ * 焦点の持ち主が図か。組み換えで焦点が宙に浮いたとき、図へ戻すかを決める。
+ *
+ * **ノードの focusout では決めない。** 焦点を持つノードが DOM の中で動くと
+ * （組み換えで並びが変わる）、Chrome は焦点を外し、移り先の無い focusout を出す。
+ * ノードが消えたときも、焦点を受け取らない場所を押したときも、同じ形で来るので
+ * 見分けられない。そこで、**文書のどこに焦点が入ったか**と、**図の外で押したか**
+ * で決める
+ */
+let graphOwnsFocus = false
+
+/** 文書のどこかに焦点が入った。図の中なら持ち主は図、外なら外 */
+function onDocumentFocusIn(event: FocusEvent): void {
+  const target = event.target
+  graphOwnsFocus = target instanceof Node && svg.value?.contains(target) === true
+}
+
+/**
+ * 図の外で押した。焦点を受け取らない場所（余白など）を押すと focusin が来ない
+ * ので、ここで持ち主を外す。Safari はボタンを押しても焦点を移さない
+ */
+function onDocumentPointerDown(event: PointerEvent): void {
+  const target = event.target
+  if (!(target instanceof Node && svg.value?.contains(target) === true)) graphOwnsFocus = false
+}
+
+document.addEventListener('focusin', onDocumentFocusIn, true)
+document.addEventListener('pointerdown', onDocumentPointerDown, true)
+onUnmounted(() => {
+  document.removeEventListener('focusin', onDocumentFocusIn, true)
+  document.removeEventListener('pointerdown', onDocumentPointerDown, true)
+})
+
+/**
+ * ノードの要素。描くときに ID で控えておき、焦点を移すたびに全ノードを走査
+ * しない（R1-05）
+ */
+const nodeElements = new Map<string, SVGGElement>()
+
+function bindNodeElement(id: string, element: unknown): void {
+  if (element instanceof SVGGElement) nodeElements.set(id, element)
+  else nodeElements.delete(id)
+}
+
+function nodeElementOf(id: string): SVGGElement | undefined {
+  return nodeElements.get(id)
+}
+
+/**
+ * そのノードへ焦点を移す。画面の外にあれば見える位置に入れる（見えていれば
+ * 視点は動かさない）
+ */
+async function moveFocusTo(id: string): Promise<void> {
+  focusedNodeId.value = id
+  await nextTick()
+  nodeElementOf(id)?.focus()
+  const placed = positions.value.get(id)
+  if (placed !== undefined) viewport.value = reveal(viewport.value, placed, view.value)
+}
+
+function isNavKey(key: string): key is NavKey {
+  return (NAV_KEYS as readonly string[]).includes(key)
+}
+
+/**
+ * ノードの上でのキー操作。
+ *
+ *   - 矢印・Home・End: 焦点を動かす。ページのスクロールは止める
+ *   - Enter・Space: 選ぶ。クリックと同じ移動の経路（UT-14）を通す
+ *   - Shift+F10・メニューキー: そのノードの右クリックメニュー（UT-18）を開く。
+ *     位置はノードの左下（ノード自身をメニューで隠さない）。ブラウザ既定の
+ *     メニューは止める
+ */
+function onNodeKeydown(node: GraphNode, event: KeyboardEvent): void {
+  if ((event.key === 'F10' && event.shiftKey) || event.key === 'ContextMenu') {
+    event.preventDefault()
+    const box = (event.currentTarget as Element).getBoundingClientRect()
+    emit(
+      'nodeContextMenu',
+      node,
+      new MouseEvent('contextmenu', { clientX: box.left, clientY: box.bottom, cancelable: true }),
+    )
+    return
+  }
+  if (isNavKey(event.key)) {
+    event.preventDefault()
+    const next = nextFocus(navIndex.value, node.id, event.key)
+    if (next !== undefined) void moveFocusTo(next)
+    return
+  }
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    state.moveTo(node.id, { toggle: true })
+  }
+}
+
+function onNodeFocus(node: GraphNode): void {
+  focusedNodeId.value = node.id
+  domFocusedNodeId.value = node.id
+}
+
+/** 焦点の枠とノードの縁の間（図の座標の px）。選択の枠と重ならないように離す */
+const FOCUS_RING_GAP = 4
+
+function onNodeBlur(node: GraphNode): void {
+  if (domFocusedNodeId.value === node.id) domFocusedNodeId.value = undefined
+}
+
+/*
+ * 図が組み換わったら（基点が変わらなくても）、焦点が宙に浮いていて持ち主が図なら、
+ * 基点のノードへ戻す。
+ *
+ *   - 焦点のノードが消えた → 行き先（選択中 / 先頭）へ
+ *   - 焦点のノードが残ったが、並び替えで焦点が外れた（Chrome） → 同じノードへ
+ *
+ * 焦点が図の外にある（持ち主が外 / 何かの要素に焦点がある）ときは何もしない。
+ * 他の場所の操作から焦点を奪わない
+ */
+watch(
+  [rovingId, navNodes],
+  ([id]) => {
+    if (id === undefined || !graphOwnsFocus) return
+    const active = document.activeElement
+    if (active !== null && active !== document.body) return
+    nodeElementOf(id)?.focus()
+  },
+  { flush: 'post' },
+)
 
 /* --- 操作の口。後続 UT はここから受け取る ---------------------------- */
 
@@ -915,6 +1142,17 @@ function focusNode(nodeId: string): void {
 }
 
 /**
+ * 図へ焦点を移す（UT-21）。焦点の基点のノードへ入る。レールの「図へ」の口が使う。
+ *
+ * 文書の順では一覧（ファイルの行）が図より前にあり、Tab で図へ入るには一覧の行を
+ * すべて通ることになる（テストデータで 66 回）。その近道
+ */
+function focusGraph(): void {
+  const id = rovingId.value
+  if (id !== undefined) void moveFocusTo(id)
+}
+
+/**
  * ボタンで拡大縮小する（UT-28 / M-11）。画面の中心を軸にする。倍率の上下限は
  * UT-16 のまま
  */
@@ -930,6 +1168,7 @@ defineExpose({
   viewport,
   fitToContent,
   focusNode,
+  focusGraph,
   zoomBy,
   movedNodes,
   movedOutOfView,
@@ -1082,13 +1321,26 @@ watch(
     実寸が観測できない環境（`ResizeObserver` が無い）では 0 になる。その場合は
     領域いっぱいに広げる。全体表示は効かないが、図そのものは見える
   -->
+  <!--
+    図は名前を持つ群（UT-21）。図そのものは tab 停止にしない — 入ってから
+    ノードへもう一度 Tab することになる。停止はノードの 1 つだけ（ローヴィング）
+  -->
   <svg
+    ref="svg"
     class="canvas"
     :width="state.canvasWidth || '100%'"
     :height="state.canvasHeight || '100%'"
+    role="group"
+    aria-label="ノードマップ"
+    :aria-describedby="descriptionId"
     @click="onBackgroundClick"
     @wheel="onWheel"
   >
+    <!-- 操作の案内。読み上げで図に入ったときに添える -->
+    <desc :id="descriptionId">
+      矢印キーでノードを移動、Enter で選択、Shift+F10 でメニューを開く
+    </desc>
+
     <defs>
       <!-- 矢尻。線と同じ色トークンを使う（UT-04） -->
       <marker
@@ -1182,6 +1434,7 @@ watch(
       <g
         v-for="placed in placedNodes"
         :key="placed.node.id"
+        :ref="(element) => bindNodeElement(placed.node.id, element)"
         :data-node-id="placed.node.id"
         class="node"
         :class="[
@@ -1193,7 +1446,14 @@ watch(
         ]"
         :style="{ '--lc': nodeVisuals.get(placed.node.id)?.colour }"
         :transform="`translate(${placed.x},${placed.y})`"
+        role="button"
+        :tabindex="placed.node.id === rovingId ? 0 : -1"
+        :aria-label="nodeVisuals.get(placed.node.id)?.label"
+        :aria-pressed="placed.node.id === state.selectedNodeId"
         @click.stop="onNodeClick(placed.node)"
+        @keydown="onNodeKeydown(placed.node, $event)"
+        @focus="onNodeFocus(placed.node)"
+        @blur="onNodeBlur(placed.node)"
         @pointerdown="onNodePointerDown(placed.node, $event)"
         @contextmenu="emit('nodeContextMenu', placed.node, $event)"
         @pointerenter="onHoverEnter({ kind: 'node', id: placed.node.id })"
@@ -1208,6 +1468,18 @@ watch(
           （素のツールチップは遅延して出るうえ抑止できない）。
         -->
         <title>{{ nodeVisuals.get(placed.node.id)?.tooltip }}</title>
+        <!--
+          キーボードの焦点の枠（UT-21）。ノードの外側に離して描き、選択の枠（ノードの
+          縁そのもの）とは別に読めるようにする。キーボードで当てたときだけ見える
+        -->
+        <rect
+          class="focus-ring"
+          :x="-FOCUS_RING_GAP"
+          :y="-FOCUS_RING_GAP"
+          :width="NODE_WIDTH + FOCUS_RING_GAP * 2"
+          :height="NODE_HEIGHT + FOCUS_RING_GAP * 2"
+          rx="12"
+        />
         <rect class="box" :width="NODE_WIDTH" :height="NODE_HEIGHT" rx="9" />
         <!-- 層の色帯。上下に余白を残した短い帯（参照仕様） -->
         <rect class="bar" x="1" y="9" width="3.5" :height="NODE_HEIGHT - 18" rx="2" />
@@ -1355,6 +1627,30 @@ watch(
 }
 
 /* ノード。塗りは層の色を混ぜ、状態は枠線だけで表す（参照仕様） */
+/*
+ * キーボードの焦点（UT-21）。ブラウザ既定の輪郭は SVG の図形に合わないので消し、
+ * ノードの外側に離した枠で示す。**キーボードで当てたときだけ**（`:focus-visible`）。
+ * 押して焦点が入っただけで枠が出ると、選択の枠と二重に見える
+ */
+.node:focus {
+  outline: none;
+}
+
+/*
+ * ポインタは受けない。線を transparent にしただけでは当たり判定に入り、ノードの
+ * 押せる範囲・ホバーの範囲が外側へ広がって、線の端や隙間を食う
+ */
+.node .focus-ring {
+  fill: none;
+  stroke: transparent;
+  stroke-width: var(--node-stroke-focus);
+  pointer-events: none;
+}
+
+.node:focus-visible .focus-ring {
+  stroke: var(--color-accent);
+}
+
 .node {
   cursor: pointer;
   /*

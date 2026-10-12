@@ -106,14 +106,21 @@ watch(() => props.action, measure, { flush: 'post' })
  *
  * **返さないと、焦点は文書の先頭へ落ちる。** 右クリックで焦点は動かないので、
  * ここに入っているのは利用者が直前に触っていた口（ツールバーのボタンなど）である。
+ *
+ * **図のノード（SVG の要素）も覚える**（UT-21）。キーボードで Shift+F10 を押して
+ * 開いたとき、焦点はノードにある。HTML の要素だけを覚えると、閉じたあと焦点が
+ * 文書の先頭へ落ちる
  */
-let focusedBefore: HTMLElement | null = null
+let focusedBefore: HTMLElement | SVGElement | null = null
 
 onMounted(() => {
   const element = menu.value
   if (element) {
     measure()
-    focusedBefore = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    focusedBefore =
+      document.activeElement instanceof HTMLElement || document.activeElement instanceof SVGElement
+        ? document.activeElement
+        : null
     /*
      * 焦点を引き取る。右クリックでは焦点が動かないので、引き取らないと
      * Esc もキーボードでの選択も届かない（押した先は SVG の図で、

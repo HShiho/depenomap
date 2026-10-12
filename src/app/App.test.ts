@@ -2271,3 +2271,64 @@ describe('検索へ入る口（UT-28 / M-12）', () => {
     expect(state.query).toBe('Todo')
   })
 })
+
+describe('キーボードだけで VSCode のメニューまで届く（UT-21 / US-19）', () => {
+  it('ノードに焦点を当て、Shift+F10 でメニューを開き、閉じると焦点がノードへ戻る', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify(
+              url.startsWith(LOCATE_ENDPOINT) ? { resolved: false, reason: 'no-repo' } : result,
+            ),
+          ),
+        ),
+      ),
+    )
+    const state = useViewState()
+    const wrapper = mount(App, { attachTo: document.body })
+    await vi.waitUntil(() => state.status.kind === 'ready')
+    await wrapper.vm.$nextTick()
+
+    const node = wrapper.get('svg g.node[tabindex="0"]').element as HTMLElement
+    node.focus()
+    node.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true, cancelable: true }),
+    )
+    await flushPromises()
+
+    const menu = wrapper.find('[role="menu"]')
+    expect(menu.exists()).toBe(true)
+    expect(menu.element.contains(document.activeElement)).toBe(true)
+
+    document.activeElement!.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
+    )
+    await flushPromises()
+
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false)
+    expect(document.activeElement).toBe(node)
+  })
+})
+
+describe('図へ入る近道（UT-21）', () => {
+  it('レールの「図へ」で、図の焦点の基点へ焦点を移す（一覧の行を Tab で通らずに済む）', async () => {
+    const { wrapper } = await setup({ attach: true })
+
+    await wrapper.get('nav button[aria-label="図へ移る"]').trigger('click')
+    await flushPromises()
+
+    expect(document.activeElement).toBe(wrapper.get('svg g.node[tabindex="0"]').element)
+  })
+
+  it('レールの中では、一覧の行より前にある（Tab の順で先に届く）', async () => {
+    const { wrapper } = await setup({ attach: true })
+    const toGraph = wrapper.get('nav button[aria-label="図へ移る"]').element
+    const firstRow = wrapper.get('aside button').element
+
+    expect(
+      toGraph.compareDocumentPosition(firstRow) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+})

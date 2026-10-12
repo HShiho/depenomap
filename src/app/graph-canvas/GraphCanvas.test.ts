@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,6 +10,7 @@ import { loadGraphFromValue } from '@/core/graph/loader'
 import { buildViewModel, type Granularity, type ViewModel } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
 import * as columnAxis from './column-axis'
+import * as keyboardNavModule from './keyboard-nav'
 import * as layoutModule from './layout'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import { EMPHASIS_LEAVE_GRACE_MS } from './emphasis'
@@ -2642,5 +2643,369 @@ describe('ボタンでの拡大縮小（UT-28 / M-11）', () => {
     expect(canvas.viewport.scale).toBe(MAX_SCALE)
     for (let i = 0; i < 30; i++) canvas.zoomBy(0.8)
     expect(canvas.viewport.scale).toBe(MIN_SCALE)
+  })
+})
+
+describe('図のキーボード操作（UT-21 / QR-2）', () => {
+  /** 焦点を扱うので、文書に取り付けて組み立てる */
+  function attached(options: { granularity?: Granularity } = {}) {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    state.setCanvasSize(CANVAS.width, CANVAS.height)
+    if (options.granularity) state.setGranularity(options.granularity)
+    return { state, wrapper: mount(GraphCanvas, { attachTo: document.body }) }
+  }
+
+  type Wrapper = ReturnType<typeof attached>['wrapper']
+  const stops = (wrapper: Wrapper) => wrapper.findAll('svg g.node[tabindex="0"]')
+  const roving = (wrapper: Wrapper) => stops(wrapper)[0]!
+  const press = async (wrapper: Wrapper, key: string, init: KeyboardEventInit = {}) => {
+    ;(document.activeElement ?? document.body).dispatchEvent(
+      new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }),
+    )
+    await nextTick()
+    await wrapper.vm.$nextTick()
+  }
+  const focusedId = () => (document.activeElement as Element | null)?.getAttribute('data-node-id')
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it('図の中の tab 停止はちょうど 1 つ。ノードが何件でも増えない', () => {
+    const { wrapper } = attached()
+
+    expect(stops(wrapper)).toHaveLength(1)
+    expect(wrapper.findAll('svg g.node[tabindex="-1"]')).toHaveLength(
+      viewModel.nodes.file.length - 1,
+    )
+    // 図そのものは停止にしない（入ってからノードへもう一度 Tab することになる）
+    expect(wrapper.get('svg').attributes('tabindex')).toBeUndefined()
+  })
+
+  it('矢印キーでノードのあいだを動き、焦点と停止が一緒に移る', async () => {
+    const { wrapper } = attached()
+    ;(roving(wrapper).element as HTMLElement).focus()
+    const first = focusedId()
+
+    await press(wrapper, 'ArrowDown')
+
+    expect(focusedId()).not.toBe(first)
+    expect(stops(wrapper)).toHaveLength(1)
+    expect(roving(wrapper).attributes('data-node-id')).toBe(focusedId())
+  })
+
+  it('矢印キーで、ページ自体はスクロールしない', async () => {
+    const { wrapper } = attached()
+    ;(roving(wrapper).element as HTMLElement).focus()
+    const event = new KeyboardEvent('keydown', {
+      key: 'ArrowRight',
+      bubbles: true,
+      cancelable: true,
+    })
+
+    document.activeElement!.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+    wrapper.unmount()
+  })
+
+  it.each(['Enter', ' '])('%s で、そのノードを選ぶ（クリックと同じ経路）', async (key) => {
+    const { state, wrapper } = attached()
+    ;(roving(wrapper).element as HTMLElement).focus()
+    const id = focusedId()!
+
+    await press(wrapper, key)
+
+    expect(state.selectedNodeId).toBe(id)
+    // 移動の経路（UT-14）を通るので、絞り込みも立つ
+    expect(state.narrowedToSelection).toBe(true)
+  })
+
+  it('ノードは押せるものとして、名前と位置が読める', () => {
+    const { wrapper } = attached()
+    const node = roving(wrapper)
+
+    expect(node.attributes('role')).toBe('button')
+    expect(node.attributes('aria-label')).toContain('1 列目')
+    expect(node.attributes('aria-label')).toContain('被依存')
+  })
+
+  it('図は名前を持つ群で、操作の案内を添える', () => {
+    const { wrapper } = attached()
+    const svg = wrapper.get('svg')
+
+    expect(svg.attributes('role')).toBe('group')
+    expect(svg.attributes('aria-label')).toBe('ノードマップ')
+    const describedBy = svg.attributes('aria-describedby')!
+    expect(wrapper.get(`[id="${describedBy}"]`).text()).toContain('矢印')
+  })
+
+  it('選んでいるノードは、押下状態として読める', async () => {
+    const { state, wrapper } = attached()
+    const id = roving(wrapper).attributes('data-node-id')!
+    state.select(id)
+    await nextTick()
+
+    expect(wrapper.get(`g.node[data-node-id="${id}"]`).attributes('aria-pressed')).toBe('true')
+  })
+
+  it('図が組み換わっても、焦点は行方不明にならない（同じノード → 選択 → 先頭）', async () => {
+    const { state, wrapper } = attached()
+    ;(roving(wrapper).element as HTMLElement).focus()
+    await press(wrapper, 'ArrowDown')
+    const before = focusedId()!
+
+    // 選んで絞る（Enter）。選んだノードは図に残るので、焦点もそのまま
+    await press(wrapper, 'Enter')
+    expect(focusedId()).toBe(before)
+
+    // 粒度を変えるとファイルのノードは消える。焦点はメソッド粒度の先頭へ
+    state.setGranularity('method')
+    await flushPromises()
+    expect(focusedId()).toBeDefined()
+    expect(focusedId()).not.toBeNull()
+    expect(stops(wrapper)).toHaveLength(1)
+  })
+
+  it('焦点を移した先が画面の外なら、見える位置に入る', async () => {
+    const { wrapper } = attached()
+    const canvas = wrapper.vm as unknown as { viewport: { x: number; y: number; scale: number } }
+    ;(roving(wrapper).element as HTMLElement).focus()
+    // 図を大きく右へずらし、焦点のノードを画面の外へ出す
+    canvas.viewport.x = 5000
+    await nextTick()
+
+    await press(wrapper, 'ArrowDown')
+
+    expect(canvas.viewport.x).toBeLessThan(5000)
+  })
+})
+
+describe('図からメニューを開く・焦点で関係を示す（UT-21）', () => {
+  function attached() {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    state.setCanvasSize(CANVAS.width, CANVAS.height)
+    return { state, wrapper: mount(GraphCanvas, { attachTo: document.body }) }
+  }
+  type Wrapper = ReturnType<typeof attached>['wrapper']
+  const roving = (wrapper: Wrapper) => wrapper.get('svg g.node[tabindex="0"]')
+  const keydown = (key: string, init: KeyboardEventInit = {}) => {
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init })
+    ;(document.activeElement ?? document.body).dispatchEvent(event)
+    return event
+  }
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it.each([
+    ['Shift+F10', { key: 'F10', shiftKey: true }],
+    ['メニューキー', { key: 'ContextMenu' }],
+  ])(
+    '%s で、そのノードの右クリックメニューを開く。位置はノードの矩形から決める',
+    async (_label, init) => {
+      const { wrapper } = attached()
+      const node = roving(wrapper)
+      ;(node.element as HTMLElement).focus()
+      node.element.getBoundingClientRect = () =>
+        ({ left: 100, top: 150, right: 280, bottom: 200, width: 180, height: 50 }) as DOMRect
+
+      const event = keydown(init.key, init)
+
+      expect(event.defaultPrevented).toBe(true)
+      const emitted = wrapper.emitted('nodeContextMenu')!
+      expect(emitted).toHaveLength(1)
+      const [opened, at] = emitted[0] as [{ id: string }, MouseEvent]
+      expect(opened.id).toBe(node.attributes('data-node-id'))
+      // ノードの左下に出す（ノード自身をメニューで隠さない）
+      expect(at.clientX).toBe(100)
+      expect(at.clientY).toBe(200)
+    },
+  )
+
+  it('焦点の枠を持つ（選択の枠とは別に読める）', () => {
+    const { wrapper } = attached()
+
+    expect(roving(wrapper).find('rect.focus-ring').exists()).toBe(true)
+  })
+
+  it('キーボードで焦点を当てたノードも、関係を浮かび上がらせる', async () => {
+    const { wrapper } = attached()
+    ;(roving(wrapper).element as HTMLElement).focus()
+    keydown('ArrowDown')
+    await flushPromises()
+
+    expect(wrapper.findAll('g.node.dimmed').length).toBeGreaterThan(0)
+    const focused = (document.activeElement as Element).getAttribute('data-node-id')!
+    expect(wrapper.get(`g.node[data-node-id="${focused}"]`).classes()).not.toContain('dimmed')
+  })
+
+  it('カーソルを合わせているあいだは、そちらを優先する', async () => {
+    const { wrapper } = attached()
+    ;(roving(wrapper).element as HTMLElement).focus()
+    keydown('ArrowDown')
+    await flushPromises()
+    const focused = (document.activeElement as Element).getAttribute('data-node-id')!
+    const neighbours = new Set(
+      viewModel.edges.file
+        .filter((edge) => edge.from === focused || edge.to === focused)
+        .flatMap((edge) => [edge.from, edge.to]),
+    )
+    const other = viewModel.nodes.file.find((node) => !neighbours.has(node.id))!
+
+    await wrapper.get(`g.node[data-node-id="${other.id}"]`).trigger('pointerenter')
+
+    expect(wrapper.get(`g.node[data-node-id="${other.id}"]`).classes()).not.toContain('dimmed')
+    expect(wrapper.get(`g.node[data-node-id="${focused}"]`).classes()).toContain('dimmed')
+  })
+
+  it('ポインタで押して焦点が入っただけなら、関係は浮かべない（外せば戻るホバーの見え方のまま）', async () => {
+    const { wrapper } = attached()
+    const node = roving(wrapper)
+    window.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+    ;(node.element as HTMLElement).focus()
+    await flushPromises()
+
+    expect(wrapper.findAll('g.node.dimmed')).toHaveLength(0)
+  })
+})
+
+describe('組み換えと焦点の持ち主（UT-21 / R1-01・R1-02）', () => {
+  function attached() {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    state.setCanvasSize(CANVAS.width, CANVAS.height)
+    return { state, wrapper: mount(GraphCanvas, { attachTo: document.body }) }
+  }
+  type Wrapper = ReturnType<typeof attached>['wrapper']
+  const roving = (wrapper: Wrapper) => wrapper.get('svg g.node[tabindex="0"]')
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it('組み換えで焦点のノードから焦点が落ちても（ノードは図に残る）、そのノードへ戻す', async () => {
+    /*
+     * Chrome は、焦点を持つ要素を DOM の中で動かすと焦点を外し、移り先の無い
+     * focusout を出す。ノードは図に残るので、基点は変わらない。jsdom は外さない
+     * ので、blur() で同じ状態を作る
+     */
+    const { state, wrapper } = attached()
+    const node = roving(wrapper).element as HTMLElement
+    node.focus()
+    node.blur()
+    expect(document.activeElement).toBe(document.body)
+
+    state.columnAxis = 'depth'
+    await flushPromises()
+
+    expect(document.activeElement).toBe(
+      wrapper.get(`g.node[data-node-id="${node.getAttribute('data-node-id')}"]`).element,
+    )
+  })
+
+  it('図の外の焦点の取れない場所を押したあとは、組み換えで焦点を奪わない', async () => {
+    const { state, wrapper } = attached()
+    const node = roving(wrapper).element as HTMLElement
+    node.focus()
+    const outside = document.createElement('div')
+    document.body.append(outside)
+
+    // 焦点を受け取らない場所を押す。焦点は body に落ちる
+    outside.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+    node.blur()
+    state.setGranularity('method')
+    await flushPromises()
+
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  it('図の外の要素に焦点があるときは、組み換えで焦点を奪わない', async () => {
+    const { state, wrapper } = attached()
+    ;(roving(wrapper).element as HTMLElement).focus()
+    const outside = document.createElement('button')
+    document.body.append(outside)
+    outside.focus()
+
+    state.setGranularity('method')
+    await flushPromises()
+
+    expect(document.activeElement).toBe(outside)
+  })
+
+  it('粒度を変えて焦点のノードが消えたら、選択中のノード、それも無ければ先頭へ', async () => {
+    const { state, wrapper } = attached()
+    ;(roving(wrapper).element as HTMLElement).focus()
+    const method = viewModel.nodes.method[3]!
+    state.select(method.id)
+
+    state.setGranularity('method')
+    await flushPromises()
+
+    // 選択はメソッド粒度へ読み替わる。図にいれば、そこへ焦点が行く
+    const focused = (document.activeElement as Element).getAttribute('data-node-id')
+    expect(focused).toBe(state.selectedNodeId)
+  })
+})
+
+describe('キーボードでの操作とみなすキー（UT-21 / R1-03）', () => {
+  it('ポインタで押したあと、修飾キーや Esc を押しただけでは関係を浮かべない', async () => {
+    /*
+     * Shift + ホイールの横移動、⌘ + ホイールの拡大縮小は、押したノードに焦点が
+     * 残ったまま使う。修飾キーで強調が出ると、図を動かすだけで退いて見える
+     */
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    state.setCanvasSize(CANVAS.width, CANVAS.height)
+    const wrapper = mount(GraphCanvas, { attachTo: document.body })
+    const node = wrapper.get('svg g.node[tabindex="0"]').element as HTMLElement
+    window.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+    node.focus()
+
+    for (const key of ['Shift', 'Control', 'Meta', 'Alt', 'Escape']) {
+      node.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+    }
+    await flushPromises()
+    expect(wrapper.findAll('g.node.dimmed')).toHaveLength(0)
+
+    // 焦点を動かすキーなら、キーボードでの操作として浮かべる
+    node.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    await flushPromises()
+    expect(wrapper.findAll('g.node.dimmed').length).toBeGreaterThan(0)
+
+    wrapper.unmount()
+    document.body.innerHTML = ''
+  })
+})
+
+describe('移動の索引（UT-21 / R1-05）', () => {
+  it('キーを押すたびには作り直さない（図が組み換わったときだけ）', async () => {
+    /*
+     * キーを押し続ける（自動反復）と、数千ノードでは押すたびの並べ直しが
+     * 反復のたびに乗る
+     */
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    state.setCanvasSize(CANVAS.width, CANVAS.height)
+    const wrapper = mount(GraphCanvas, { attachTo: document.body })
+    const node = wrapper.get('svg g.node[tabindex="0"]').element as HTMLElement
+    node.focus()
+    const spy = vi.spyOn(keyboardNavModule, 'buildNavIndex')
+    try {
+      for (let i = 0; i < 5; i++) {
+        document.activeElement!.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }),
+        )
+        await flushPromises()
+      }
+      expect(spy).not.toHaveBeenCalled()
+    } finally {
+      spy.mockRestore()
+      wrapper.unmount()
+      document.body.innerHTML = ''
+    }
   })
 })

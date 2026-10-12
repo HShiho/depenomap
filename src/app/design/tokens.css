@@ -346,6 +346,8 @@
   --node-stroke-cyclic: 1.8px;
   /** カーソルを合わせたノードに繋がっているノードの枠（UT-25） */
   --node-stroke-related: 1.8px;
+  /** キーボードの焦点の枠（UT-21）。ノードの外側に離して描く */
+  --node-stroke-focus: 2px;
   /** 依存の辺 */
   --edge-stroke: 1.3px;
   /** 実装の辺 */

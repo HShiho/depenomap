@@ -488,6 +488,33 @@ const showsOrderNote = computed(
           </svg>
         </button>
 
+        <!--
+          図へ入る近道（UT-21）。文書の順では一覧の行が図より前にあり、Tab で図へ
+          入るには一覧の行をすべて通ることになる。押すと図の焦点の基点へ入る
+        -->
+        <button
+          type="button"
+          class="rounded-control px-6 py-4 text-ink-2 hover:bg-surface-2 hover:text-ink disabled:cursor-default disabled:text-line"
+          :disabled="state.status.kind !== 'ready'"
+          aria-label="図へ移る"
+          title="図へ移る"
+          @click="canvas?.focusGraph()"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            aria-hidden="true"
+          >
+            <rect x="1.5" y="2" width="5" height="4" rx="1" />
+            <rect x="9.5" y="10" width="5" height="4" rx="1" />
+            <path d="M6.5 4h2.5v8h0.5" />
+          </svg>
+        </button>
+
         <div class="grow"></div>
 
         <!--

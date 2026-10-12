@@ -61,3 +61,14 @@ describe('重なったときの強弱（UT-10）', () => {
     expect(ruleFor('.edge.implements.cyclic')).toContain('var(--color-warn)')
   })
 })
+
+describe('焦点の枠（UT-21 / R1-04）', () => {
+  it('ポインタを受けない（ノードの当たり判定を広げない）', () => {
+    /*
+     * 線の色を transparent にしただけでは、見えなくても当たり判定に入る。
+     * 枠はノードの外側 4px にあるので、押せる範囲・ホバーの範囲が外へ広がり、
+     * 線の端や隙間を食う
+     */
+    expect(ruleFor('.node .focus-ring {')).toMatch(/pointer-events:\s*none/)
+  })
+})
