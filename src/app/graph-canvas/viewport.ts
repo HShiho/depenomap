@@ -183,3 +183,30 @@ export const ZOOM_OUT_STEP = 0.8
 export function zoomAnchorOf(view: Size): Point {
   return { x: view.width / 2, y: view.height / 2 }
 }
+
+/** ノードを見える位置に入れるときに、画面の端との間に残す余白（px） */
+export const REVEAL_MARGIN = 24
+
+/**
+ * ノードが画面の外にあれば、見える位置に入る分だけ動かす（UT-21）。
+ *
+ * **見えていれば動かさない**（同じ値を返す）。キーボードで辿るだけで視点が
+ * 毎回動くと、図のどこを見ているのかが分からなくなる。動かすときも中央へは
+ * 寄せず、端に余白を残して入る分だけにする。倍率は変えない。
+ *
+ * 画面よりノードのほうが大きいときは、左上を合わせる（名前は左上から始まる）。
+ */
+export function reveal(viewport: Viewport, node: Point, view: Size): Viewport {
+  const shift = (start: number, size: number, extent: number): number => {
+    const end = start + size
+    if (size > extent - REVEAL_MARGIN * 2) return REVEAL_MARGIN - start
+    if (start < REVEAL_MARGIN) return REVEAL_MARGIN - start
+    if (end > extent - REVEAL_MARGIN) return extent - REVEAL_MARGIN - end
+    return 0
+  }
+
+  const dx = shift(node.x * viewport.scale + viewport.x, NODE_WIDTH * viewport.scale, view.width)
+  const dy = shift(node.y * viewport.scale + viewport.y, NODE_HEIGHT * viewport.scale, view.height)
+  if (dx === 0 && dy === 0) return viewport
+  return { ...viewport, x: viewport.x + dx, y: viewport.y + dy }
+}

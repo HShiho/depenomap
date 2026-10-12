@@ -14,6 +14,9 @@ import {
   toWorld,
   transformOf,
   zoomAround,
+  reveal,
+  REVEAL_MARGIN,
+  type Viewport,
   zoomAnchorOf,
   ZOOM_IN_STEP,
   ZOOM_OUT_STEP,
@@ -174,5 +177,49 @@ describe('ボタンでの拡大縮小（UT-28 / M-11）', () => {
     expect(anchor).toEqual({ x: 400, y: 300 })
     expect(toScreen(after, before).x).toBeCloseTo(400)
     expect(toScreen(after, before).y).toBeCloseTo(300)
+  })
+})
+
+describe('ノードを見える位置に入れる（UT-21）', () => {
+  const view = { width: 800, height: 600 }
+  const at = (viewport: Viewport, node: { x: number; y: number }) => ({
+    left: node.x * viewport.scale + viewport.x,
+    top: node.y * viewport.scale + viewport.y,
+    right: (node.x + NODE_WIDTH) * viewport.scale + viewport.x,
+    bottom: (node.y + NODE_HEIGHT) * viewport.scale + viewport.y,
+  })
+
+  it('すでに見えていれば動かさない（辿るだけで視点が変わらないように）', () => {
+    const viewport = { x: 0, y: 0, scale: 1 }
+    expect(reveal(viewport, { x: 100, y: 100 }, view)).toBe(viewport)
+  })
+
+  it('右・下にはみ出していれば、余白を残して入る分だけ動かす', () => {
+    const viewport = { x: 0, y: 0, scale: 1 }
+    const next = reveal(viewport, { x: 900, y: 700 }, view)
+    const box = at(next, { x: 900, y: 700 })
+
+    expect(next.scale).toBe(1)
+    expect(box.right).toBeCloseTo(view.width - REVEAL_MARGIN)
+    expect(box.bottom).toBeCloseTo(view.height - REVEAL_MARGIN)
+  })
+
+  it('左・上にはみ出していれば、余白を残して入る分だけ動かす', () => {
+    const viewport = { x: 0, y: 0, scale: 2 }
+    const next = reveal(viewport, { x: -50, y: -40 }, view)
+    const box = at(next, { x: -50, y: -40 })
+
+    expect(box.left).toBeCloseTo(REVEAL_MARGIN)
+    expect(box.top).toBeCloseTo(REVEAL_MARGIN)
+  })
+
+  it('画面よりノードが大きければ、左上を合わせる', () => {
+    const viewport = { x: 0, y: 0, scale: 2.5 }
+    const tiny = { width: 200, height: 60 }
+    const next = reveal(viewport, { x: 300, y: 300 }, tiny)
+    const box = at(next, { x: 300, y: 300 })
+
+    expect(box.left).toBeCloseTo(REVEAL_MARGIN)
+    expect(box.top).toBeCloseTo(REVEAL_MARGIN)
   })
 })
