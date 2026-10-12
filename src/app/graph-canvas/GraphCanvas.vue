@@ -26,7 +26,14 @@ import { narrowedNodeIds } from './narrowing'
 import { readEdges } from './via-reading'
 import { edgeMidpoint, edgePath } from './edge-path'
 import { EMPHASIS_LEAVE_GRACE_MS, emphasisOf, type EmphasisTarget } from './emphasis'
-import { focusAfterRebuild, gridPositions, NAV_KEYS, nextFocus, type NavKey } from './keyboard-nav'
+import {
+  buildNavIndex,
+  focusAfterRebuild,
+  gridPositionOf,
+  NAV_KEYS,
+  nextFocus,
+  type NavKey,
+} from './keyboard-nav'
 import { nameLimitFor, subtitleOf, titleOf, tooltipOf } from './node-label'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import {
@@ -701,14 +708,13 @@ const nodeVisuals = computed(() => {
   if (!viewModel) return visuals
 
   const labelOf = layerLabels(viewModel)
-  const grid = gridPositions(navNodes.value)
   for (const placed of placedNodes.value) {
     const node = placed.node
     // 印は見出しと同じ行の右端に出る。見出しの上限はその幅ぶん狭くなる
     const flag = nodeFlagOf(viewModel, node.id)
     const tooltip = tooltipOf(node, (id) => viewModel.fileOfMethod(id)?.path)
     const { fanIn, fanOut } = countsOf(node)
-    const at = grid.get(node.id)
+    const at = gridPositionOf(navIndex.value, node.id)
     visuals.set(node.id, {
       name: titleOf(node, nameLimitFor(flag)),
       path: subtitleOf(node, (id) => viewModel.fileOfMethod(id)?.path),
@@ -744,6 +750,12 @@ const navNodes = computed(() =>
 )
 
 /**
+ * 移動の索引。**図が組み換わったときに 1 回だけ作る**（R1-05）。キーを押すたびに
+ * 全ノードを並べ直さない
+ */
+const navIndex = computed(() => buildNavIndex(navNodes.value))
+
+/**
  * 焦点の基点（ローヴィング tabindex）。図の中の tab 停止はこのノード 1 つだけで、
  * 矢印キーで基点を移す。ノードを全部停止にすると、Tab がノード数ぶん止まる。
  *
@@ -752,7 +764,7 @@ const navNodes = computed(() =>
  */
 const focusedNodeId = ref<string | undefined>()
 const rovingId = computed(() =>
-  focusAfterRebuild(navNodes.value, focusedNodeId.value, state.selectedNodeId),
+  focusAfterRebuild(navIndex.value, focusedNodeId.value, state.selectedNodeId),
 )
 
 const svg = useTemplateRef<SVGSVGElement>('svg')
@@ -791,11 +803,19 @@ onUnmounted(() => {
   document.removeEventListener('pointerdown', onDocumentPointerDown, true)
 })
 
+/**
+ * ノードの要素。描くときに ID で控えておき、焦点を移すたびに全ノードを走査
+ * しない（R1-05）
+ */
+const nodeElements = new Map<string, SVGGElement>()
+
+function bindNodeElement(id: string, element: unknown): void {
+  if (element instanceof SVGGElement) nodeElements.set(id, element)
+  else nodeElements.delete(id)
+}
+
 function nodeElementOf(id: string): SVGGElement | undefined {
-  for (const element of svg.value?.querySelectorAll<SVGGElement>('g.node') ?? []) {
-    if (element.getAttribute('data-node-id') === id) return element
-  }
-  return undefined
+  return nodeElements.get(id)
 }
 
 /**
@@ -836,7 +856,7 @@ function onNodeKeydown(node: GraphNode, event: KeyboardEvent): void {
   }
   if (isNavKey(event.key)) {
     event.preventDefault()
-    const next = nextFocus(navNodes.value, node.id, event.key)
+    const next = nextFocus(navIndex.value, node.id, event.key)
     if (next !== undefined) void moveFocusTo(next)
     return
   }
@@ -1414,6 +1434,7 @@ watch(
       <g
         v-for="placed in placedNodes"
         :key="placed.node.id"
+        :ref="(element) => bindNodeElement(placed.node.id, element)"
         :data-node-id="placed.node.id"
         class="node"
         :class="[

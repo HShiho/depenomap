@@ -37,23 +37,41 @@ export const NAV_KEYS: readonly NavKey[] = [
   'Home',
   'End',
 ]
+/**
+ * 移動の計算に使う索引。**図が組み換わったときに 1 回だけ作る**（R1-05）。
+ *
+ * キーを押すたびに全ノードを列に分けて並べ直すと、キーを押し続けたとき（自動
+ * 反復）に、数千ノードではその計算を反復のたびに払う。列の並びと、ノードから
+ * 列・行への引き当てを前もって持つ。
+ */
+export interface NavIndex {
+  /** 列ごとに、縦の位置の順に並べたもの。列は左から */
+  columns: readonly (readonly NavNode[])[]
+  /** ノードの ID から、列と行の位置（0 から） */
+  at: ReadonlyMap<string, { column: number; row: number }>
+}
 
-/** 列ごとに、縦の位置の順に並べたもの。列は左から */
-function columnsOf(nodes: readonly NavNode[]): NavNode[][] {
+export function buildNavIndex(nodes: readonly NavNode[]): NavIndex {
   const byColumn = new Map<number, NavNode[]>()
   for (const node of nodes) {
     const bucket = byColumn.get(node.column)
     if (bucket) bucket.push(node)
     else byColumn.set(node.column, [node])
   }
-  return [...byColumn.entries()]
+  const columns = [...byColumn.entries()]
     .sort(([a], [b]) => a - b)
     .map(([, bucket]) => bucket.sort((a, b) => a.y - b.y || a.id.localeCompare(b.id)))
+
+  const at = new Map<string, { column: number; row: number }>()
+  for (const [column, bucket] of columns.entries()) {
+    for (const [row, node] of bucket.entries()) at.set(node.id, { column, row })
+  }
+  return { columns, at }
 }
 
 /** 先頭のノード（左の列の一番上） */
-function firstOf(columns: readonly NavNode[][]): string | undefined {
-  return columns[0]?.[0]?.id
+function firstOf(index: NavIndex): string | undefined {
+  return index.columns[0]?.[0]?.id
 }
 
 /**
@@ -62,30 +80,28 @@ function firstOf(columns: readonly NavNode[][]): string | undefined {
  * 焦点が図に無い（まだ当てていない、組み換えで消えた）ときは、先頭から始める。
  */
 export function nextFocus(
-  nodes: readonly NavNode[],
+  index: NavIndex,
   currentId: string | undefined,
   key: NavKey,
 ): string | undefined {
-  const columns = columnsOf(nodes)
-  const columnIndex = columns.findIndex((column) => column.some((node) => node.id === currentId))
-  if (columnIndex === -1) return firstOf(columns)
+  const here = currentId === undefined ? undefined : index.at.get(currentId)
+  if (here === undefined) return firstOf(index)
 
-  const column = columns[columnIndex]!
-  const row = column.findIndex((node) => node.id === currentId)
-  const current = column[row]!
+  const column = index.columns[here.column]!
+  const current = column[here.row]!
 
   switch (key) {
     case 'ArrowUp':
-      return column[Math.max(0, row - 1)]!.id
+      return column[Math.max(0, here.row - 1)]!.id
     case 'ArrowDown':
-      return column[Math.min(column.length - 1, row + 1)]!.id
+      return column[Math.min(column.length - 1, here.row + 1)]!.id
     case 'Home':
       return column[0]!.id
     case 'End':
       return column[column.length - 1]!.id
     case 'ArrowLeft':
     case 'ArrowRight': {
-      const target = columns[columnIndex + (key === 'ArrowLeft' ? -1 : 1)]
+      const target = index.columns[here.column + (key === 'ArrowLeft' ? -1 : 1)]
       if (target === undefined) return current.id
       // 縦の位置が一番近いもの。同じ距離なら上（並びの先）を選び、押すたびに揺れない
       let nearest = target[0]!
@@ -104,14 +120,13 @@ export function nextFocus(
  * ノード、それも無ければ先頭。焦点が行方不明にならないようにする。
  */
 export function focusAfterRebuild(
-  nodes: readonly NavNode[],
+  index: NavIndex,
   previousId: string | undefined,
   selectedId: string | undefined,
 ): string | undefined {
-  const present = (id: string | undefined) => id !== undefined && nodes.some((n) => n.id === id)
-  if (present(previousId)) return previousId
-  if (present(selectedId)) return selectedId
-  return firstOf(columnsOf(nodes))
+  if (previousId !== undefined && index.at.has(previousId)) return previousId
+  if (selectedId !== undefined && index.at.has(selectedId)) return selectedId
+  return firstOf(index)
 }
 
 /** 読み上げに出す位置（1 から数える）。描かれている列だけで数える */
@@ -122,26 +137,13 @@ export interface GridPosition {
   rows: number
 }
 
-/**
- * すべてのノードの位置。ノードごとに `gridPositionOf` を呼ぶと、そのたびに列を
- * 並べ直す（件数の 2 乗）。描くときはこちらで 1 回にまとめて求める
- */
-export function gridPositions(nodes: readonly NavNode[]): ReadonlyMap<string, GridPosition> {
-  const columns = columnsOf(nodes)
-  const positions = new Map<string, GridPosition>()
-  for (const [columnIndex, column] of columns.entries()) {
-    for (const [row, node] of column.entries()) {
-      positions.set(node.id, {
-        column: columnIndex + 1,
-        columns: columns.length,
-        row: row + 1,
-        rows: column.length,
-      })
-    }
+export function gridPositionOf(index: NavIndex, id: string): GridPosition | undefined {
+  const here = index.at.get(id)
+  if (here === undefined) return undefined
+  return {
+    column: here.column + 1,
+    columns: index.columns.length,
+    row: here.row + 1,
+    rows: index.columns[here.column]!.length,
   }
-  return positions
-}
-
-export function gridPositionOf(nodes: readonly NavNode[], id: string): GridPosition | undefined {
-  return gridPositions(nodes).get(id)
 }

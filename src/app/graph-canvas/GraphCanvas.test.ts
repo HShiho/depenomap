@@ -10,6 +10,7 @@ import { loadGraphFromValue } from '@/core/graph/loader'
 import { buildViewModel, type Granularity, type ViewModel } from '@/core/ir/view-model'
 import { useViewState } from '../shell/view-state'
 import * as columnAxis from './column-axis'
+import * as keyboardNavModule from './keyboard-nav'
 import * as layoutModule from './layout'
 import { buildLayout, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import { EMPHASIS_LEAVE_GRACE_MS } from './emphasis'
@@ -2977,5 +2978,34 @@ describe('キーボードでの操作とみなすキー（UT-21 / R1-03）', () 
 
     wrapper.unmount()
     document.body.innerHTML = ''
+  })
+})
+
+describe('移動の索引（UT-21 / R1-05）', () => {
+  it('キーを押すたびには作り直さない（図が組み換わったときだけ）', async () => {
+    /*
+     * キーを押し続ける（自動反復）と、数千ノードでは押すたびの並べ直しが
+     * 反復のたびに乗る
+     */
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    state.setCanvasSize(CANVAS.width, CANVAS.height)
+    const wrapper = mount(GraphCanvas, { attachTo: document.body })
+    const node = wrapper.get('svg g.node[tabindex="0"]').element as HTMLElement
+    node.focus()
+    const spy = vi.spyOn(keyboardNavModule, 'buildNavIndex')
+    try {
+      for (let i = 0; i < 5; i++) {
+        document.activeElement!.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }),
+        )
+        await flushPromises()
+      }
+      expect(spy).not.toHaveBeenCalled()
+    } finally {
+      spy.mockRestore()
+      wrapper.unmount()
+      document.body.innerHTML = ''
+    }
   })
 })
