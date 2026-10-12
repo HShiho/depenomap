@@ -223,3 +223,18 @@ describe('ノードを見える位置に入れる（UT-21）', () => {
     expect(box.top).toBeCloseTo(REVEAL_MARGIN)
   })
 })
+
+describe('ノードを見える位置に入れる：画面が小さいとき（UT-21 / R1-07）', () => {
+  it('画面の実寸が測れていない（0）ときは動かさない', () => {
+    // ResizeObserver の無い環境では 0 のまま。押すたびに左上へ寄せない
+    const viewport = { x: 10, y: 20, scale: 1 }
+    expect(reveal(viewport, { x: 500, y: 500 }, { width: 0, height: 0 })).toBe(viewport)
+  })
+
+  it('画面よりノードが大きくても、一部でも見えていれば動かさない', () => {
+    const viewport = { x: 0, y: 0, scale: 2.5 }
+    const tiny = { width: 200, height: 60 }
+    // ノードの左上が画面の中にある
+    expect(reveal(viewport, { x: 10, y: 5 }, tiny)).toBe(viewport)
+  })
+})

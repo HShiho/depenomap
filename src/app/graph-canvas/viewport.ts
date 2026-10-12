@@ -194,12 +194,21 @@ export const REVEAL_MARGIN = 24
  * 毎回動くと、図のどこを見ているのかが分からなくなる。動かすときも中央へは
  * 寄せず、端に余白を残して入る分だけにする。倍率は変えない。
  *
- * 画面よりノードのほうが大きいときは、左上を合わせる（名前は左上から始まる）。
+ * 画面よりノードのほうが大きいときは、**一部でも見えていれば動かさず**、まったく
+ * 見えていなければ左上を合わせる（名前は左上から始まる）。毎回合わせ直すと、
+ * 見えているのに押すたびに視点が動く。
+ *
+ * 画面の実寸が測れていない（0）ときは動かさない（`ResizeObserver` の無い環境）。
  */
 export function reveal(viewport: Viewport, node: Point, view: Size): Viewport {
+  if (view.width <= 0 || view.height <= 0) return viewport
+
   const shift = (start: number, size: number, extent: number): number => {
     const end = start + size
-    if (size > extent - REVEAL_MARGIN * 2) return REVEAL_MARGIN - start
+    if (size > extent - REVEAL_MARGIN * 2) {
+      const visible = end > 0 && start < extent
+      return visible ? 0 : REVEAL_MARGIN - start
+    }
     if (start < REVEAL_MARGIN) return REVEAL_MARGIN - start
     if (end > extent - REVEAL_MARGIN) return extent - REVEAL_MARGIN - end
     return 0
