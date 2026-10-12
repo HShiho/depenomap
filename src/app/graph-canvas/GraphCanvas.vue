@@ -1098,6 +1098,17 @@ function focusNode(nodeId: string): void {
 }
 
 /**
+ * 図へ焦点を移す（UT-21）。焦点の基点のノードへ入る。レールの「図へ」の口が使う。
+ *
+ * 文書の順では一覧（ファイルの行）が図より前にあり、Tab で図へ入るには一覧の行を
+ * すべて通ることになる（テストデータで 66 回）。その近道
+ */
+function focusGraph(): void {
+  const id = rovingId.value
+  if (id !== undefined) void moveFocusTo(id)
+}
+
+/**
  * ボタンで拡大縮小する（UT-28 / M-11）。画面の中心を軸にする。倍率の上下限は
  * UT-16 のまま
  */
@@ -1113,6 +1124,7 @@ defineExpose({
   viewport,
   fitToContent,
   focusNode,
+  focusGraph,
   zoomBy,
   movedNodes,
   movedOutOfView,

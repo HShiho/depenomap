@@ -2311,3 +2311,24 @@ describe('キーボードだけで VSCode のメニューまで届く（UT-21 / 
     expect(document.activeElement).toBe(node)
   })
 })
+
+describe('図へ入る近道（UT-21）', () => {
+  it('レールの「図へ」で、図の焦点の基点へ焦点を移す（一覧の行を Tab で通らずに済む）', async () => {
+    const { wrapper } = await setup({ attach: true })
+
+    await wrapper.get('nav button[aria-label="図へ移る"]').trigger('click')
+    await flushPromises()
+
+    expect(document.activeElement).toBe(wrapper.get('svg g.node[tabindex="0"]').element)
+  })
+
+  it('レールの中では、一覧の行より前にある（Tab の順で先に届く）', async () => {
+    const { wrapper } = await setup({ attach: true })
+    const toGraph = wrapper.get('nav button[aria-label="図へ移る"]').element
+    const firstRow = wrapper.get('aside button').element
+
+    expect(
+      toGraph.compareDocumentPosition(firstRow) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+})
