@@ -122,13 +122,26 @@ export interface GridPosition {
   rows: number
 }
 
-export function gridPositionOf(nodes: readonly NavNode[], id: string): GridPosition | undefined {
+/**
+ * すべてのノードの位置。ノードごとに `gridPositionOf` を呼ぶと、そのたびに列を
+ * 並べ直す（件数の 2 乗）。描くときはこちらで 1 回にまとめて求める
+ */
+export function gridPositions(nodes: readonly NavNode[]): ReadonlyMap<string, GridPosition> {
   const columns = columnsOf(nodes)
+  const positions = new Map<string, GridPosition>()
   for (const [columnIndex, column] of columns.entries()) {
-    const row = column.findIndex((node) => node.id === id)
-    if (row !== -1) {
-      return { column: columnIndex + 1, columns: columns.length, row: row + 1, rows: column.length }
+    for (const [row, node] of column.entries()) {
+      positions.set(node.id, {
+        column: columnIndex + 1,
+        columns: columns.length,
+        row: row + 1,
+        rows: column.length,
+      })
     }
   }
-  return undefined
+  return positions
+}
+
+export function gridPositionOf(nodes: readonly NavNode[], id: string): GridPosition | undefined {
+  return gridPositions(nodes).get(id)
 }
