@@ -189,3 +189,30 @@ describe('ノードの右クリックメニュー（UT-18 / US-19）', () => {
     for (const call of attached) expect(removed).toHaveBeenCalledWith(...call)
   })
 })
+
+describe('このノードの位置を戻す（UT-28 / M-10）', () => {
+  function showWith(canResetPosition: boolean) {
+    return mount(NodeContextMenu, {
+      props: { at: { x: 120, y: 80 }, title: 'app.ts', action: ready, canResetPosition },
+      attachTo: document.body,
+    })
+  }
+  const items = (wrapper: ReturnType<typeof showWith>) =>
+    wrapper.findAll('[role="menuitem"]').map((menuItem) => menuItem.text())
+
+  it('動かしたノードには、VSCode で開くの下に出す', () => {
+    expect(items(showWith(true))).toEqual(['VSCode で開く', 'このノードの位置を戻す'])
+  })
+
+  it('動かしていないノードには出さない（押せない項目を出すより、無いほうが短い）', () => {
+    expect(items(showWith(false))).toEqual(['VSCode で開く'])
+  })
+
+  it('押すと、戻すことを伝える', async () => {
+    const wrapper = showWith(true)
+
+    await wrapper.findAll('[role="menuitem"]')[1]!.trigger('click')
+
+    expect(wrapper.emitted('resetPosition')).toHaveLength(1)
+  })
+})

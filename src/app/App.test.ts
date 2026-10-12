@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { enableAutoUnmount, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -1025,6 +1025,20 @@ describe('図の見ている位置の口（US-16 / UT-16）', () => {
     await spin(wrapper, { deltaY: -200, ctrlKey: true })
 
     expect(zoomLabel(wrapper).text()).not.toBe(before)
+  })
+
+  it('ツールバーの ＋ / − で、1.25 倍 / 0.8 倍に拡大縮小する（UT-28 / M-11）', async () => {
+    // 部品ごとの検査では、App での配線（どちらの刻みをどちらへ渡すか）を見られない
+    const { wrapper } = await sized()
+    const controls = wrapper.findComponent(ViewportControls)
+    const start = viewportOf(wrapper).scale
+
+    await controls.get('button[aria-label="拡大"]').trigger('click')
+    expect(viewportOf(wrapper).scale).toBeCloseTo(start * 1.25)
+
+    await controls.get('button[aria-label="縮小"]').trigger('click')
+    await controls.get('button[aria-label="縮小"]').trigger('click')
+    expect(viewportOf(wrapper).scale).toBeCloseTo(start * 1.25 * 0.8 * 0.8)
   })
 
   it('全体表示で、動かしたぶんが戻る', async () => {
@@ -2110,5 +2124,150 @@ describe('合成ルートを隠したまま、該当の無い周りへ絞った�
     const overlay = wrapper.find('.shell-overlay')
     expect(overlay.text()).toContain('隠しています')
     expect(overlay.find('button[aria-label="合成ルートを表示する"]').exists()).toBe(true)
+  })
+})
+
+describe('右クリックからノードの位置を戻す（UT-28 / M-10）', () => {
+  /** 位置の問い合わせは開けない結果で返す（メニューの項目を見るだけなので） */
+  async function showApp() {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify(
+              url.startsWith(LOCATE_ENDPOINT) ? { resolved: false, reason: 'no-repo' } : result,
+            ),
+          ),
+        ),
+      ),
+    )
+    const state = useViewState()
+    const wrapper = mount(App, { attachTo: document.body })
+    await vi.waitUntil(() => state.status.kind === 'ready')
+    await wrapper.vm.$nextTick()
+    return wrapper
+  }
+
+  const transformOf = (wrapper: Awaited<ReturnType<typeof showApp>>, id: string) =>
+    wrapper.get(`svg g.node[data-node-id="${id}"]`).attributes('transform')
+
+  async function rightClick(wrapper: Awaited<ReturnType<typeof showApp>>, id: string) {
+    wrapper.get(`svg g.node[data-node-id="${id}"]`).element.dispatchEvent(
+      new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 120,
+        clientY: 80,
+      }),
+    )
+    await wrapper.vm.$nextTick()
+  }
+
+  const menuItems = (wrapper: Awaited<ReturnType<typeof showApp>>) =>
+    wrapper.findAll('[role="menu"] [role="menuitem"]')
+
+  it('動かしたノードを右クリックし、そのノードだけ元の位置へ戻せる', async () => {
+    const wrapper = await showApp()
+    const [first, second] = result.ok ? result.graph.nodes.filter((n) => n.kind === 'file') : []
+    const before = {
+      first: transformOf(wrapper, first!.id),
+      second: transformOf(wrapper, second!.id),
+    }
+
+    // 2 つとも動かす
+    for (const node of [first!, second!]) {
+      wrapper
+        .get(`svg g.node[data-node-id="${node.id}"]`)
+        .element.dispatchEvent(
+          new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }),
+        )
+      window.dispatchEvent(new MouseEvent('pointermove', { clientX: 260, clientY: 180 }))
+      window.dispatchEvent(new MouseEvent('pointerup', {}))
+      await wrapper.vm.$nextTick()
+    }
+    expect(transformOf(wrapper, first!.id)).not.toBe(before.first)
+
+    await rightClick(wrapper, first!.id)
+    const reset = menuItems(wrapper).find((item) => item.text() === 'このノードの位置を戻す')
+    expect(reset).toBeDefined()
+    await reset!.trigger('click')
+
+    // 戻したのはそのノードだけ。メニューは畳む
+    expect(transformOf(wrapper, first!.id)).toBe(before.first)
+    expect(transformOf(wrapper, second!.id)).not.toBe(before.second)
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false)
+  })
+
+  it('動かしていないノードには出さない', async () => {
+    const wrapper = await showApp()
+    const node = result.ok ? result.graph.nodes.find((n) => n.kind === 'file')! : undefined
+
+    await rightClick(wrapper, node!.id)
+
+    expect(menuItems(wrapper).map((item) => item.text())).not.toContain('このノードの位置を戻す')
+  })
+})
+
+describe('検索へ入る口（UT-28 / M-12）', () => {
+  const searchInput = () => document.querySelector<HTMLInputElement>('aside input[type="search"]')
+  const searchButton = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+    wrapper.get('nav button[aria-label="検索"]')
+
+  it('一覧を畳んでいても、レールから検索欄へ入れる', async () => {
+    const { state, wrapper } = await setup({ attach: true })
+    state.sidebarOpen = false
+    await wrapper.vm.$nextTick()
+
+    await searchButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(state.sidebarOpen).toBe(true)
+    expect(document.activeElement).toBe(searchInput())
+  })
+
+  it('一覧が inert でなくなってから焦点を入れる', async () => {
+    /*
+     * 畳んでいるあいだの一覧は inert で、ブラウザは焦点を受け付けない。jsdom は
+     * inert を実装していないので、焦点が入ったかどうかでは順序を確かめられない。
+     * 焦点を入れた瞬間に、一覧から inert が外れていたかを記録して見る
+     */
+    const { state, wrapper } = await setup({ attach: true })
+    state.sidebarOpen = false
+    await wrapper.vm.$nextTick()
+    const input = searchInput()!
+    const aside = document.querySelector('aside')!
+    expect(aside.hasAttribute('inert')).toBe(true)
+    let inertWhenFocused: boolean | undefined
+    const focus = input.focus.bind(input)
+    input.focus = (options?: FocusOptions) => {
+      inertWhenFocused = aside.hasAttribute('inert')
+      focus(options)
+    }
+
+    await searchButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(inertWhenFocused).toBe(false)
+  })
+
+  it('一覧を開いていても、検索欄へ焦点を移す', async () => {
+    const { state, wrapper } = await setup({ attach: true })
+    expect(state.sidebarOpen).toBe(true)
+
+    await searchButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(document.activeElement).toBe(searchInput())
+  })
+
+  it('入れた検索語は消さない（検索の挙動は UT-11 のまま）', async () => {
+    const { state, wrapper } = await setup({ attach: true })
+    state.query = 'Todo'
+
+    await searchButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(state.query).toBe('Todo')
   })
 })

@@ -18,17 +18,50 @@
  * **動かしていないときは押せない。** 押せるかどうかが、そのままリセットの
  * 効く状態を表す（UT-17 の完了条件）。
  */
+import { MAX_SCALE, MIN_SCALE } from './viewport'
+
 defineProps<{ scale: number; movedCount: number }>()
 
-defineEmits<{ fit: []; resetPositions: [] }>()
+defineEmits<{ fit: []; resetPositions: []; zoomIn: []; zoomOut: [] }>()
 </script>
 
 <template>
   <!-- 帯がごく狭いときは中でも折り返す（UT-32）。これ以上縮まない塊にしない -->
   <div class="flex flex-wrap items-center gap-7">
-    <span class="w-44 text-right font-mono text-caption text-ink-3 tabular-nums">
+    <!--
+      拡大縮小のボタン（UT-28 / M-11）。トラックパッドが無いとき（ポインタ以外）でも
+      拡大縮小できるようにする。上下限に当たっていれば押せない（倍率の表示と同じく、
+      効かないのか限界なのかを区別できるように）。
+
+      **`disabled` にはしない。** キーボードで押し続けて限界に達したとき、押していた
+      ボタンが `disabled` になると焦点が文書の先頭へ落ち、ツールバーでの位置を失う。
+      `aria-disabled` で押せないことを伝え、押しても何もしない
+    -->
+    <button
+      type="button"
+      class="rounded-control px-6 py-4 text-ui text-ink-2 not-aria-disabled:hover:bg-surface-2 not-aria-disabled:hover:text-ink aria-disabled:cursor-default aria-disabled:text-line"
+      :aria-disabled="scale <= MIN_SCALE"
+      aria-label="縮小"
+      title="縮小"
+      @click="scale > MIN_SCALE && $emit('zoomOut')"
+    >
+      −
+    </button>
+
+    <span class="w-44 text-center font-mono text-caption text-ink-3 tabular-nums">
       <span class="sr-only">拡大率</span>{{ Math.round(scale * 100) }}%
     </span>
+
+    <button
+      type="button"
+      class="rounded-control px-6 py-4 text-ui text-ink-2 not-aria-disabled:hover:bg-surface-2 not-aria-disabled:hover:text-ink aria-disabled:cursor-default aria-disabled:text-line"
+      :aria-disabled="scale >= MAX_SCALE"
+      aria-label="拡大"
+      title="拡大"
+      @click="scale < MAX_SCALE && $emit('zoomIn')"
+    >
+      ＋
+    </button>
 
     <button
       type="button"

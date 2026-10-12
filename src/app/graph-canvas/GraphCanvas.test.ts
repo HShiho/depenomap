@@ -2611,3 +2611,36 @@ describe('畳みと合成ルートの非表示が重なるとき（UT-31 / UT-29
     expect(canvas.compositionRootHiddenCount).toBe(inDomain - canvas.foldedCount)
   })
 })
+
+describe('ボタンでの拡大縮小（UT-28 / M-11）', () => {
+  it('画面の中心を軸にする。中心にあったものは動かない', async () => {
+    const { wrapper } = setup()
+    const canvas = wrapper.vm as unknown as {
+      viewport: { x: number; y: number; scale: number }
+      zoomBy: (factor: number) => void
+    }
+    const centre = { x: CANVAS.width / 2, y: CANVAS.height / 2 }
+    const world = toWorld(canvas.viewport, centre)
+    const before = canvas.viewport.scale
+
+    canvas.zoomBy(1.25)
+    await nextTick()
+
+    expect(canvas.viewport.scale).toBeCloseTo(before * 1.25)
+    expect(world.x * canvas.viewport.scale + canvas.viewport.x).toBeCloseTo(centre.x)
+    expect(world.y * canvas.viewport.scale + canvas.viewport.y).toBeCloseTo(centre.y)
+  })
+
+  it('倍率の上下限で止まる（UT-16）', async () => {
+    const { wrapper } = setup()
+    const canvas = wrapper.vm as unknown as {
+      viewport: { scale: number }
+      zoomBy: (factor: number) => void
+    }
+
+    for (let i = 0; i < 30; i++) canvas.zoomBy(1.25)
+    expect(canvas.viewport.scale).toBe(MAX_SCALE)
+    for (let i = 0; i < 30; i++) canvas.zoomBy(0.8)
+    expect(canvas.viewport.scale).toBe(MIN_SCALE)
+  })
+})

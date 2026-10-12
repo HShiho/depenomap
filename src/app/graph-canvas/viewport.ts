@@ -168,3 +168,18 @@ export function centreOn(viewport: Viewport, node: Point, view: Size): Viewport 
     y: view.height / 2 - centre.y * viewport.scale,
   }
 }
+
+/** ボタンで拡大縮小するときの刻み（UT-28 / M-11）。参照仕様どおり */
+export const ZOOM_IN_STEP = 1.25
+export const ZOOM_OUT_STEP = 0.8
+
+/**
+ * ボタンで拡大縮小するときの軸（UT-28 / M-11）。**画面の中心**（参照仕様どおり）。
+ *
+ * ボタンにはポインタの位置が無いので、どこを動かさないかを決める必要がある。
+ * 選択中のノードを軸にする案と画面で比べ、利用者が中心を選んだ。中心なら、
+ * 押すたびに何が起きるかが選択の有無で変わらない
+ */
+export function zoomAnchorOf(view: Size): Point {
+  return { x: view.width / 2, y: view.height / 2 }
+}
