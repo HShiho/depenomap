@@ -1615,10 +1615,15 @@ watch(
   outline: none;
 }
 
+/*
+ * ポインタは受けない。線を transparent にしただけでは当たり判定に入り、ノードの
+ * 押せる範囲・ホバーの範囲が外側へ広がって、線の端や隙間を食う
+ */
 .node .focus-ring {
   fill: none;
   stroke: transparent;
   stroke-width: var(--node-stroke-focus);
+  pointer-events: none;
 }
 
 .node:focus-visible .focus-ring {
