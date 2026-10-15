@@ -1060,6 +1060,16 @@ function onNodePointerDown(node: GraphNode, event: PointerEvent): void {
        */
       stopDragging()
       draggedJustNow = true
+      /*
+       * 指を離したときの互換のマウスイベント（mousedown・click）を出させない（R1-02）。
+       * 出させると、mousedown がノードへ焦点を奪い返し、開いたメニューから焦点が
+       * 外れる。touchend で既定の動きを止めると、互換のマウスイベントは出ない
+       */
+      window.addEventListener('touchend', preventCompatMouse, {
+        capture: true,
+        passive: false,
+        once: true,
+      })
       emit('nodeContextMenu', node, new MouseEvent('contextmenu', { clientX: at.x, clientY: at.y }))
     }, LONG_PRESS_MS)
   }
@@ -1127,6 +1137,11 @@ function cancelLongPress(): void {
   longPressTimer = undefined
 }
 
+/** 長押しが成立した指の touchend。互換のマウスイベントを出させない */
+function preventCompatMouse(event: Event): void {
+  event.preventDefault()
+}
+
 /**
  * キャンバスに触れている指（pointerId → 画面上の位置）。
  *
@@ -1182,6 +1197,13 @@ function onTouchMove(event: PointerEvent): void {
 }
 
 function onTouchEnd(event: PointerEvent): void {
+  /*
+   * 取り消されたときは touchend が来ない（touchcancel になる）。長押しのあとの
+   * 互換イベントを止める仕掛けが残ると、次のただのタップまで止めてしまう
+   */
+  if (event.type === 'pointercancel') {
+    window.removeEventListener('touchend', preventCompatMouse, { capture: true })
+  }
   if (!touches.delete(event.pointerId)) return
   if (touches.size === 0) {
     stopTouches()
@@ -1203,6 +1225,7 @@ function stopTouches(): void {
 onUnmounted(() => {
   stopTouches()
   cancelLongPress()
+  window.removeEventListener('touchend', preventCompatMouse, { capture: true })
 })
 
 /**

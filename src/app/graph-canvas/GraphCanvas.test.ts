@@ -3306,3 +3306,91 @@ describe('指が増えたときの掴み・長押し（UT-22 / R1-01・R1-04）'
     expect(wrapper.emitted('nodeContextMenu')).toBeUndefined()
   })
 })
+
+describe('長押しのあとの互換のマウスイベント（UT-22 / R1-02）', () => {
+  function attached() {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    state.setCanvasSize(CANVAS.width, CANVAS.height)
+    return mount(GraphCanvas, { attachTo: document.body })
+  }
+  const touch = (target: EventTarget, type: string, x: number, y: number) =>
+    target.dispatchEvent(
+      new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        pointerId: 1,
+        pointerType: 'touch',
+        clientX: x,
+        clientY: y,
+      }),
+    )
+  const node = viewModel.nodes.file[2]!.id
+
+  beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }))
+  afterEach(() => {
+    vi.useRealTimers()
+    document.body.innerHTML = ''
+  })
+
+  it('長押しでメニューを開いたら、指を離したときの互換のマウスイベントを出させない', () => {
+    /*
+     * 出させると、離したときの mousedown がノードへ焦点を奪い返し、開いたメニューから
+     * 焦点が外れる（メニューのキー操作も、閉じたときの焦点の返しも効かなくなる）。
+     * touchend で既定の動きを止めると、互換の mousedown・click は出ない
+     */
+    const wrapper = attached()
+    touch(wrapper.get(`g.node[data-node-id="${node}"]`).element, 'pointerdown', 120, 90)
+    vi.advanceTimersByTime(LONG_PRESS_MS)
+    expect(wrapper.emitted('nodeContextMenu')).toHaveLength(1)
+
+    const end = new Event('touchend', { bubbles: true, cancelable: true })
+    window.dispatchEvent(end)
+
+    expect(end.defaultPrevented).toBe(true)
+  })
+
+  it('長押しでなければ（ただのタップ）、互換のマウスイベントは止めない（タップで選べる）', () => {
+    const wrapper = attached()
+    touch(wrapper.get(`g.node[data-node-id="${node}"]`).element, 'pointerdown', 120, 90)
+    touch(window, 'pointerup', 120, 90)
+
+    const end = new Event('touchend', { bubbles: true, cancelable: true })
+    window.dispatchEvent(end)
+
+    expect(end.defaultPrevented).toBe(false)
+  })
+})
+
+describe('長押しのあと指を取り消されたとき（UT-22 / R1-02）', () => {
+  it('互換イベントを止める仕掛けを残さない（次のタップまで止めない）', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const state = useViewState()
+      state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+      state.setCanvasSize(CANVAS.width, CANVAS.height)
+      const wrapper = mount(GraphCanvas, { attachTo: document.body })
+      const init = {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        pointerId: 1,
+        pointerType: 'touch',
+      }
+      wrapper
+        .get(`g.node[data-node-id="${viewModel.nodes.file[2]!.id}"]`)
+        .element.dispatchEvent(new PointerEvent('pointerdown', init))
+      vi.advanceTimersByTime(LONG_PRESS_MS)
+      window.dispatchEvent(new PointerEvent('pointercancel', init))
+
+      const nextTap = new Event('touchend', { bubbles: true, cancelable: true })
+      window.dispatchEvent(nextTap)
+
+      expect(nextTap.defaultPrevented).toBe(false)
+    } finally {
+      vi.useRealTimers()
+      document.body.innerHTML = ''
+    }
+  })
+})
