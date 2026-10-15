@@ -108,3 +108,21 @@ describe('2 本指のピンチ（UT-22）', () => {
     expect(pinch(viewport, [same, same], [same, { x: 120, y: 100 }]).scale).toBe(1)
   })
 })
+
+describe('2 本指のピンチ：動いたあとに指が重なったとき（UT-22 / R1-03）', () => {
+  it('倍率を変えない（一気に最小まで縮めない）', () => {
+    const next = pinch(
+      { x: 0, y: 0, scale: 1 },
+      [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+      ],
+      [
+        { x: 5, y: 0 },
+        { x: 5, y: 0 },
+      ],
+    )
+
+    expect(next.scale).toBe(1)
+  })
+})

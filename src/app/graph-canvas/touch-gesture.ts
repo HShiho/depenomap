@@ -47,7 +47,9 @@ const distanceOf = (a: Point, b: Point): number => Math.hypot(b.x - a.x, b.y - a
  * 指の下に留める**（ホイールの拡大縮小がポインタの下を留めるのと同じ考え）。
  * 2 本がそろって動けば、そのぶん図も動く。倍率は UT-16 の上下限で止まる。
  *
- * 指が同じ位置に重なっている（間の距離が 0）ときは、倍率を変えずに動かすだけ
+ * 動かす前・動かしたあとのどちらかで指が同じ位置に重なっている（間の距離が 0）
+ * ときは、倍率を変えずに動かすだけ。あとの距離が 0 で比を取ると、倍率が一気に
+ * 最小まで落ちる
  */
 export function pinch(
   viewport: Viewport,
@@ -57,7 +59,9 @@ export function pinch(
   const fromMid = midpointOf(before[0], before[1])
   const toMid = midpointOf(after[0], after[1])
   const fromDistance = distanceOf(before[0], before[1])
-  const ratio = fromDistance === 0 ? 1 : distanceOf(after[0], after[1]) / fromDistance
+  const toDistance = distanceOf(after[0], after[1])
+  // どちらかで指が重なっている（距離 0）なら、倍率は変えずに動かすだけ
+  const ratio = fromDistance === 0 || toDistance === 0 ? 1 : toDistance / fromDistance
 
   const zoomed = zoomAround(viewport, fromMid, viewport.scale * ratio)
   return panBy(zoomed, toMid.x - fromMid.x, toMid.y - fromMid.y)
