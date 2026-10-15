@@ -1049,6 +1049,7 @@ function onNodePointerDown(node: GraphNode, event: PointerEvent): void {
   // 指なら長押しを測る（UT-22）。動かすか離すか、2 本目の指が来たら止める
   if (event.pointerType === 'touch') {
     const at = { x: event.clientX, y: event.clientY }
+    const pressed = event.currentTarget instanceof Element ? event.currentTarget : undefined
     cancelLongPress()
     longPressTimer = setTimeout(() => {
       longPressTimer = undefined
@@ -1063,13 +1064,12 @@ function onNodePointerDown(node: GraphNode, event: PointerEvent): void {
       /*
        * 指を離したときの互換のマウスイベント（mousedown・click）を出させない（R1-02）。
        * 出させると、mousedown がノードへ焦点を奪い返し、開いたメニューから焦点が
-       * 外れる。touchend で既定の動きを止めると、互換のマウスイベントは出ない
+       * 外れる。touchend で既定の動きを止めると、互換のマウスイベントは出ない。
+       * **長押しした指の touchend だけを止める**（R2-01）。先に別の指が離れても、
+       * その指のタップは止めない
        */
-      window.addEventListener('touchend', preventCompatMouse, {
-        capture: true,
-        passive: false,
-        once: true,
-      })
+      longPressedElement = pressed
+      window.addEventListener('touchend', preventCompatMouse, { capture: true, passive: false })
       emit('nodeContextMenu', node, new MouseEvent('contextmenu', { clientX: at.x, clientY: at.y }))
     }, LONG_PRESS_MS)
   }
@@ -1138,8 +1138,30 @@ function cancelLongPress(): void {
 }
 
 /** 長押しが成立した指の touchend。互換のマウスイベントを出させない */
+/**
+ * 長押しの成立したノード。その中で触れ始めた指が離れたときだけ、互換のマウス
+ * イベントを止める。指の識別子はポインタイベントとタッチイベントで一致しないので、
+ * 触れ始めた要素（Touch の target は離すまで変わらない）で見分ける
+ */
+let longPressedElement: Element | undefined
+
+/** 長押しが成立した指の touchend。互換のマウスイベントを出させない */
 function preventCompatMouse(event: Event): void {
-  event.preventDefault()
+  const pressed = longPressedElement
+  const changed = (event as TouchEvent).changedTouches
+  if (pressed === undefined || changed === undefined) return
+  for (const touch of Array.from(changed)) {
+    if (touch.target instanceof Node && pressed.contains(touch.target)) {
+      event.preventDefault()
+      releaseCompatMouse()
+      return
+    }
+  }
+}
+
+function releaseCompatMouse(): void {
+  longPressedElement = undefined
+  window.removeEventListener('touchend', preventCompatMouse, { capture: true })
 }
 
 /**
@@ -1201,9 +1223,7 @@ function onTouchEnd(event: PointerEvent): void {
    * 取り消されたときは touchend が来ない（touchcancel になる）。長押しのあとの
    * 互換イベントを止める仕掛けが残ると、次のただのタップまで止めてしまう
    */
-  if (event.type === 'pointercancel') {
-    window.removeEventListener('touchend', preventCompatMouse, { capture: true })
-  }
+  if (event.type === 'pointercancel') releaseCompatMouse()
   if (!touches.delete(event.pointerId)) return
   if (touches.size === 0) {
     stopTouches()
@@ -1225,7 +1245,7 @@ function stopTouches(): void {
 onUnmounted(() => {
   stopTouches()
   cancelLongPress()
-  window.removeEventListener('touchend', preventCompatMouse, { capture: true })
+  releaseCompatMouse()
 })
 
 /**

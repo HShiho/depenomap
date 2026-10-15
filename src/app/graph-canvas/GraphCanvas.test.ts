@@ -3307,6 +3307,16 @@ describe('指が増えたときの掴み・長押し（UT-22 / R1-01・R1-04）'
   })
 })
 
+/**
+ * 指が離れた touchend。**どの要素で触れ始めた指か**を持たせる（Touch の target は
+ * 触れ始めた要素から変わらない）。jsdom は TouchEvent を持たないので Event に足す
+ */
+const touchEndFrom = (target: EventTarget) => {
+  const event = new Event('touchend', { bubbles: true, cancelable: true })
+  Object.defineProperty(event, 'changedTouches', { value: [{ target }] })
+  return event
+}
+
 describe('長押しのあとの互換のマウスイベント（UT-22 / R1-02）', () => {
   function attached() {
     const state = useViewState()
@@ -3345,10 +3355,31 @@ describe('長押しのあとの互換のマウスイベント（UT-22 / R1-02）
     vi.advanceTimersByTime(LONG_PRESS_MS)
     expect(wrapper.emitted('nodeContextMenu')).toHaveLength(1)
 
-    const end = new Event('touchend', { bubbles: true, cancelable: true })
+    const end = touchEndFrom(wrapper.get(`g.node[data-node-id="${node}"] .box`).element)
     window.dispatchEvent(end)
 
     expect(end.defaultPrevented).toBe(true)
+  })
+
+  it('長押しした指より先に別の指が離れても、その指は止めず、長押しした指を止める（R2-01）', () => {
+    /*
+     * 仕掛けが指に結び付いていないと、先に離れた別の指（メニューの上のタップ
+     * など）の既定の動きを止めて外れ、長押しした指では焦点を奪い返される
+     */
+    const wrapper = attached()
+    const box = wrapper.get(`g.node[data-node-id="${node}"] .box`).element
+    touch(box, 'pointerdown', 120, 90)
+    vi.advanceTimersByTime(LONG_PRESS_MS)
+    const elsewhere = document.createElement('button')
+    document.body.append(elsewhere)
+
+    const other = touchEndFrom(elsewhere)
+    window.dispatchEvent(other)
+    const pressed = touchEndFrom(box)
+    window.dispatchEvent(pressed)
+
+    expect(other.defaultPrevented).toBe(false)
+    expect(pressed.defaultPrevented).toBe(true)
   })
 
   it('長押しでなければ（ただのタップ）、互換のマウスイベントは止めない（タップで選べる）', () => {
@@ -3356,7 +3387,7 @@ describe('長押しのあとの互換のマウスイベント（UT-22 / R1-02）
     touch(wrapper.get(`g.node[data-node-id="${node}"]`).element, 'pointerdown', 120, 90)
     touch(window, 'pointerup', 120, 90)
 
-    const end = new Event('touchend', { bubbles: true, cancelable: true })
+    const end = touchEndFrom(wrapper.get(`g.node[data-node-id="${node}"] .box`).element)
     window.dispatchEvent(end)
 
     expect(end.defaultPrevented).toBe(false)
@@ -3384,7 +3415,9 @@ describe('長押しのあと指を取り消されたとき（UT-22 / R1-02）', 
       vi.advanceTimersByTime(LONG_PRESS_MS)
       window.dispatchEvent(new PointerEvent('pointercancel', init))
 
-      const nextTap = new Event('touchend', { bubbles: true, cancelable: true })
+      const nextTap = touchEndFrom(
+        wrapper.get(`g.node[data-node-id="${viewModel.nodes.file[2]!.id}"] .box`).element,
+      )
       window.dispatchEvent(nextTap)
 
       expect(nextTap.defaultPrevented).toBe(false)
