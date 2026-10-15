@@ -3382,6 +3382,25 @@ describe('長押しのあとの互換のマウスイベント（UT-22 / R1-02）
     expect(pressed.defaultPrevented).toBe(true)
   })
 
+  it('別の指だけが取り消されても、長押しした指は止める（R3-01）', () => {
+    /*
+     * iPad の手のひら除外などは、指ごとに取り消す。どの指の取り消しでも仕掛けを
+     * 外すと、長押しした指を離したときに焦点を奪い返される
+     */
+    const wrapper = attached()
+    const box = wrapper.get(`g.node[data-node-id="${node}"] .box`).element
+    touch(box, 'pointerdown', 120, 90)
+    vi.advanceTimersByTime(LONG_PRESS_MS)
+    const second = { bubbles: true, pointerId: 2, pointerType: 'touch', clientX: 600, clientY: 600 }
+    wrapper.get('svg').element.dispatchEvent(new PointerEvent('pointerdown', second))
+    window.dispatchEvent(new PointerEvent('pointercancel', second))
+
+    const pressed = touchEndFrom(box)
+    window.dispatchEvent(pressed)
+
+    expect(pressed.defaultPrevented).toBe(true)
+  })
+
   it('長押しでなければ（ただのタップ）、互換のマウスイベントは止めない（タップで選べる）', () => {
     const wrapper = attached()
     touch(wrapper.get(`g.node[data-node-id="${node}"]`).element, 'pointerdown', 120, 90)

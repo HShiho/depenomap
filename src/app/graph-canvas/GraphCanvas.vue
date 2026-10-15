@@ -1050,6 +1050,7 @@ function onNodePointerDown(node: GraphNode, event: PointerEvent): void {
   if (event.pointerType === 'touch') {
     const at = { x: event.clientX, y: event.clientY }
     const pressed = event.currentTarget instanceof Element ? event.currentTarget : undefined
+    const pointerId = event.pointerId
     cancelLongPress()
     longPressTimer = setTimeout(() => {
       longPressTimer = undefined
@@ -1069,6 +1070,7 @@ function onNodePointerDown(node: GraphNode, event: PointerEvent): void {
        * その指のタップは止めない
        */
       longPressedElement = pressed
+      longPressedPointerId = pointerId
       window.addEventListener('touchend', preventCompatMouse, { capture: true, passive: false })
       emit('nodeContextMenu', node, new MouseEvent('contextmenu', { clientX: at.x, clientY: at.y }))
     }, LONG_PRESS_MS)
@@ -1137,13 +1139,14 @@ function cancelLongPress(): void {
   longPressTimer = undefined
 }
 
-/** 長押しが成立した指の touchend。互換のマウスイベントを出させない */
 /**
  * 長押しの成立したノード。その中で触れ始めた指が離れたときだけ、互換のマウス
  * イベントを止める。指の識別子はポインタイベントとタッチイベントで一致しないので、
  * 触れ始めた要素（Touch の target は離すまで変わらない）で見分ける
  */
 let longPressedElement: Element | undefined
+/** 長押しの成立した指。取り消されたときに仕掛けを外すのは、この指だけ（R3-01） */
+let longPressedPointerId: number | undefined
 
 /** 長押しが成立した指の touchend。互換のマウスイベントを出させない */
 function preventCompatMouse(event: Event): void {
@@ -1161,6 +1164,7 @@ function preventCompatMouse(event: Event): void {
 
 function releaseCompatMouse(): void {
   longPressedElement = undefined
+  longPressedPointerId = undefined
   window.removeEventListener('touchend', preventCompatMouse, { capture: true })
 }
 
@@ -1221,9 +1225,13 @@ function onTouchMove(event: PointerEvent): void {
 function onTouchEnd(event: PointerEvent): void {
   /*
    * 取り消されたときは touchend が来ない（touchcancel になる）。長押しのあとの
-   * 互換イベントを止める仕掛けが残ると、次のただのタップまで止めてしまう
+   * 互換イベントを止める仕掛けが残ると、次のただのタップまで止めてしまう。
+   * 外すのは長押しした指が取り消されたときだけ（R3-01）。別の指だけが取り消され
+   * ても、長押しした指はまだ触れていて、離したときに止める必要がある
    */
-  if (event.type === 'pointercancel') releaseCompatMouse()
+  if (event.type === 'pointercancel' && event.pointerId === longPressedPointerId) {
+    releaseCompatMouse()
+  }
   if (!touches.delete(event.pointerId)) return
   if (touches.size === 0) {
     stopTouches()
