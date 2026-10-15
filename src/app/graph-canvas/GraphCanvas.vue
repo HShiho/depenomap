@@ -1027,6 +1027,12 @@ let draggedJustNow = false
 function onNodePointerDown(node: GraphNode, event: PointerEvent): void {
   // 右ボタンは文脈メニュー（UT-18）が使う
   if (event.button !== 0) return
+  /*
+   * 別の指がすでに触れていれば掴まない（UT-22）。2 本目以降の指はピンチの指で、
+   * ノードの上に来ても掴まず、長押しも測らない。この処理はキャンバスの
+   * pointerdown より先に走るので、`touches` にはまだこの指が入っていない
+   */
+  if (event.pointerType === 'touch' && touches.size > 0) return
   const placed = positions.value.get(node.id)
   if (placed === undefined) return
 
@@ -1147,12 +1153,10 @@ function onCanvasPointerDown(event: PointerEvent): void {
     return
   }
 
-  // 2 本目の指が来たら、掴むのも長押しもやめてピンチにする
-  if (touches.size === 2) {
-    if (dragging !== undefined) stopDragging()
-    cancelLongPress()
-    touchMode = 'pinch'
-  }
+  // 2 本目以降の指が来たら、掴むのも長押しもやめてピンチにする（3 本以上では動かさない）
+  if (dragging !== undefined) stopDragging()
+  cancelLongPress()
+  touchMode = 'pinch'
 }
 
 function onTouchMove(event: PointerEvent): void {
@@ -1179,9 +1183,13 @@ function onTouchMove(event: PointerEvent): void {
 
 function onTouchEnd(event: PointerEvent): void {
   if (!touches.delete(event.pointerId)) return
-  // ピンチの途中で 1 本離れたら、残りの指ではもう動かさない
-  if (touchMode === 'pinch') touchMode = 'settled'
-  if (touches.size === 0) stopTouches()
+  if (touches.size === 0) {
+    stopTouches()
+    return
+  }
+  // 3 本以上から 2 本に戻ったらピンチを続ける。1 本だけ残ったら、その指では動かさない
+  if (touches.size === 2) touchMode = 'pinch'
+  else if (touchMode === 'pinch') touchMode = 'settled'
 }
 
 function stopTouches(): void {

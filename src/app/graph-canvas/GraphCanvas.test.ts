@@ -3216,3 +3216,93 @@ describe('指での操作（UT-22）', () => {
     expect(positionOf(wrapper, first)).toEqual(before)
   })
 })
+
+describe('指が増えたときの掴み・長押し（UT-22 / R1-01・R1-04）', () => {
+  function attached() {
+    const state = useViewState()
+    state.applyLoadOutcome({ kind: 'ready', viewModel, warnings: [] })
+    state.setCanvasSize(CANVAS.width, CANVAS.height)
+    return { state, wrapper: mount(GraphCanvas, { attachTo: document.body }) }
+  }
+  type Wrapper = ReturnType<typeof attached>['wrapper']
+  const nodeEl = (wrapper: Wrapper, id: string) => wrapper.get(`g.node[data-node-id="${id}"]`)
+  const positionOf = (wrapper: Wrapper, id: string) => nodeEl(wrapper, id).attributes('transform')
+  const touch = (target: EventTarget, type: string, id: number, x: number, y: number) =>
+    target.dispatchEvent(
+      new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        pointerId: id,
+        pointerType: 'touch',
+        clientX: x,
+        clientY: y,
+      }),
+    )
+  const [a, b] = [viewModel.nodes.file[2]!.id, viewModel.nodes.file[5]!.id]
+
+  // Date まで止めると、Vue がノードからキャンバスへ伝わる押し下げを古いイベントとして捨てる
+  beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }))
+  afterEach(() => {
+    vi.useRealTimers()
+    document.body.innerHTML = ''
+  })
+
+  it('1 本目がノード、2 本目が別のノードでも、どちらも掴まず、メニューも出さない', async () => {
+    const { wrapper } = attached()
+    const before = { a: positionOf(wrapper, a), b: positionOf(wrapper, b) }
+
+    touch(nodeEl(wrapper, a).element, 'pointerdown', 1, 100, 100)
+    touch(nodeEl(wrapper, b).element, 'pointerdown', 2, 300, 100)
+    touch(window, 'pointermove', 2, 360, 160)
+    touch(window, 'pointermove', 1, 60, 60)
+    vi.advanceTimersByTime(LONG_PRESS_MS * 2)
+    await nextTick()
+
+    expect(positionOf(wrapper, a)).toBe(before.a)
+    expect(positionOf(wrapper, b)).toBe(before.b)
+    expect(wrapper.emitted('nodeContextMenu')).toBeUndefined()
+  })
+
+  it('ピンチ中に 3 本目の指がノードに触れても、掴まず、メニューも出さない', async () => {
+    const { wrapper } = attached()
+    const svg = wrapper.get('svg').element
+    const before = positionOf(wrapper, a)
+
+    touch(svg, 'pointerdown', 1, 600, 600)
+    touch(svg, 'pointerdown', 2, 700, 600)
+    touch(nodeEl(wrapper, a).element, 'pointerdown', 3, 100, 100)
+    touch(window, 'pointermove', 3, 200, 200)
+    vi.advanceTimersByTime(LONG_PRESS_MS * 2)
+    await nextTick()
+
+    expect(positionOf(wrapper, a)).toBe(before)
+    expect(wrapper.emitted('nodeContextMenu')).toBeUndefined()
+  })
+
+  it('3 本から 1 本離して 2 本に戻ったら、ピンチを続けられる', async () => {
+    const { wrapper } = attached()
+    const svg = wrapper.get('svg').element
+    const canvas = wrapper.vm as unknown as { viewport: { scale: number } }
+
+    touch(svg, 'pointerdown', 1, 600, 600)
+    touch(svg, 'pointerdown', 2, 700, 600)
+    touch(svg, 'pointerdown', 3, 650, 500)
+    touch(window, 'pointerup', 3, 650, 500)
+    const scale = canvas.viewport.scale
+    touch(window, 'pointermove', 2, 800, 600)
+    await nextTick()
+
+    expect(canvas.viewport.scale).toBeCloseTo(scale * 2)
+  })
+
+  it('掴んでいるノードの長押しは、2 本目の指で取り消される', async () => {
+    const { wrapper } = attached()
+
+    touch(nodeEl(wrapper, a).element, 'pointerdown', 1, 100, 100)
+    touch(wrapper.get('svg').element, 'pointerdown', 2, 600, 600)
+    vi.advanceTimersByTime(LONG_PRESS_MS * 2)
+
+    expect(wrapper.emitted('nodeContextMenu')).toBeUndefined()
+  })
+})
