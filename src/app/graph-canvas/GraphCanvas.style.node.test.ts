@@ -72,3 +72,13 @@ describe('焦点の枠（UT-21 / R1-04）', () => {
     expect(ruleFor('.node .focus-ring {')).toMatch(/pointer-events:\s*none/)
   })
 })
+
+describe('指の操作（UT-22）', () => {
+  it('キャンバスの上ではブラウザ既定のタッチ操作を止める（受け取る側と一緒に入れる）', () => {
+    /*
+     * 止めないと、ノードを掴んだ途中でブラウザが指をスクロールとして引き取り、
+     * 掴めたように見えて途中で外れる
+     */
+    expect(ruleFor('.canvas {')).toMatch(/touch-action:\s*none/)
+  })
+})

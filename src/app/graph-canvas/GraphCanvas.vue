@@ -43,9 +43,11 @@ import {
   transformOf,
   zoomAnchorOf,
   zoomAround,
+  type Point,
   type Viewport,
 } from './viewport'
 import { draggedTo, isDrag, type DragStart, type NodePositions } from './node-drag'
+import { dragThresholdFor, LONG_PRESS_MS, pan, pinch } from './touch-gesture'
 import { applyWheel } from './wheel-gesture'
 
 const state = useViewState()
@@ -972,10 +974,9 @@ function fitToContent(): void {
  * 横方向のスクロールが「前のページへ戻る」に吸われる。図の上でだけ止めるので、
  * 一覧や概要の側のスクロールは残る。
  *
- * **止めるのはホイールだけ。** タッチの指の動きはこの UT の対象外（US-16 は
- * トラックパッド）で、受け取る先も無い。`touch-action` で殺すと、タッチ画面では
- * ブラウザ既定の拡大縮小まで失われて、図を大きくする手段が 1 つも無くなる。
- * タッチを受けるときは、受け取る側と一緒に止める。
+ * タッチの指の動きは、ここではなく `onCanvasPointerDown` 以下が受ける（UT-22）。
+ * キャンバスの `touch-action: none` と受け取る側は、一緒に入れてある（片方だけだと、
+ * 掴めるが画面が動かない、か、掴んだ途中でブラウザに指を引き取られる）。
  *
  * どの入力がどの動きになるかは `wheel-gesture.ts` が持つ。ここは位置を渡して
  * 結果を受け取るだけ。
@@ -1002,7 +1003,14 @@ function onWheel(event: WheelEvent): void {
  * **1 本の指（ポインタ）だけを見る。** 掴んだ `pointerId` 以外の動きで
  * 位置を書き換えると、2 本目の指やペンが動いただけでノードが飛ぶ。
  */
-let dragging: (DragStart & { pointerId: number; moved: boolean }) | undefined
+let dragging:
+  | (DragStart & {
+      pointerId: number
+      moved: boolean
+      /** 動かしたとみなすしきい値。指は大きい（UT-22） */
+      threshold: number
+    })
+  | undefined
 /**
  * 直前のジェスチャがドラッグだったか。
  *
@@ -1019,6 +1027,12 @@ let draggedJustNow = false
 function onNodePointerDown(node: GraphNode, event: PointerEvent): void {
   // 右ボタンは文脈メニュー（UT-18）が使う
   if (event.button !== 0) return
+  /*
+   * 別の指がすでに触れていれば掴まない（UT-22）。2 本目以降の指はピンチの指で、
+   * ノードの上に来ても掴まず、長押しも測らない。この処理はキャンバスの
+   * pointerdown より先に走るので、`touches` にはまだこの指が入っていない
+   */
+  if (event.pointerType === 'touch' && touches.size > 0) return
   const placed = positions.value.get(node.id)
   if (placed === undefined) return
 
@@ -1027,8 +1041,39 @@ function onNodePointerDown(node: GraphNode, event: PointerEvent): void {
     nodeId: node.id,
     pointerId: event.pointerId,
     moved: false,
+    threshold: dragThresholdFor(event.pointerType),
     pointer: { x: event.clientX, y: event.clientY },
     origin: { x: placed.x, y: placed.y },
+  }
+
+  // 指なら長押しを測る（UT-22）。動かすか離すか、2 本目の指が来たら止める
+  if (event.pointerType === 'touch') {
+    const at = { x: event.clientX, y: event.clientY }
+    const pressed = event.currentTarget instanceof Element ? event.currentTarget : undefined
+    const pointerId = event.pointerId
+    cancelLongPress()
+    longPressTimer = setTimeout(() => {
+      longPressTimer = undefined
+      const start = dragging
+      if (start === undefined || start.nodeId !== node.id || start.moved) return
+      /*
+       * 長押しはメニューを開く操作。掴むのをやめ、離したあとの click で
+       * 選ばないようにする（押した時点で倒す決まりは draggedJustNow と同じ）
+       */
+      stopDragging()
+      draggedJustNow = true
+      /*
+       * 指を離したときの互換のマウスイベント（mousedown・click）を出させない（R1-02）。
+       * 出させると、mousedown がノードへ焦点を奪い返し、開いたメニューから焦点が
+       * 外れる。touchend で既定の動きを止めると、互換のマウスイベントは出ない。
+       * **長押しした指の touchend だけを止める**（R2-01）。先に別の指が離れても、
+       * その指のタップは止めない
+       */
+      longPressedElement = pressed
+      longPressedPointerId = pointerId
+      window.addEventListener('touchend', preventCompatMouse, { capture: true, passive: false })
+      emit('nodeContextMenu', node, new MouseEvent('contextmenu', { clientX: at.x, clientY: at.y }))
+    }, LONG_PRESS_MS)
   }
 
   /*
@@ -1048,8 +1093,10 @@ function onPointerMove(event: PointerEvent): void {
   if (start === undefined || event.pointerId !== start.pointerId) return
 
   const pointer = { x: event.clientX, y: event.clientY }
-  if (!start.moved && !isDrag(start.pointer, pointer)) return
+  if (!start.moved && !isDrag(start.pointer, pointer, start.threshold)) return
 
+  // 動かしたら長押しではない（UT-22）
+  cancelLongPress()
   start.moved = true
   draggedJustNow = true
   const next = new Map(movedPositions.value)
@@ -1068,6 +1115,7 @@ function onPointerUp(event?: PointerEvent): void {
 }
 
 function stopDragging(): void {
+  cancelLongPress()
   dragging = undefined
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', onPointerUp)
@@ -1079,6 +1127,147 @@ function stopDragging(): void {
  * 残る（待ちを取り消す処理は先に走り終えている）
  */
 onUnmounted(stopDragging)
+
+/* --- 指での操作（UT-22） --------------------------------------------- */
+
+/** 長押しの待ち。動かす・離す・取り消す・2 本目の指、のどれでも止める */
+let longPressTimer: ReturnType<typeof setTimeout> | undefined
+
+function cancelLongPress(): void {
+  if (longPressTimer === undefined) return
+  clearTimeout(longPressTimer)
+  longPressTimer = undefined
+}
+
+/**
+ * 長押しの成立したノード。その中で触れ始めた指が離れたときだけ、互換のマウス
+ * イベントを止める。指の識別子はポインタイベントとタッチイベントで一致しないので、
+ * 触れ始めた要素（Touch の target は離すまで変わらない）で見分ける
+ */
+let longPressedElement: Element | undefined
+/** 長押しの成立した指。取り消されたときに仕掛けを外すのは、この指だけ（R3-01） */
+let longPressedPointerId: number | undefined
+
+/** 長押しが成立した指の touchend。互換のマウスイベントを出させない */
+function preventCompatMouse(event: Event): void {
+  const pressed = longPressedElement
+  const changed = (event as TouchEvent).changedTouches
+  if (pressed === undefined || changed === undefined) return
+  for (const touch of Array.from(changed)) {
+    if (touch.target instanceof Node && pressed.contains(touch.target)) {
+      event.preventDefault()
+      releaseCompatMouse()
+      return
+    }
+  }
+}
+
+function releaseCompatMouse(): void {
+  longPressedElement = undefined
+  longPressedPointerId = undefined
+  window.removeEventListener('touchend', preventCompatMouse, { capture: true })
+}
+
+/**
+ * キャンバスに触れている指（pointerId → 画面上の位置）。
+ *
+ * 1 本で背景なら図のパン、2 本になったらピンチ（UT-22 の決定）。マウス・ペンは
+ * ここに入れない（マウスの操作は変えない）。
+ *
+ * **ピンチを終えて 1 本残っても、その指ではパンしない**（`settled` まで待つ）。
+ * 残った指でそのまま動かすと、ピンチの中点からその指の位置へ図が跳ぶ
+ */
+const touches = new Map<number, Point>()
+let touchMode: 'pan' | 'pinch' | 'node' | 'settled' = 'settled'
+
+function onCanvasPointerDown(event: PointerEvent): void {
+  if (event.pointerType !== 'touch') return
+  touches.set(event.pointerId, { x: event.clientX, y: event.clientY })
+
+  if (touches.size === 1) {
+    const onNode = event.target instanceof Element && event.target.closest('g.node') !== null
+    // ノードの上なら掴む（ノードの pointerdown が受ける）。背景ならパン
+    touchMode = onNode ? 'node' : 'pan'
+    window.addEventListener('pointermove', onTouchMove)
+    window.addEventListener('pointerup', onTouchEnd)
+    window.addEventListener('pointercancel', onTouchEnd)
+    return
+  }
+
+  // 2 本目以降の指が来たら、掴むのも長押しもやめてピンチにする（3 本以上では動かさない）
+  if (dragging !== undefined) stopDragging()
+  cancelLongPress()
+  touchMode = 'pinch'
+}
+
+function onTouchMove(event: PointerEvent): void {
+  const previous = touches.get(event.pointerId)
+  if (previous === undefined) return
+  const next = { x: event.clientX, y: event.clientY }
+
+  if (touchMode === 'pan' && touches.size === 1) {
+    viewport.value = pan(viewport.value, previous, next)
+  } else if (touchMode === 'pinch' && touches.size === 2) {
+    const [a, b] = [...touches.entries()]
+    const box = svg.value?.getBoundingClientRect()
+    const local = (point: Point): Point =>
+      box === undefined ? point : { x: point.x - box.left, y: point.y - box.top }
+    const after = (id: number, point: Point) => (id === event.pointerId ? next : point)
+    viewport.value = pinch(
+      viewport.value,
+      [local(a![1]), local(b![1])],
+      [local(after(a![0], a![1])), local(after(b![0], b![1]))],
+    )
+  }
+  touches.set(event.pointerId, next)
+}
+
+function onTouchEnd(event: PointerEvent): void {
+  /*
+   * 取り消されたときは touchend が来ない（touchcancel になる）。長押しのあとの
+   * 互換イベントを止める仕掛けが残ると、次のただのタップまで止めてしまう。
+   * 外すのは長押しした指が取り消されたときだけ（R3-01）。別の指だけが取り消され
+   * ても、長押しした指はまだ触れていて、離したときに止める必要がある
+   */
+  if (event.type === 'pointercancel' && event.pointerId === longPressedPointerId) {
+    releaseCompatMouse()
+  }
+  if (!touches.delete(event.pointerId)) return
+  if (touches.size === 0) {
+    stopTouches()
+    return
+  }
+  // 3 本以上から 2 本に戻ったらピンチを続ける。1 本だけ残ったら、その指では動かさない
+  if (touches.size === 2) touchMode = 'pinch'
+  else if (touchMode === 'pinch') touchMode = 'settled'
+}
+
+function stopTouches(): void {
+  touches.clear()
+  touchMode = 'settled'
+  window.removeEventListener('pointermove', onTouchMove)
+  window.removeEventListener('pointerup', onTouchEnd)
+  window.removeEventListener('pointercancel', onTouchEnd)
+}
+
+onUnmounted(() => {
+  stopTouches()
+  cancelLongPress()
+  releaseCompatMouse()
+})
+
+/**
+ * ノードの右クリック。**指からの合図（Android の長押し）では開かない** —
+ * 長押しは自前で測っている（UT-22）ので、そのまま開くと二重になる。
+ * ブラウザ既定のメニューも出さない
+ */
+function onNodeContextMenu(node: GraphNode, event: MouseEvent): void {
+  if ('pointerType' in event && (event as PointerEvent).pointerType === 'touch') {
+    event.preventDefault()
+    return
+  }
+  emit('nodeContextMenu', node, event)
+}
 
 /**
  * 手で動かしたノード。
@@ -1335,6 +1524,7 @@ watch(
     :aria-describedby="descriptionId"
     @click="onBackgroundClick"
     @wheel="onWheel"
+    @pointerdown="onCanvasPointerDown"
   >
     <!-- 操作の案内。読み上げで図に入ったときに添える -->
     <desc :id="descriptionId">
@@ -1455,7 +1645,7 @@ watch(
         @focus="onNodeFocus(placed.node)"
         @blur="onNodeBlur(placed.node)"
         @pointerdown="onNodePointerDown(placed.node, $event)"
-        @contextmenu="emit('nodeContextMenu', placed.node, $event)"
+        @contextmenu="onNodeContextMenu(placed.node, $event)"
         @pointerenter="onHoverEnter({ kind: 'node', id: placed.node.id })"
         @pointerleave="onHoverLeave({ kind: 'node', id: placed.node.id })"
       >
@@ -1507,8 +1697,13 @@ watch(
 </template>
 
 <style scoped>
+/*
+ * 指の操作はキャンバスの上ではすべて自前で受ける（UT-22）。ブラウザ既定のスクロール・
+ * 拡大を止めないと、ノードを掴んだ途中で指をブラウザに引き取られる
+ */
 .canvas {
   display: block;
+  touch-action: none;
 }
 
 /* 列見出し */
